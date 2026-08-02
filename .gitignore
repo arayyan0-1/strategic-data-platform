@@ -1,0 +1,12 @@
+# Environment and secrets
+.env
+.venv/
+
+# Python artifacts
+__pycache__/
+
+# data lake — never in git
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
