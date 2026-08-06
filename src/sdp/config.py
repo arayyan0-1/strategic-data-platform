@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     data_root: Path = Path("data")
 
     @property
+    def vendor_dir(self) -> Path:
+        return self.data_root / "vendor"
+
+    @property
     def raw_dir(self) -> Path:
         return self.data_root / "raw"
 
