@@ -10,3 +10,6 @@ data/
 *.duckdb
 *.duckdb.wal
 *.parquet
+
+# notes
+WORKLOG.md
