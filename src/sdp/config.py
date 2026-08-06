@@ -2,10 +2,12 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_REPO_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -17,7 +19,7 @@ class Settings(BaseSettings):
     massive_s3_endpoint: str = "https://files.polygon.io"
     massive_s3_bucket: str = "flatfiles"
 
-    data_root: Path = Path("data")
+    data_root: Path = _REPO_ROOT / "data"
 
     @property
     def vendor_dir(self) -> Path:
