@@ -194,7 +194,9 @@ def _audit_dividends(staged: Path) -> None:
 def _audit_vs_previous(dataset: str, staged: Path, pull_date: dt.date, n_rows: int) -> None:
     root = settings.raw_dir / dataset
     current = f"pull_date={pull_date:%Y-%m-%d}"
-    priors = sorted(p for p in root.glob("pull_date=*") if p.name != current) if root.exists() else []
+    priors = sorted(
+        p for p in root.glob("pull_date=*") if p.name != current
+        ) if root.exists() else []
     if not priors:
         log.info("%s: first pull, %s rows, no baseline", dataset, n_rows)
         return
