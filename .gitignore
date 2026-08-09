@@ -5,11 +5,17 @@
 # Python artifacts
 __pycache__/
 
+# macOS artifacts
+.DS_Store
+
 # data lake — never in git
 data/
 *.duckdb
 *.duckdb.wal
 *.parquet
+
+# Python scratch files
+scratch.py
 
 # notes
 WORKLOG.md
