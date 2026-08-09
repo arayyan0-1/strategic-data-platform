@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     massive_s3_endpoint: str = "https://files.polygon.io"
     massive_s3_bucket: str = "flatfiles"
 
+    massive_api_base: str = "https://api.massive.com"
+
     data_root: Path = _REPO_ROOT / "data"
 
     @property
