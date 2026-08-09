@@ -1,3 +1,4 @@
+# src/sdp/ingest/massive_corporate_actions.py
 from __future__ import annotations
 
 import datetime as dt
@@ -11,9 +12,6 @@ from sdp.config import settings
 from sdp.ingest.rest import dump_ndjson
 
 log = logging.getLogger(__name__)
-
-MAX_NEW_BAD_TICKERS = 3   # newly defective tickers per pull
-RATIO_HI, RATIO_LO = 10000.0, 0.0001
 
 SPECS = {
     "massive_splits": {
@@ -58,6 +56,8 @@ def build(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
 
 # ---------- AUDIT ----------
 
+MAX_NEW_BAD_TICKERS = 3   # newly defective tickers per pull
+RATIO_HI, RATIO_LO = 10000.0, 0.0001
 class AuditFailure(RuntimeError):
     pass
 
