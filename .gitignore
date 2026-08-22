@@ -22,3 +22,6 @@ scratch.py
 # notes and design docs are not codebase artifacts
 CLAUDE.md
 docs/
+
+# notebook scratch state, not the notebook itself
+.ipynb_checkpoints/
