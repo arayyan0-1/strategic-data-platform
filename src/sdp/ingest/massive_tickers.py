@@ -48,14 +48,41 @@ def build(vendor_file: Path, d: dt.date) -> Path:
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
+    # The cursor pagination of the vendor can return one record twice when the
+    # vendor revises that record during the pull. The two copies are identical
+    # except for last_updated_utc, which is the revision stamp of the record.
+    # Two pulls of the same date give a different set of duplicates each time,
+    # so this is a transport artifact and not a property of the data. Keep the
+    # newest copy of each ticker.
+    #
+    # This removal happens here and not in dbt, because a modelling filter is a
+    # decision about which rows matter and this is not one. It is the same
+    # record delivered twice. The count is logged, so the removal is visible.
+    n_dupes = _one(f"""
+        select count(*) - count(distinct ticker)
+        from read_json('{vendor_file}', format = 'newline_delimited',
+                       sample_size = -1)
+    """)[0]
+    if n_dupes:
+        log.warning("%s: the vendor returned %s duplicate rows. Keeping the copy "
+                    "with the newest last_updated_utc for each ticker.", d, n_dupes)
+
     duckdb.execute(f"""
         copy (
-            select
-                *,
-                date '{d:%Y-%m-%d}'  as date
-            from read_json('{vendor_file}',
-                           format = 'newline_delimited',
-                           sample_size = -1)
+            select * exclude (_copy)
+            from (
+                select
+                    *,
+                    date '{d:%Y-%m-%d}'  as date,
+                    row_number() over (
+                        partition by ticker
+                        order by last_updated_utc desc
+                    ) as _copy
+                from read_json('{vendor_file}',
+                               format = 'newline_delimited',
+                               sample_size = -1)
+            )
+            where _copy = 1
             order by ticker
         ) to '{staged}' (format parquet, compression zstd)
     """)
