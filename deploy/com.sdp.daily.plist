@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The daily pull of the data lake.
+
+  Install:
+    cp deploy/com.sdp.daily.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sdp.daily.plist
+
+  Run once by hand:
+    launchctl kickstart -k gui/$(id -u)/com.sdp.daily
+
+  Remove:
+    launchctl bootout gui/$(id -u)/com.sdp.daily
+
+  This uses launchd and not cron. On macOS, cron skips a job when the machine is
+  asleep at the scheduled time and it never runs it. launchd runs a missed job
+  when the machine wakes. massive_splits and massive_dividends hold current
+  state, so a missed day cannot be recovered. That difference is the whole
+  reason for the choice.
+
+  The hour is 09:00 local. The machine is on Europe/London, so that is 08:00 UTC
+  in summer and 09:00 UTC in winter. The S3 flat file for session D was measured
+  to land between 04:50 and 05:40 UTC on D+1, which leaves at least two hours of
+  margin. Change the hour if the machine moves to another timezone.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sdp.daily</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/uv</string>
+        <string>run</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>sdp.daily</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/aray/strategic-data-platform</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/aray/strategic-data-platform/data/_logs/daily.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/aray/strategic-data-platform/data/_logs/daily.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
