@@ -51,18 +51,22 @@ def is_trading_day(d: dt.date) -> bool:
 def download(d: dt.date, *, force: bool = False) -> Path:
     dest = vendor_path(d)
     if dest.exists() and not force:
-        log.info("vendor file already present: %s", dest)
+        log.info("The vendor file is already present: %s", dest)
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
     _s3().download_file(settings.massive_s3_bucket, _s3_key(d), str(tmp))
     os.replace(tmp, dest)
-    log.info("downloaded %s", dest)
+    log.info("Downloaded %s", dest)
     return dest
 
 
 def build(d: dt.date) -> Path:
-    """Vendor CSV -> staged Parquet. No business logic, only typing and sorting."""
+    """Convert the vendor CSV to a staged Parquet file.
+
+    This step sets the column types and sorts the rows. It applies no
+    business logic.
+    """
     src = vendor_path(d)
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
@@ -104,14 +108,14 @@ def audit(staged: Path) -> None:
     """).fetchone()
 
     if row is None:
-        raise AuditFailure(f"{staged.name}: unable to read audit metrics (empty result)")
+        raise AuditFailure(f"{staged.name}: the audit query returned no row.")
 
     (n_rows, n_tickers, null_tickers, bad_hl,
      bad_high, bad_low, bad_volume, bad_price) = row
 
     problems = []
     if n_rows < 5_000:
-        problems.append(f"only {n_rows} rows — expected >5000 for a full session")
+        problems.append(f"{n_rows} rows. A full session must have more than 5000 rows")
     if n_rows != n_tickers:
         problems.append(f"{n_rows - n_tickers} duplicate tickers")
     for name, count in [
@@ -123,8 +127,8 @@ def audit(staged: Path) -> None:
             problems.append(f"{count} rows with {name}")
 
     if problems:
-        raise AuditFailure(f"{staged.name}: " + "; ".join(problems))
-    log.info("audit passed: %s rows, %s tickers", n_rows, n_tickers)
+        raise AuditFailure(f"{staged.name}: " + ". ".join(problems) + ".")
+    log.info("The audit passed. %s rows, %s tickers.", n_rows, n_tickers)
 
 
 # ---------- PUBLISH ----------
@@ -132,17 +136,18 @@ def audit(staged: Path) -> None:
 def publish(d: dt.date, staged: Path) -> Path:
     dest = raw_path(d)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(staged, dest)   # atomic: same filesystem
-    log.info("published %s", dest)
+    # This move is atomic, because both paths are on one filesystem.
+    os.replace(staged, dest)
+    log.info("Published %s", dest)
     return dest
 
 
 def ingest(d: dt.date, *, force: bool = False) -> Path | None:
     if not is_trading_day(d):
-        log.info("%s is not an XNYS session, skipping", d)
+        log.info("%s is not an XNYS session. Skipped.", d)
         return None
     if raw_path(d).exists() and not force:
-        log.info("partition already published: %s", raw_path(d))
+        log.info("The partition is already published: %s", raw_path(d))
         return raw_path(d)
 
     download(d, force=force)

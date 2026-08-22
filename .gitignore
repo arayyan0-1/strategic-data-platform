@@ -17,5 +17,8 @@ data/
 # Python scratch files
 scratch.py
 
-# notes
-WORKLOG.md
+# backfill run logs are under data/, which is already ignored
+
+# notes and design docs are not codebase artifacts
+CLAUDE.md
+docs/

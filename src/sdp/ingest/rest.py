@@ -32,7 +32,7 @@ def _get(client: httpx.Client, url: str, params: dict | None = None, *, attempts
         resp = client.get(url, params=params)
         if resp.status_code in _RETRY_STATUS:
             wait = min(2**i, 30)
-            log.warning("HTTP %s on %s, retrying in %ss", resp.status_code, url, wait)
+            log.warning("HTTP %s from %s. Retry in %s s.", resp.status_code, url, wait)
             time.sleep(wait)
             continue
         if resp.is_error:
@@ -40,11 +40,11 @@ def _get(client: httpx.Client, url: str, params: dict | None = None, *, attempts
                 f"HTTP {resp.status_code} on {resp.request.url}\n{resp.text[:800]}"
             )
         return resp.json()
-    raise RuntimeError(f"exhausted {attempts} attempts on {url}")
+    raise RuntimeError(f"All {attempts} attempts on {url} failed.")
 
 
 def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
-    """Yield every result across all pages of a cursor-paginated endpoint."""
+    """Yield every result from every page of an endpoint that uses a cursor."""
     with _client() as client:
         payload = _get(client, path, params)
         page = 0
@@ -59,10 +59,10 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
             if not next_url:
                 return
             if next_url in seen_cursors:
-                raise RuntimeError(f"{path}: cursor repeated at page {page}, aborting")
+                raise RuntimeError(f"{path}: the cursor repeated at page {page}. The run stopped.")
             seen_cursors.add(next_url)
             if page > 5000:
-                raise RuntimeError(f"{path}: exceeded 5000 pages, aborting")
+                raise RuntimeError(f"{path}: more than 5000 pages. The run stopped.")
             payload = _get(client, next_url)
 
 
@@ -70,7 +70,7 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date, *, force: bool = False) -> Path:
     dest = settings.vendor_dir / dataset / f"{pull_date:%Y-%m-%d}.ndjson"
     if dest.exists() and not force:
-        log.info("vendor file already present: %s", dest)
+        log.info("The vendor file is already present: %s", dest)
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
@@ -83,8 +83,8 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
 
     if n == 0:
         tmp.unlink()
-        raise RuntimeError(f"{dataset}: zero records returned")
+        raise RuntimeError(f"{dataset}: the endpoint returned no records.")
 
     os.replace(tmp, dest)
-    log.info("wrote %s records to %s", n, dest)
+    log.info("Wrote %s records to %s", n, dest)
     return dest
