@@ -37,6 +37,14 @@ def is_trading_day(d: dt.date) -> bool:
 # ---------- WRITE ----------
 
 def build(vendor_file: Path, d: dt.date) -> Path:
+    """Convert the vendor NDJSON file to a staged Parquet file.
+
+    This function adds no timestamp for the time of the pull. The partition key
+    already carries the data date. A timestamp from now() would give different
+    rows on a second run of the same date, and that breaks the rule on
+    idempotency of content. The mtime of the file in vendor/ records when the
+    fetch happened.
+    """
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
@@ -44,8 +52,7 @@ def build(vendor_file: Path, d: dt.date) -> Path:
         copy (
             select
                 *,
-                date '{d:%Y-%m-%d}'  as date,
-                now()                as pulled_at
+                date '{d:%Y-%m-%d}'  as date
             from read_json('{vendor_file}',
                            format = 'newline_delimited',
                            sample_size = -1)
