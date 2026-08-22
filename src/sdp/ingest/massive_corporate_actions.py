@@ -31,7 +31,7 @@ def raw_path(dataset: str, pull_date: dt.date) -> Path:
 def _one(sql: str) -> tuple:
     row = duckdb.execute(sql).fetchone()
     if row is None:
-        raise RuntimeError(f"query returned no rows: {sql[:120]}")
+        raise RuntimeError(f"The query returned no rows: {sql[:120]}")
     return row
 
 # ---------- WRITE ----------
@@ -56,7 +56,7 @@ def build(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
 
 # ---------- AUDIT ----------
 
-MAX_NEW_BAD_TICKERS = 3   # newly defective tickers per pull
+MAX_NEW_BAD_TICKERS = 3   # Tickers that become defective in one pull.
 RATIO_HI, RATIO_LO = 10000.0, 0.0001
 class AuditFailure(RuntimeError):
     pass
@@ -85,7 +85,7 @@ def _audit_common(staged: Path, dataset: str) -> int:
         problems.append(f"{dupes} duplicate ids")
 
     if problems:
-        raise AuditFailure(f"{dataset}: " + "; ".join(problems))
+        raise AuditFailure(f"{dataset}: " + ". ".join(problems) + ".")
     return n_rows
 
 
@@ -121,20 +121,22 @@ def _audit_splits(staged: Path) -> None:
     for label, n in [("forward_split", bad_fwd), ("reverse_split", bad_rev),
                      ("stock_dividend", bad_stk)]:
         if n:
-            fatal.append(f"{n} {label} rows with ratio in the wrong direction")
+            fatal.append(f"{n} {label} rows have a ratio in the wrong direction")
     if bad_from or bad_to:
-        fatal.append(f"{bad_from + bad_to} rows with invalid split ratio components")
+        fatal.append(f"{bad_from + bad_to} rows have an invalid split ratio")
 
     if fatal:
-        raise AuditFailure("splits: " + "; ".join(fatal))
+        raise AuditFailure("splits: " + ". ".join(fatal) + ".")
     
     unusable = zero_f + neg_f
     if unusable:
-        log.warning("splits: %s non-positive factors, excluded in staging", unusable)
+        log.warning("splits: %s factors are not positive. Staging removes these rows.",
+                    unusable)
     if null_future:
-        log.info("splits: %s pending events, factor not yet assigned", null_future)
+        log.info("splits: %s events are pending. The vendor gives no factor for them.",
+                 null_future)
     if extreme:
-        log.warning("splits: %s events outside ratio bounds [%s, %s]",
+        log.warning("splits: %s events have a ratio outside the limits [%s, %s].",
                     extreme, RATIO_LO, RATIO_HI)
 
 
@@ -144,11 +146,11 @@ def _audit_dividends(staged: Path) -> None:
      bad_factor, bad_factor_tickers,
      non_usd, bad_freq) = _one(f"""
         select
-            -- fatal: structurally unusable
+            -- Fatal. These rows are unusable.
             count(*) filter (ex_dividend_date is null),
             count(*) filter (cash_amount is null or cash_amount < 0),
 
-            -- expected: vendor has no price to compute a factor against
+            -- Expected. The vendor has no price to compute a factor with.
             count(*) filter (historical_adjustment_factor is null
                              and ex_dividend_date <= current_date),
             count(distinct ticker) filter (historical_adjustment_factor is null
@@ -156,11 +158,11 @@ def _audit_dividends(staged: Path) -> None:
             count(*) filter (historical_adjustment_factor is null
                              and ex_dividend_date > current_date),
 
-            -- known defects: judged by the delta check, not absolute count
+            -- Known defects. The delta check judges these, not the count.
             count(*) filter (historical_adjustment_factor <= 0),
             count(distinct ticker) filter (historical_adjustment_factor <= 0),
 
-            -- schema tripwires
+            -- Schema tripwires.
             count(*) filter (currency is not null and currency <> 'USD'),
             count(*) filter (frequency is null or frequency not in (0,1,2,3,4,12,24,52,104,365))
         from read_parquet('{staged}')
@@ -168,27 +170,31 @@ def _audit_dividends(staged: Path) -> None:
 
     fatal = []
     if null_ex:
-        fatal.append(f"{null_ex} rows with null ex_dividend_date")
+        fatal.append(f"{null_ex} rows have a null ex_dividend_date")
     if bad_cash:
-        fatal.append(f"{bad_cash} rows with null or negative cash_amount")
+        fatal.append(f"{bad_cash} rows have a null or negative cash_amount")
     if fatal:
-        raise AuditFailure("dividends: " + "; ".join(fatal))
+        raise AuditFailure("dividends: " + ". ".join(fatal) + ".")
 
-    # Unlike splits, the dividend factor needs a price on the ex-date to compute
-    # (product of 1 - D/P terms). Missing vendor price coverage -> null factor.
-    # Structural, concentrated in the old and delisted tail. Not fatal.
+    # The dividend factor is different from the split factor. To compute it,
+    # the vendor needs a price on the ex-date, as a product of (1 - D/P)
+    # terms. A null factor therefore means that the vendor has no price for
+    # that security. This is structural. Most of these rows are old or
+    # delisted. It is not fatal.
     if null_past:
-        log.info("dividends: %s null factors on past ex-dates across %s tickers "
-                 "(no vendor price to compute against)", null_past, null_past_tickers)
+        log.info("dividends: %s null factors on past ex-dates, on %s tickers. "
+                 "The vendor has no price to compute them with.",
+                 null_past, null_past_tickers)
     if null_future:
-        log.info("dividends: %s announced but not yet ex", null_future)
+        log.info("dividends: %s are announced and not yet ex.", null_future)
     if bad_factor:
-        log.warning("dividends: %s non-positive factors across %s tickers "
-                    "(new ones caught by delta check)", bad_factor, bad_factor_tickers)
+        log.warning("dividends: %s factors are not positive, on %s tickers. "
+                    "The delta check finds the new ones.",
+                    bad_factor, bad_factor_tickers)
     if non_usd:
-        log.info("dividends: %s non-USD rows, filtered in staging", non_usd)
+        log.info("dividends: %s rows are not in USD. Staging removes them.", non_usd)
     if bad_freq:
-        log.warning("dividends: %s rows with unexpected frequency value", bad_freq)
+        log.warning("dividends: %s rows have an unexpected frequency value.", bad_freq)
 
         
 def _audit_vs_previous(dataset: str, staged: Path, pull_date: dt.date, n_rows: int) -> None:
@@ -198,13 +204,16 @@ def _audit_vs_previous(dataset: str, staged: Path, pull_date: dt.date, n_rows: i
         p for p in root.glob("pull_date=*") if p.name != current
         ) if root.exists() else []
     if not priors:
-        log.info("%s: first pull, %s rows, no baseline", dataset, n_rows)
+        log.info("%s: first pull. %s rows. There is no baseline.", dataset, n_rows)
         return
     prev = priors[-1] / "data.parquet"
 
     prev_n = _one(f"select count(*) from read_parquet('{prev}')")[0]
     if n_rows < prev_n * 0.99:
-        raise AuditFailure(f"{dataset}: {n_rows} rows vs {prev_n} — history shrank")
+        raise AuditFailure(
+            f"{dataset}: {n_rows} rows against {prev_n} in the previous pull. "
+            f"The history became smaller."
+        )
 
     new_bad = duckdb.execute(f"""
         select ticker, count(*) as n
@@ -218,11 +227,16 @@ def _audit_vs_previous(dataset: str, staged: Path, pull_date: dt.date, n_rows: i
     """).fetchall()
 
     if len(new_bad) > MAX_NEW_BAD_TICKERS:
-        raise AuditFailure(f"{dataset}: {len(new_bad)} newly defective tickers: {new_bad[:10]}")
+        raise AuditFailure(
+            f"{dataset}: {len(new_bad)} tickers became defective in this pull: "
+            f"{new_bad[:10]}"
+        )
     if new_bad:
-        log.warning("%s: new non-positive factors on %s", dataset, new_bad)
+        log.warning("%s: these tickers have new factors that are not positive: %s",
+                    dataset, new_bad)
 
-    log.info("%s: %s rows (+%s vs %s)", dataset, n_rows, n_rows - prev_n, priors[-1].name)
+    log.info("%s: %s rows. Change of %s against %s.",
+             dataset, n_rows, n_rows - prev_n, priors[-1].name)
 
 # ---------- PUBLISH ----------
 
@@ -230,7 +244,7 @@ def ingest(dataset: str, pull_date: dt.date | None = None, *, force: bool = Fals
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
     dest = raw_path(dataset, pull_date)
     if dest.exists() and not force:
-        log.info("already pulled today: %s", dest)
+        log.info("The pull for today is already published: %s", dest)
         return dest
 
     spec = SPECS[dataset]
@@ -243,7 +257,7 @@ def ingest(dataset: str, pull_date: dt.date | None = None, *, force: bool = Fals
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     os.replace(staged, dest)
-    log.info("published %s", dest)
+    log.info("Published %s", dest)
     return dest
 
 
