@@ -12,9 +12,10 @@ from a later edit until now. The two that matter most:
 - The meaning of a null adjustment factor is opposite in the two corporate action
   datasets. That asymmetry is deliberate and it is counterintuitive.
 
-The audits compare against `current_date`, so every fixture uses a fixed past
-date or a fixed future date. A relative date would make these tests depend on the
-day they run.
+The splits and dividends audits divide the past from the future at the pull
+date of the snapshot under audit and never at today. rebuild() replays old
+pulls, and a comparison against `current_date` would fail a replay of a pull
+that passed when it was live. Every fixture therefore names its pull date.
 """
 import datetime as dt
 
@@ -77,29 +78,29 @@ def dividends(tmp_path):
 
 class TestSplitAudit:
     def test_a_valid_file_passes(self, splits):
-        ca._audit_splits(splits([split_row()]))
+        ca._audit_splits(splits([split_row()]), PULL)
 
     def test_split_from_of_zero_is_fatal(self, splits):
         """The check that exists because NULL > 10000 is NULL, not false."""
         with pytest.raises(ca.AuditFailure, match="invalid split ratio"):
-            ca._audit_splits(splits([split_row(split_from=0.0)]))
+            ca._audit_splits(splits([split_row(split_from=0.0)]), PULL)
 
     def test_a_negative_split_from_is_fatal(self, splits):
         with pytest.raises(ca.AuditFailure, match="invalid split ratio"):
-            ca._audit_splits(splits([split_row(split_from=-1.0)]))
+            ca._audit_splits(splits([split_row(split_from=-1.0)]), PULL)
 
     def test_a_null_execution_date_is_fatal(self, splits):
         with pytest.raises(ca.AuditFailure, match="execution_date"):
-            ca._audit_splits(splits([split_row(execution_date=None)]))
+            ca._audit_splits(splits([split_row(execution_date=None)]), PULL)
 
     def test_a_null_factor_on_an_executed_split_is_fatal(self, splits):
         """The split factor is mechanical. A null means that something broke."""
         with pytest.raises(ca.AuditFailure, match="null factors"):
-            ca._audit_splits(splits([split_row(factor=None)]))
+            ca._audit_splits(splits([split_row(factor=None)]), PULL)
 
     def test_a_null_factor_on_a_pending_split_is_not_fatal(self, splits):
         """The vendor gives no factor before the event executes."""
-        ca._audit_splits(splits([split_row(execution_date=FUTURE, factor=None)]))
+        ca._audit_splits(splits([split_row(execution_date=FUTURE, factor=None)]), PULL)
 
     @pytest.mark.parametrize(
         "adjustment_type,split_from,split_to",
@@ -112,20 +113,20 @@ class TestSplitAudit:
         row = split_row(adjustment_type=adjustment_type,
                         split_from=split_from, split_to=split_to)
         with pytest.raises(ca.AuditFailure, match="wrong direction"):
-            ca._audit_splits(splits([row]))
+            ca._audit_splits(splits([row]), PULL)
 
     def test_an_extreme_ratio_warns_and_does_not_raise(self, splits):
         """NPWZ and DAVL are real rows. The fatal list stays narrow."""
-        ca._audit_splits(splits([split_row(split_from=1.0, split_to=2_000_000.0)]))
+        ca._audit_splits(splits([split_row(split_from=1.0, split_to=2_000_000.0)]), PULL)
 
     def test_a_zero_factor_warns_and_does_not_raise(self, splits):
         """RYCEF is one bad row out of 3,722 stock dividends."""
-        ca._audit_splits(splits([split_row(factor=0.0)]))
+        ca._audit_splits(splits([split_row(factor=0.0)]), PULL)
 
 
 class TestDividendAudit:
     def test_a_valid_file_passes(self, dividends):
-        ca._audit_dividends(dividends([dividend_row()]))
+        ca._audit_dividends(dividends([dividend_row()]), PULL)
 
     def test_a_null_factor_on_a_past_ex_date_is_not_fatal(self, dividends):
         """The opposite of the split rule, and deliberate.
@@ -133,7 +134,7 @@ class TestDividendAudit:
         The dividend factor needs a price on the ex-date. A null therefore means
         that the vendor has no price for that security. That is structural.
         """
-        ca._audit_dividends(dividends([dividend_row(factor=None)]))
+        ca._audit_dividends(dividends([dividend_row(factor=None)]), PULL)
 
     def test_a_null_cash_amount_is_fatal(self, dividends):
         """Three-valued logic. The predicate must test for null on its own.
@@ -142,18 +143,18 @@ class TestDividendAudit:
         fails this one, because NULL < 0 is NULL and not true.
         """
         with pytest.raises(ca.AuditFailure, match="cash_amount"):
-            ca._audit_dividends(dividends([dividend_row(cash_amount=None)]))
+            ca._audit_dividends(dividends([dividend_row(cash_amount=None)]), PULL)
 
     def test_a_negative_cash_amount_is_fatal(self, dividends):
         with pytest.raises(ca.AuditFailure, match="cash_amount"):
-            ca._audit_dividends(dividends([dividend_row(cash_amount=-1.0)]))
+            ca._audit_dividends(dividends([dividend_row(cash_amount=-1.0)]), PULL)
 
     def test_a_null_ex_dividend_date_is_fatal(self, dividends):
         with pytest.raises(ca.AuditFailure, match="ex_dividend_date"):
-            ca._audit_dividends(dividends([dividend_row(ex_dividend_date=None)]))
+            ca._audit_dividends(dividends([dividend_row(ex_dividend_date=None)]), PULL)
 
     def test_a_row_that_is_not_in_usd_warns_and_does_not_raise(self, dividends):
-        ca._audit_dividends(dividends([dividend_row(currency="CAD")]))
+        ca._audit_dividends(dividends([dividend_row(currency="CAD")]), PULL)
 
 
 class TestCommonAudit:

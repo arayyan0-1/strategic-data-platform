@@ -156,14 +156,22 @@ def _audit_common(staged: Path, dataset: str) -> int:
     return n_rows
 
 
-def _audit_splits(staged: Path) -> None:
+def _audit_splits(staged: Path, pull_date: dt.date) -> None:
+    """The past and the future divide at the pull date and not at today.
+
+    The vendor computes a factor when an event executes, so a null factor is
+    fatal only on an event that had already executed when this pull ran. A
+    comparison against current_date would reclassify pending events as
+    executed on every later day, and rebuild() would then fail on a pull
+    that passed when it was live.
+    """
     (null_past, null_future, zero_f, neg_f, null_date,
      bad_fwd, bad_rev, bad_stk, bad_from, bad_to, extreme) = _one(f"""
         select
             count(*) filter (historical_adjustment_factor is null
-                             and execution_date <= current_date),
+                             and execution_date <= date '{pull_date:%Y-%m-%d}'),
             count(*) filter (historical_adjustment_factor is null
-                             and execution_date  > current_date),
+                             and execution_date  > date '{pull_date:%Y-%m-%d}'),
             count(*) filter (historical_adjustment_factor = 0),
             count(*) filter (historical_adjustment_factor < 0),
             count(*) filter (execution_date is null),
@@ -207,7 +215,7 @@ def _audit_splits(staged: Path) -> None:
                     extreme, RATIO_LO, RATIO_HI)
 
 
-def _audit_dividends(staged: Path) -> None:
+def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
     (null_ex, bad_cash,
      null_past, null_past_tickers, null_future,
      bad_factor, bad_factor_tickers,
@@ -219,11 +227,11 @@ def _audit_dividends(staged: Path) -> None:
 
             -- Expected. The vendor has no price to compute a factor with.
             count(*) filter (historical_adjustment_factor is null
-                             and ex_dividend_date <= current_date),
+                             and ex_dividend_date <= date '{pull_date:%Y-%m-%d}'),
             count(distinct ticker) filter (historical_adjustment_factor is null
-                                           and ex_dividend_date <= current_date),
+                                           and ex_dividend_date <= date '{pull_date:%Y-%m-%d}'),
             count(*) filter (historical_adjustment_factor is null
-                             and ex_dividend_date > current_date),
+                             and ex_dividend_date > date '{pull_date:%Y-%m-%d}'),
 
             -- Known defects. The delta check judges these, not the count.
             count(*) filter (historical_adjustment_factor <= 0),
@@ -427,7 +435,7 @@ def _publish_pull(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
     snapshot = build(dataset, vendor_file, pull_date)
     try:
         n_rows = _audit_common(snapshot, dataset)
-        (_audit_splits if dataset == "massive_splits" else _audit_dividends)(snapshot)
+        (_audit_splits if dataset == "massive_splits" else _audit_dividends)(snapshot, pull_date)
         _audit_vs_previous(dataset, snapshot, pull_date, n_rows)
         return append(dataset, snapshot, pull_date)
     finally:
