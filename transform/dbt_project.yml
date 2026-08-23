@@ -20,6 +20,12 @@ vars:
   #   a date    that pull, as YYYY-MM-DD.
   ca_pull_policy: "earliest"
 
+  # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
+  # A study must not read a short interest number before this many sessions have
+  # passed. It is a var and not a constant, because the schedule changed in the
+  # past and a robustness check on it is cheap. See docs/decisions/0009.
+  short_interest_publication_sessions: 8
+
   # Universe. Each value is a modelling choice. Change one and run the study again.
   universe_types: ["CS"]
   universe_exchanges: ["XNYS", "XNAS", "XASE"]
