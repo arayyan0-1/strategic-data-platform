@@ -35,3 +35,39 @@ def lake(tmp_data_root):
         return path
 
     return write
+
+
+@pytest.fixture
+def ca_lake(tmp_data_root):
+    """Write corporate action partitions with the vendor column names."""
+
+    def write(ds: dal.Dataset, pull: dt.date, rows: list[tuple]):
+        """rows are (id, ticker, event_date, factor)."""
+        key = "execution_date" if ds is dal.SPLITS else "ex_dividend_date"
+        path = ds.partition_file(pull)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        values = ",".join(
+            f"('{i}', '{t}', date '{d:%Y-%m-%d}', "
+            f"{'null' if f is None else f}, date '{pull:%Y-%m-%d}')"
+            for i, t, d, f in rows
+        )
+        duckdb.execute(
+            f"copy (select * from (values {values}) as t"
+            f"(id, ticker, {key}, historical_adjustment_factor, pull_date)) "
+            f"to '{path}' (format parquet)"
+        )
+        return path
+
+    return write
+
+
+@pytest.fixture
+def staged_parquet(tmp_path):
+    """Write one staged Parquet file from a SQL select and return its path."""
+
+    def write(name: str, select_sql: str):
+        path = tmp_path / f"{name}.parquet"
+        duckdb.execute(f"copy ({select_sql}) to '{path}' (format parquet)")
+        return path
+
+    return write
