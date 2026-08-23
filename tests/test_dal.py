@@ -55,39 +55,51 @@ class TestEventStreams:
 
 
 class TestCurrentStateSnapshots:
-    """These tests cover the purpose of the pull_date partition key."""
+    """These tests cover the purpose of the pull_date partition key.
 
-    def test_snapshot_selects_the_newest_pull_at_or_before_as_of(self, lake):
-        lake(dal.SPLITS, D(2024, 1, 3), [("AAA", 1.0)])
-        lake(dal.SPLITS, D(2024, 1, 8), [("AAA", 2.0)])
-        lake(dal.SPLITS, D(2024, 1, 15), [("AAA", 3.0)])
+    The storage is a snapshot log, so a snapshot is a replay of the log
+    through one pull. The ca_lake fixture publishes through the real append
+    path. The row tuples of one call are the full state of that pull.
+    """
+
+    EV = D(2024, 1, 2)
+
+    def _pull(self, ca_lake, ds, day, factor):
+        ca_lake(ds, day, [("a", "AAA", self.EV, factor)])
+
+    def test_snapshot_selects_the_newest_pull_at_or_before_as_of(self, ca_lake):
+        for day, f in [(D(2024, 1, 3), 1.0), (D(2024, 1, 8), 2.0),
+                       (D(2024, 1, 15), 3.0)]:
+            self._pull(ca_lake, dal.SPLITS, day, f)
 
         rel = dal.snapshot(dal.SPLITS, D(2024, 1, 10))
-        assert rel.fetchall() == [("AAA", 2.0, D(2024, 1, 8))]
+        assert rel.project("historical_adjustment_factor").fetchall() == [(2.0,)]
 
-    def test_snapshot_is_inclusive_of_a_pull_taken_on_as_of(self, lake):
-        lake(dal.SPLITS, D(2024, 1, 3), [("AAA", 1.0)])
-        lake(dal.SPLITS, D(2024, 1, 8), [("AAA", 2.0)])
+    def test_snapshot_is_inclusive_of_a_pull_taken_on_as_of(self, ca_lake):
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 3), 1.0)
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 8), 2.0)
         rel = dal.snapshot(dal.SPLITS, D(2024, 1, 8))
-        assert rel.project("value").fetchall() == [(2.0,)]
+        assert rel.project("historical_adjustment_factor").fetchall() == [(2.0,)]
 
-    def test_snapshot_never_reads_a_later_pull(self, lake):
+    def test_snapshot_never_reads_a_later_pull(self, ca_lake):
         """This is the lookahead that the module must prevent."""
-        lake(dal.DIVIDENDS, D(2024, 1, 3), [("AAA", 1.0)])
-        lake(dal.DIVIDENDS, D(2024, 6, 1), [("AAA", 99.0)])  # A restatement.
+        self._pull(ca_lake, dal.DIVIDENDS, D(2024, 1, 3), 1.0)
+        self._pull(ca_lake, dal.DIVIDENDS, D(2024, 6, 1), 99.0)  # A restatement.
 
         rel = dal.snapshot(dal.DIVIDENDS, D(2024, 2, 1))
-        assert 99.0 not in [r[0] for r in rel.project("value").fetchall()]
+        values = [r[0] for r in rel.project("historical_adjustment_factor").fetchall()]
+        assert 99.0 not in values
 
-    def test_snapshot_returns_exactly_one_pull(self, lake):
+    def test_snapshot_has_one_row_for_each_event_and_not_for_each_pull(self, ca_lake):
+        rows = [("a", "AAA", self.EV, 1.0), ("b", "BBB", self.EV, 2.0)]
         for day in (D(2024, 1, 3), D(2024, 1, 8), D(2024, 1, 15)):
-            lake(dal.SPLITS, day, [("AAA", 1.0), ("BBB", 2.0)])
+            ca_lake(dal.SPLITS, day, rows)
         rel = dal.snapshot(dal.SPLITS, D(2024, 1, 20))
         assert rel.count("*").fetchone()[0] == 2
 
-    def test_snapshot_raises_before_the_first_pull(self, lake):
+    def test_snapshot_raises_before_the_first_pull(self, ca_lake):
         """This is not a limit to avoid. That snapshot never existed."""
-        lake(dal.SPLITS, D(2024, 1, 3), [("AAA", 1.0)])
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 3), 1.0)
         with pytest.raises(dal.MissingPartition, match="cannot backfill"):
             dal.snapshot(dal.SPLITS, D(2023, 12, 31))
 
@@ -96,17 +108,21 @@ class TestCurrentStateSnapshots:
         with pytest.raises(ValueError, match="event stream"):
             dal.snapshot(dal.DAY_AGGS, D(2024, 1, 3))
 
-    def test_history_stacks_every_pull(self, lake):
-        for day in (D(2024, 1, 3), D(2024, 1, 8), D(2024, 1, 15)):
-            lake(dal.SPLITS, day, [("AAA", 1.0)])
-        rel = dal.history(dal.SPLITS)
-        assert rel.count("*").fetchone()[0] == 3
-        assert rel.aggregate("count(distinct pull_date)").fetchone()[0] == 3
+    def test_history_returns_the_log_and_a_change_appears_once(self, ca_lake):
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 3), 1.0)
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 8), 1.0)   # No change.
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 15), 7.0)  # A restatement.
 
-    def test_snapshot_latest_takes_the_newest(self, lake):
-        lake(dal.SPLITS, D(2024, 1, 3), [("AAA", 1.0)])
-        lake(dal.SPLITS, D(2024, 1, 15), [("AAA", 7.0)])
-        assert dal.snapshot_latest(dal.SPLITS).project("value").fetchall() == [(7.0,)]
+        rel = dal.history(dal.SPLITS)
+        # One add, nothing, then one close and one add.
+        assert rel.count("*").fetchone()[0] == 3
+        assert rel.aggregate("count(distinct pull_date)").fetchone()[0] == 2
+
+    def test_snapshot_latest_takes_the_newest(self, ca_lake):
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 3), 1.0)
+        self._pull(ca_lake, dal.SPLITS, D(2024, 1, 15), 7.0)
+        rel = dal.snapshot_latest(dal.SPLITS)
+        assert rel.project("historical_adjustment_factor").fetchall() == [(7.0,)]
 
 
 class TestPartitionDiscovery:

@@ -38,25 +38,37 @@ def lake(tmp_data_root):
 
 
 @pytest.fixture
-def ca_lake(tmp_data_root):
-    """Write corporate action partitions with the vendor column names."""
+def ca_lake(tmp_data_root, tmp_path):
+    """Publish corporate action pulls through the real log-append path.
+
+    The rows of one call are the full snapshot of that pull. append() reduces
+    the snapshot to the change against the prior state, verifies the replay
+    and publishes. The fixture therefore exercises the production write path
+    and not a private copy of it.
+    """
+    from sdp.ingest import massive_corporate_actions as ca
 
     def write(ds: dal.Dataset, pull: dt.date, rows: list[tuple]):
         """rows are (id, ticker, event_date, factor)."""
         key = "execution_date" if ds is dal.SPLITS else "ex_dividend_date"
-        path = ds.partition_file(pull)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        values = ",".join(
-            f"('{i}', '{t}', date '{d:%Y-%m-%d}', "
-            f"{'null' if f is None else f}, date '{pull:%Y-%m-%d}')"
-            for i, t, d, f in rows
-        )
-        duckdb.execute(
-            f"copy (select * from (values {values}) as t"
-            f"(id, ticker, {key}, historical_adjustment_factor, pull_date)) "
-            f"to '{path}' (format parquet)"
-        )
-        return path
+        staged = tmp_path / f"{ds.name}-{pull:%Y-%m-%d}.snapshot.parquet"
+        if rows:
+            values = ",".join(
+                f"('{i}', '{t}', date '{d:%Y-%m-%d}', "
+                f"{'null' if f is None else f})"
+                for i, t, d, f in rows
+            )
+            select = (f"select * from (values {values}) as t"
+                      f"(id, ticker, {key}, historical_adjustment_factor)")
+        else:
+            # An empty snapshot still needs the schema, so that append() can
+            # hash it and close every prior row.
+            select = (f"select null::varchar as id, null::varchar as ticker, "
+                      f"null::date as {key}, "
+                      f"null::double as historical_adjustment_factor "
+                      f"where 1 = 0")
+        duckdb.execute(f"copy ({select}) to '{staged}' (format parquet)")
+        return ca.append(ds.name, staged, pull)
 
     return write
 

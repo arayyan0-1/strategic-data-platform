@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 import logging
 import os
@@ -86,6 +87,9 @@ def _temp_beside(dest: Path) -> Path:
     """
     fd, name = tempfile.mkstemp(dir=dest.parent, prefix=f"{dest.name}.", suffix=".part")
     os.close(fd)
+    # mkstemp creates the file with mode 0600 and os.replace keeps that mode.
+    # The lake is not a secret, so give the published file the usual mode.
+    os.chmod(name, 0o644)
     return Path(name)
 
 
@@ -96,18 +100,21 @@ def _temp_beside(dest: Path) -> Path:
 @overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date: dt.date, *, force: bool = ...,
-                allow_empty: Literal[False] = ...) -> Path: ...
+                allow_empty: Literal[False] = ...,
+                compress: bool = ...) -> Path: ...
 
 
 @overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date: dt.date, *, force: bool = ...,
-                allow_empty: Literal[True]) -> Path | None: ...
+                allow_empty: Literal[True],
+                compress: bool = ...) -> Path | None: ...
 
 
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date: dt.date, *, force: bool = False,
-                allow_empty: bool = False) -> Path | None:
+                allow_empty: bool = False,
+                compress: bool = False) -> Path | None:
     """Write every record of an endpoint to one NDJSON file in vendor/.
 
     Set allow_empty for a dataset that has no record on some dates. The short
@@ -115,17 +122,32 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
     settlement. The short volume endpoint starts on 2024-02-06 and has nothing
     before that date. An empty answer on those dates is the correct answer and
     it is not a failure. The function then writes no file and returns None.
+
+    Set compress for a large full pull that repeats each day. The file is then
+    gzip NDJSON with the suffix .ndjson.gz, and DuckDB reads it directly. The
+    dividends pull is 246 MB each day as plain text and about a tenth of that
+    in gzip. The content is the same bytes after gunzip, so the vendor/ rule
+    holds.
     """
-    dest = settings.vendor_dir / dataset / f"{pull_date:%Y-%m-%d}.ndjson"
-    if dest.exists() and not force:
-        log.info("The vendor file is already present: %s", dest)
-        return dest
+    stem = f"{pull_date:%Y-%m-%d}"
+    dest = settings.vendor_dir / dataset / f"{stem}{'.ndjson.gz' if compress else '.ndjson'}"
+    other = settings.vendor_dir / dataset / f"{stem}{'.ndjson' if compress else '.ndjson.gz'}"
+    if not force:
+        for candidate in (dest, other):
+            if candidate.exists():
+                log.info("The vendor file is already present: %s", candidate)
+                return candidate
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = _temp_beside(dest)
 
     n = 0
     try:
-        with tmp.open("w", encoding="utf-8") as fh:
+        def _open():
+            if compress:
+                return gzip.open(tmp, "wt", encoding="utf-8")
+            return tmp.open("w", encoding="utf-8")
+
+        with _open() as fh:
             for record in paginate(path, params):
                 fh.write(json.dumps(record, separators=(",", ":")) + "\n")
                 n += 1

@@ -183,9 +183,8 @@ class TestDeltaAudit:
     """The sharp check. An absolute threshold on a growing dataset goes blunt."""
 
     def _publish_prior(self, tmp_data_root, rows, pull_date=dt.date(2024, 1, 2)):
-        path = ca.raw_path("massive_splits", pull_date)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return _write(path, SPLITS_DDL, rows)
+        staged = _write(tmp_data_root / "prior.snapshot.parquet", SPLITS_DDL, rows)
+        return ca.append("massive_splits", staged, pull_date)
 
     def test_the_first_pull_has_no_baseline_and_passes(self, tmp_data_root, splits):
         ca._audit_vs_previous("massive_splits", splits([split_row()]), PULL, 1)
