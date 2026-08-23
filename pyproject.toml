@@ -18,6 +18,10 @@ dependencies = [
 
 [dependency-groups]
 dev = ["ruff", "pytest", "ipykernel", "jupyterlab"]
+# dbt is a separate group, because the ingest and the DAL do not import it.
+# A check on 2026-08-22 shows that dbt-core 1.12.3, dbt-duckdb 1.11.0 and
+# duckdb 1.5.5 resolve in one environment. A second venv is not necessary.
+transform = ["dbt-core", "dbt-duckdb"]
 
 [build-system]
 requires = ["hatchling"]
