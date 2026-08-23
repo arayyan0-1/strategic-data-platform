@@ -1,0 +1,36 @@
+name: sdp
+version: "0.1.0"
+config-version: 2
+profile: sdp
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # The lake. dbt starts from its own directory, so this must be absolute.
+  # profiles.yml and this value both come from the SDP_DATA_ROOT variable.
+  data_root: "{{ env_var('SDP_DATA_ROOT') }}"
+
+  # Which corporate action pull to read. See docs/decisions/0011.
+  #   earliest  the first pull. Use this for a study of the historical window.
+  #   latest    the most recent pull. Not point-in-time.
+  #   a date    that pull, as YYYY-MM-DD.
+  ca_pull_policy: "earliest"
+
+  # Universe. Each value is a modelling choice. Change one and run the study again.
+  universe_types: ["CS"]
+  universe_exchanges: ["XNYS", "XNAS", "XASE"]
+  min_price: 5.0
+  min_dollar_volume: 1000000
+  adv_window: 20
+  min_days_in_window: 15
+  min_days_since_first_bar: 60
+
+models:
+  sdp:
+    staging:
+      +materialized: table
+      +schema: staging

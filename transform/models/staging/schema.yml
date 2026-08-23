@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_corporate_actions
+    description: >
+      One row for each ticker, event date and kind. Duplicate vendor rows are
+      collapsed and the disagreement is recorded. See docs/decisions/0010.
+    columns:
+      - name: ticker
+        tests: [not_null]
+      - name: event_date
+        tests: [not_null]
+      - name: kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["split", "dividend"]
+
+  - name: stg_prices_adjusted
+    description: >
+      Unadjusted prices, the two factors and the adjusted columns. The adjustment
+      is one as-of lookup with a strict comparison. See docs/decisions/0005.
+    columns:
+      - name: ticker
+        tests: [not_null]
+      - name: date
+        tests: [not_null]
+      - name: split_factor
+        tests: [not_null]
+      - name: adj_close_split
+        tests: [not_null]
+
+  - name: stg_universe
+    description: >
+      The universe for each date, from an instrument filter and a liquidity
+      filter. Every threshold is a var.
+    columns:
+      - name: date
+        tests: [not_null]
+      - name: ticker
+        tests: [not_null]
+      - name: security_key
+        tests: [not_null]
+      - name: key_rule
+        tests:
+          - accepted_values:
+              values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
