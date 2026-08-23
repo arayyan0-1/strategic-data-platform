@@ -55,6 +55,27 @@ END="${END:-$(date -v-1d +%Y-%m-%d)}"
 LOGS="$REPO/data/_logs"
 mkdir -p "$LOGS"
 
+# Refuse a second run while one is in progress. `mkdir` either creates the
+# directory or fails, in one step, so it is a lock and a test at the same time.
+#
+# This exists because it happened. On 2026-08-23 a second copy of this script ran
+# beside the first and 288 of 1,255 ticker dates failed. Unique temporary names
+# now make that harmless rather than destructive, but two runs still fetch every
+# date twice and neither finishes sooner.
+LOCK="$LOGS/.backfill.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+    running=$(cat "$LOCK/pid" 2>/dev/null || echo "unknown")
+    echo "A backfill already holds the lock: $LOCK" >&2
+    echo "It was started by pid $running." >&2
+    if [ "$running" != "unknown" ] && ! kill -0 "$running" 2>/dev/null; then
+        echo "That process is gone, so the lock is stale. Remove it with:" >&2
+        echo "    rm -rf $LOCK" >&2
+    fi
+    exit 1
+fi
+echo "$$" > "$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
+
 echo "repo   $REPO"
 echo "bars   $BARS_START to $END"
 echo "short  $SHORT_VOLUME_START to $END"
