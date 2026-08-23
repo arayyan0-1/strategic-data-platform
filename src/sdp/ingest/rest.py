@@ -1,13 +1,14 @@
 # src/sdp/ingest/rest.py
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 import httpx
 
@@ -66,8 +67,24 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
             payload = _get(client, next_url)
 
 
+# The two signatures below say that this function returns None only when the
+# caller asked for it. Without them the return type is `Path | None` for every
+# call, and each of the four call sites has to test for a None that three of
+# them can never receive. The rule belongs in the type and not in a branch.
+@overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
-                pull_date, *, force: bool = False,
+                pull_date: dt.date, *, force: bool = ...,
+                allow_empty: Literal[False] = ...) -> Path: ...
+
+
+@overload
+def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
+                pull_date: dt.date, *, force: bool = ...,
+                allow_empty: Literal[True]) -> Path | None: ...
+
+
+def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
+                pull_date: dt.date, *, force: bool = False,
                 allow_empty: bool = False) -> Path | None:
     """Write every record of an endpoint to one NDJSON file in vendor/.
 
