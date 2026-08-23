@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import logging
 import os
+import tempfile
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -67,6 +68,27 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
             payload = _get(client, next_url)
 
 
+def _temp_beside(dest: Path) -> Path:
+    """Return an unused temporary path in the directory of `dest`.
+
+    The name is unique for each call. Two fetches of the same date therefore
+    write to two different files, and each rename is atomic and independent of
+    the other.
+
+    A shared name is what breaks. The loser of the race finds that the winner
+    has already renamed the file away, and its own rename fails with
+    FileNotFoundError. That happened on 2026-08-23, when a second copy of the
+    backfill script ran beside the first: 247 dates failed that way and 41 more
+    failed reading a file mid-rename.
+
+    The directory is the same as the destination on purpose. `os.replace` is
+    atomic only inside one filesystem.
+    """
+    fd, name = tempfile.mkstemp(dir=dest.parent, prefix=f"{dest.name}.", suffix=".part")
+    os.close(fd)
+    return Path(name)
+
+
 # The two signatures below say that this function returns None only when the
 # caller asked for it. Without them the return type is `Path | None` for every
 # call, and each of the four call sites has to test for a None that three of
@@ -99,21 +121,27 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
         log.info("The vendor file is already present: %s", dest)
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(".part")
+    tmp = _temp_beside(dest)
 
     n = 0
-    with tmp.open("w", encoding="utf-8") as fh:
-        for record in paginate(path, params):
-            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
-            n += 1
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            for record in paginate(path, params):
+                fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+                n += 1
 
-    if n == 0:
-        tmp.unlink()
-        if allow_empty:
-            log.info("%s: the endpoint returned no records for %s.", dataset, pull_date)
-            return None
-        raise RuntimeError(f"{dataset}: the endpoint returned no records.")
+        if n == 0:
+            if allow_empty:
+                log.info("%s: the endpoint returned no records for %s.", dataset, pull_date)
+                return None
+            raise RuntimeError(f"{dataset}: the endpoint returned no records.")
 
-    os.replace(tmp, dest)
+        os.replace(tmp, dest)
+    finally:
+        # A successful rename already moved the file, so this is then a no-op.
+        # Anything still here is from an empty answer or from a failure part way
+        # through, and it must not be left for the next run to find.
+        tmp.unlink(missing_ok=True)
+
     log.info("Wrote %s records to %s", n, dest)
     return dest

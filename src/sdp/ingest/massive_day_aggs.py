@@ -12,6 +12,7 @@ import exchange_calendars as xcals
 from botocore.config import Config
 
 from sdp.config import settings
+from sdp.ingest.rest import _temp_beside
 
 log = logging.getLogger(__name__)
 
@@ -54,9 +55,13 @@ def download(d: dt.date, *, force: bool = False) -> Path:
         log.info("The vendor file is already present: %s", dest)
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(".part")
-    _s3().download_file(settings.massive_s3_bucket, _s3_key(d), str(tmp))
-    os.replace(tmp, dest)
+    # Unique for each call, for the reason given in rest._temp_beside.
+    tmp = _temp_beside(dest)
+    try:
+        _s3().download_file(settings.massive_s3_bucket, _s3_key(d), str(tmp))
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
     log.info("Downloaded %s", dest)
     return dest
 
