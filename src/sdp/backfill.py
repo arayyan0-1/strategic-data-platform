@@ -33,7 +33,7 @@ from pathlib import Path
 import exchange_calendars as xcals
 
 from sdp.config import settings
-from sdp.ingest import massive_day_aggs, massive_tickers
+from sdp.ingest import massive_day_aggs, massive_short, massive_tickers
 
 log = logging.getLogger("sdp.backfill")
 
@@ -43,6 +43,8 @@ log = logging.getLogger("sdp.backfill")
 TARGETS: dict[str, Callable[..., Path | None]] = {
     "day_aggs": massive_day_aggs.ingest,
     "tickers": massive_tickers.ingest,
+    "short_volume": massive_short.ingest_short_volume,
+    "short_interest": massive_short.ingest_short_interest,
 }
 
 _NOT_BACKFILLABLE = {
