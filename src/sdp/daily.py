@@ -38,7 +38,16 @@ log = logging.getLogger("sdp.daily")
 
 CURRENT_STATE = ["massive_splits", "massive_dividends"]
 
-EVENT_STREAMS = {"day_aggs": dal.DAY_AGGS, "tickers": dal.TICKERS}
+EVENT_STREAMS = {
+    "day_aggs": dal.DAY_AGGS,
+    "tickers": dal.TICKERS,
+    # Short interest reports on a two-week cadence. Most sessions have no
+    # settlement, so the fill tries those dates again on each run and publishes
+    # nothing. The endpoint has no call limit and the session limit bounds the
+    # work, so the cost is small and the code stays the same for both kinds.
+    "short_volume": dal.SHORT_VOLUME,
+    "short_interest": dal.SHORT_INTEREST,
+}
 
 DEFAULT_MAX_SESSIONS = 30
 """The most sessions that one daily run fills for each event stream."""

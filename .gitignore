@@ -25,3 +25,8 @@ docs/
 
 # notebook scratch state, not the notebook itself
 .ipynb_checkpoints/
+
+# dbt build artifacts. Generated on every run.
+transform/target/
+transform/logs/
+transform/dbt_packages/

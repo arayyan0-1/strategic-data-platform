@@ -72,7 +72,13 @@ TICKERS = Dataset("massive_tickers", "date", union_by_name=True)
 SPLITS = Dataset("massive_splits", "pull_date", union_by_name=True)
 DIVIDENDS = Dataset("massive_dividends", "pull_date", union_by_name=True)
 
-DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS)}
+# The two FINRA short datasets are event streams. For short interest the
+# partition value is the settlement date. See docs/decisions/0009.
+SHORT_VOLUME = Dataset("massive_short_volume", "date", union_by_name=True)
+SHORT_INTEREST = Dataset("massive_short_interest", "date", union_by_name=True)
+
+DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS,
+                                SHORT_VOLUME, SHORT_INTEREST)}
 
 _con: duckdb.DuckDBPyConnection | None = None
 
@@ -237,6 +243,30 @@ def snapshot(ds: Dataset, as_of: dt.date) -> duckdb.DuckDBPyRelation:
     return _read(ds, [eligible[-1]])
 
 
+def snapshot_earliest(ds: Dataset) -> duckdb.DuckDBPyRelation:
+    """Return the first pull. This is the policy read for the historical window.
+
+    A current-state dataset has no history before the first pull, so snapshot()
+    raises for every date before it. A study of the years before the first pull
+    therefore cannot be point-in-time, and it must name the pull that it used.
+
+    The first pull is the least contaminated choice that exists. Every
+    restatement that the vendor made after that date is absent from it, so the
+    lookahead is bounded by the age of the archive and it shrinks as a fraction
+    of the study as the archive grows. snapshot_latest() is the opposite choice
+    and it carries every restatement to date.
+
+    Use sdp.restatement to measure the size of what separates the two. The dbt
+    var 'ca_pull_policy' makes the same choice for the staging models.
+    """
+    if ds.key != "pull_date":
+        raise ValueError(f"{ds.name} is an event stream. Use series(ds, start, end).")
+    parts = partitions(ds)
+    if not parts:
+        raise MissingPartition(_describe_coverage(ds))
+    return _read(ds, [parts[0]])
+
+
 def snapshot_latest(ds: Dataset) -> duckdb.DuckDBPyRelation:
     """Return the most recent pull. This read is not point-in-time.
 
@@ -302,6 +332,28 @@ def splits(as_of: dt.date):
 def dividends(as_of: dt.date):
     """Return the dividend snapshot as it was known on as_of. See snapshot()."""
     return snapshot(DIVIDENDS, as_of)
+
+
+def short_volume(start: dt.date | None = None, end: dt.date | None = None):
+    """Return the daily FINRA off-exchange short volume.
+
+    'total_volume' here is FINRA off-exchange volume only. It is not
+    consolidated tape volume and it is much smaller than 'volume' in the day
+    aggregates. Never divide one dataset by the other. Coverage starts on
+    2024-02-06, which is shorter than the window of the bars.
+    """
+    return series(SHORT_VOLUME, start, end)
+
+
+def short_interest(start: dt.date | None = None, end: dt.date | None = None):
+    """Return short interest, on a two-week cadence, keyed on the settlement date.
+
+    The partition value is the settlement date and not the date on which FINRA
+    published it. Publication comes about eight business days later. A study
+    must apply that lag itself, in the staging model, or it uses a number before
+    the market had it. See docs/decisions/0009.
+    """
+    return series(SHORT_INTEREST, start, end)
 
 
 def status() -> str:

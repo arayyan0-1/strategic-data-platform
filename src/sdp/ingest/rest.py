@@ -1,13 +1,14 @@
 # src/sdp/ingest/rest.py
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 import httpx
 
@@ -66,8 +67,33 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
             payload = _get(client, next_url)
 
 
+# The two signatures below say that this function returns None only when the
+# caller asked for it. Without them the return type is `Path | None` for every
+# call, and each of the four call sites has to test for a None that three of
+# them can never receive. The rule belongs in the type and not in a branch.
+@overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
-                pull_date, *, force: bool = False) -> Path:
+                pull_date: dt.date, *, force: bool = ...,
+                allow_empty: Literal[False] = ...) -> Path: ...
+
+
+@overload
+def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
+                pull_date: dt.date, *, force: bool = ...,
+                allow_empty: Literal[True]) -> Path | None: ...
+
+
+def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
+                pull_date: dt.date, *, force: bool = False,
+                allow_empty: bool = False) -> Path | None:
+    """Write every record of an endpoint to one NDJSON file in vendor/.
+
+    Set allow_empty for a dataset that has no record on some dates. The short
+    interest endpoint reports on a two-week cadence, so most sessions have no
+    settlement. The short volume endpoint starts on 2024-02-06 and has nothing
+    before that date. An empty answer on those dates is the correct answer and
+    it is not a failure. The function then writes no file and returns None.
+    """
     dest = settings.vendor_dir / dataset / f"{pull_date:%Y-%m-%d}.ndjson"
     if dest.exists() and not force:
         log.info("The vendor file is already present: %s", dest)
@@ -83,6 +109,9 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
 
     if n == 0:
         tmp.unlink()
+        if allow_empty:
+            log.info("%s: the endpoint returned no records for %s.", dataset, pull_date)
+            return None
         raise RuntimeError(f"{dataset}: the endpoint returned no records.")
 
     os.replace(tmp, dest)
