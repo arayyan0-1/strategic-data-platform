@@ -44,9 +44,13 @@ class Dataset:
         Event stream. The partition holds the facts of one session. It is
         immutable. You can backfill it. Read a range of dates.
     'pull_date'
-        Current state. The vendor gives its present belief about all of
-        history. The endpoint has no as_of parameter. You cannot backfill it.
-        Read the newest snapshot at or before the date that you simulate.
+        Current state, stored as a snapshot log. The vendor gives its present
+        belief about all of history and the endpoint has no as_of parameter,
+        so you cannot backfill it. Each partition holds the change of one
+        pull against the pull before it: rows with op = 'add' entered the
+        snapshot, rows with op = 'close' left it. Replay of the log through a
+        pull gives the exact snapshot of that pull. snapshot() does the
+        replay. See docs/decisions/0015-the-snapshot-log.md.
     """
 
     name: str
@@ -210,7 +214,40 @@ def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
     return [s.date() for s in sessions if s.date() not in have]
 
 
-# ---------- current state: read one snapshot as of a date ----------
+# ---------- current state: replay the snapshot log ----------
+
+def replay_sql(files: list[str], *, keep_hash: bool = False) -> str:
+    """Return the SQL that replays log partitions into one snapshot.
+
+    The log is append-only. For each row_hash, the newest log row decides. A
+    hash whose newest row has op = 'add' is in the snapshot. A hash whose
+    newest row has op = 'close' is not. The pull_date column of a returned row
+    is the pull that added the row, so it says when the vendor first asserted
+    that content.
+
+    The ingest module uses the same SQL to verify a staged partition before it
+    publishes. One definition serves both, so the write and the read cannot
+    drift apart.
+    """
+    lst = ", ".join(f"'{f}'" for f in files)
+    exclude = "op, _rn" if keep_hash else "op, _rn, row_hash"
+    return f"""
+        select * exclude ({exclude})
+        from (
+            select *, row_number() over (
+                partition by row_hash order by pull_date desc) as _rn
+            from read_parquet([{lst}], union_by_name = true)
+        )
+        where _rn = 1 and op = 'add'
+    """
+
+
+def _state(ds: Dataset, up_to: dt.date, *, keep_hash: bool = False) -> duckdb.DuckDBPyRelation:
+    """Replay the log through the pull of up_to. The caller checked coverage."""
+    wanted = [d for d in partitions(ds) if d <= up_to]
+    files = [str(ds.partition_file(d)) for d in wanted]
+    return con().sql(replay_sql(files, keep_hash=keep_hash))
+
 
 def snapshot(ds: Dataset, as_of: dt.date) -> duckdb.DuckDBPyRelation:
     """Return the newest pull at or before as_of. This is the point-in-time read.
@@ -240,7 +277,7 @@ def snapshot(ds: Dataset, as_of: dt.date) -> duckdb.DuckDBPyRelation:
             f"holds current state and you cannot backfill it. No snapshot of the "
             f"vendor belief on {as_of} exists, and you cannot obtain one."
         )
-    return _read(ds, [eligible[-1]])
+    return _state(ds, eligible[-1])
 
 
 def snapshot_earliest(ds: Dataset) -> duckdb.DuckDBPyRelation:
@@ -264,7 +301,7 @@ def snapshot_earliest(ds: Dataset) -> duckdb.DuckDBPyRelation:
     parts = partitions(ds)
     if not parts:
         raise MissingPartition(_describe_coverage(ds))
-    return _read(ds, [parts[0]])
+    return _state(ds, parts[0])
 
 
 def snapshot_latest(ds: Dataset) -> duckdb.DuckDBPyRelation:
@@ -277,16 +314,17 @@ def snapshot_latest(ds: Dataset) -> duckdb.DuckDBPyRelation:
     parts = partitions(ds)
     if not parts:
         raise MissingPartition(_describe_coverage(ds))
-    return _read(ds, [parts[-1]])
+    return _state(ds, parts[-1])
 
 
 def history(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """Return every pull, stacked, with the pull_date column.
+    """Return the snapshot log itself, every partition stacked.
 
-    This read is not point-in-time. Use it to find restatements. A diff of
-    complete snapshots is the only method available, because neither endpoint
-    has an updated_since field. This relation is also the input to the dbt SCD
-    Type 2 snapshot.
+    This read is not point-in-time. Each row is one change: op = 'add' when
+    the row entered the snapshot on that pull_date, op = 'close' when it left.
+    A row that never changed appears once. The log is therefore the direct
+    record of every restatement, and it is the input to any SCD Type 2 view.
+    Use sdp.restatement for a keyed comparison of two snapshots.
     """
     if ds.key != "pull_date":
         raise ValueError(f"{ds.name} is an event stream. Use series(ds, start, end).")

@@ -27,9 +27,8 @@ with splits_src as (
         split_to,
         historical_adjustment_factor          as factor,
         adjustment_type
-    from {{ lake('massive_splits', 'pull_date') }}
-    where pull_date = {{ ca_pull_date('massive_splits') }}
-      and ticker is not null
+    from {{ ca_snapshot('massive_splits') }}
+    where ticker is not null
       and execution_date is not null
       -- A null factor on a split is fatal at ingest, so a null here cannot occur.
       -- A factor of 0 is RYCEF and it has no valid adjustment.
@@ -59,9 +58,8 @@ with splits_src as (
         cast(ex_dividend_date as date)        as event_date,
         historical_adjustment_factor          as factor,
         cash_amount
-    from {{ lake('massive_dividends', 'pull_date') }}
-    where pull_date = {{ ca_pull_date('massive_dividends') }}
-      and ticker is not null
+    from {{ ca_snapshot('massive_dividends') }}
+    where ticker is not null
       and ex_dividend_date is not null
       and currency = 'USD'
       -- Keep the null factor. It is structural: the vendor has no price on the

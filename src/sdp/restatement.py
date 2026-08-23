@@ -5,6 +5,11 @@ A restatement is the event that the pull_date partition key exists to catch. It
 is not hypothetical. It was found in the first pair of pulls that made a diff
 possible.
 
+The storage is a snapshot log, so every row-level change is already on disk
+with an op and a pull_date. dal.history() shows those rows directly. This
+module answers a different question: it replays two full snapshots and
+compares them on the event key, so that its counts mean events and not rows.
+
 Read the diff on the event key and never on the vendor id. The id is not stable
 across pulls. A diff on the id reports hundreds of deletions and insertions for
 events that did not change, because the vendor regenerates the id.
@@ -82,13 +87,13 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
     if older >= newer:
         raise ValueError(f"The older pull {older} is not before the newer {newer}.")
 
-    hist = dal.history(ds)
     con = dal.con()
-    con.register("_ca_history", hist)
+    con.register("_ca_older", dal.snapshot(ds, older))
+    con.register("_ca_newer", dal.snapshot(ds, newer))
 
     sql = f"""
-        with o as (select * from _ca_history where pull_date = date '{older}'),
-             n as (select * from _ca_history where pull_date = date '{newer}'),
+        with o as (select * from _ca_older),
+             n as (select * from _ca_newer),
              ok as (select ticker, {key} as ev,
                            count(*) as n_rows,
                            count(distinct historical_adjustment_factor) as n_f,
@@ -122,8 +127,8 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
     assert row is not None
 
     sample = con.execute(f"""
-        with o as (select * from _ca_history where pull_date = date '{older}'),
-             n as (select * from _ca_history where pull_date = date '{newer}'),
+        with o as (select * from _ca_older),
+             n as (select * from _ca_newer),
              ok as (select ticker, {key} as ev, count(*) n_rows,
                            min(historical_adjustment_factor) f from o group by 1, 2),
              nk as (select ticker, {key} as ev, count(*) n_rows,
@@ -134,7 +139,8 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
         order by abs(nk.f - ok.f) / nullif(abs(ok.f), 0) desc
         limit {examples}
     """).fetchall()
-    con.unregister("_ca_history")
+    con.unregister("_ca_older")
+    con.unregister("_ca_newer")
 
     return Diff(ds.name, older, newer, *row, restated_examples=sample)
 
@@ -150,17 +156,18 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
     key = KEYS[ds.name]
     parts = _pull_dates(ds)
     con = dal.con()
-    con.register("_ca_history", dal.history(ds))
+    con.register("_ca_older", dal.snapshot(ds, parts[0]))
+    con.register("_ca_newer", dal.snapshot(ds, parts[-1]))
     row = con.execute(f"""
         with o as (select ticker, {key} as ev, count(*) n_rows,
                           min(historical_adjustment_factor) f
-                   from _ca_history where pull_date = date '{parts[0]}'
-                     and {key} between date '{start}' and date '{end}'
+                   from _ca_older
+                   where {key} between date '{start}' and date '{end}'
                    group by 1, 2),
              n as (select ticker, {key} as ev, count(*) n_rows,
                           min(historical_adjustment_factor) f
-                   from _ca_history where pull_date = date '{parts[-1]}'
-                     and {key} between date '{start}' and date '{end}'
+                   from _ca_newer
+                   where {key} between date '{start}' and date '{end}'
                    group by 1, 2)
         select count(*),
                count(*) filter (o.f is distinct from n.f),
@@ -171,7 +178,8 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
         from o join n using (ticker, ev)
         where o.n_rows = 1 and n.n_rows = 1
     """).fetchone()
-    con.unregister("_ca_history")
+    con.unregister("_ca_older")
+    con.unregister("_ca_newer")
     assert row is not None
     n, changed, tickers, med, worst = row
     pct = (100.0 * changed / n) if n else 0.0

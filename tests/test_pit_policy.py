@@ -14,22 +14,23 @@ from sdp import dal
 D = dt.date
 
 
-def test_snapshot_earliest_returns_the_first_pull(lake):
-    lake(dal.SPLITS, D(2026, 8, 9), [("AAA", 1.0)])
-    lake(dal.SPLITS, D(2026, 8, 15), [("AAA", 2.0)])
-    lake(dal.SPLITS, D(2026, 8, 22), [("AAA", 3.0)])
+def test_snapshot_earliest_returns_the_first_pull(ca_lake):
+    ca_lake(dal.SPLITS, D(2026, 8, 9), [("a", "AAA", D(2024, 1, 5), 1.0)])
+    ca_lake(dal.SPLITS, D(2026, 8, 15), [("a", "AAA", D(2024, 1, 5), 2.0)])
+    ca_lake(dal.SPLITS, D(2026, 8, 22), [("a", "AAA", D(2024, 1, 5), 3.0)])
 
     rel = dal.snapshot_earliest(dal.SPLITS)
-    assert rel.project("pull_date").fetchall() == [(D(2026, 8, 9),)]
+    rows = rel.project("historical_adjustment_factor, pull_date").fetchall()
+    assert rows == [(1.0, D(2026, 8, 9))]
 
 
-def test_snapshot_still_raises_before_the_first_pull(lake):
+def test_snapshot_still_raises_before_the_first_pull(ca_lake):
     """The earliest-pull policy is opt-in. It is never a silent fallback.
 
     If snapshot() answered with the oldest available pull, every historical read
     would quietly become a read of a later belief, and no error would say so.
     """
-    lake(dal.SPLITS, D(2026, 8, 9), [("AAA", 1.0)])
+    ca_lake(dal.SPLITS, D(2026, 8, 9), [("a", "AAA", D(2024, 1, 5), 1.0)])
     with pytest.raises(dal.MissingPartition, match="cannot backfill"):
         dal.snapshot(dal.SPLITS, D(2024, 3, 14))
 
