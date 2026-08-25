@@ -125,7 +125,7 @@ def corporate_action_duplicates() -> str:
     out = []
     for ds, key in ((dal.SPLITS, "execution_date"),
                     (dal.DIVIDENDS, "ex_dividend_date")):
-        rel = dal.snapshot_earliest(ds)
+        rel = dal.current(ds)
         rows = _sql(f"""
             with k as (
                 select ticker, {key} as ev, count(*) as n,
@@ -167,7 +167,7 @@ def dividend_factor_nulls() -> str:
               from _divs)
         select in_bars, count(*), count(*) filter (f is null)
         from d group by 1 order by 1
-    """, _divs=dal.snapshot_earliest(dal.DIVIDENDS), _bars=dal.day_aggs())
+    """, _divs=dal.current(dal.DIVIDENDS), _bars=dal.day_aggs())
     lines = ["dividend rows, by whether the ticker trades on the ingested tape"]
     for in_bars, n, nulls in rows:
         label = "in the bars    " if in_bars else "not in the bars"

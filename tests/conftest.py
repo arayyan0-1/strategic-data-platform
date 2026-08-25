@@ -1,4 +1,6 @@
 import datetime as dt
+import json
+import os
 
 import duckdb
 import pytest
@@ -39,36 +41,35 @@ def lake(tmp_data_root):
 
 @pytest.fixture
 def ca_lake(tmp_data_root, tmp_path):
-    """Publish corporate action pulls through the real log-append path.
+    """Publish a corporate action table through the real ingest path.
 
-    The rows of one call are the full snapshot of that pull. append() reduces
-    the snapshot to the change against the prior state, verifies the replay
-    and publishes. The fixture therefore exercises the production write path
-    and not a private copy of it.
+    The rows of one call are the whole table. Each call replaces it, which is
+    what a pull does. The fixture goes through _publish, so it exercises the
+    audits and the atomic replace and not a private copy of them.
     """
     from sdp.ingest import massive_corporate_actions as ca
 
-    def write(ds: dal.Dataset, pull: dt.date, rows: list[tuple]):
+    def write(ds: dal.Dataset, pull: dt.date, rows: list[tuple],
+              *, audit: bool = False):
         """rows are (id, ticker, event_date, factor)."""
         key = "execution_date" if ds is dal.SPLITS else "ex_dividend_date"
-        staged = tmp_path / f"{ds.name}-{pull:%Y-%m-%d}.snapshot.parquet"
-        if rows:
-            values = ",".join(
-                f"('{i}', '{t}', date '{d:%Y-%m-%d}', "
-                f"{'null' if f is None else f})"
-                for i, t, d, f in rows
-            )
-            select = (f"select * from (values {values}) as t"
-                      f"(id, ticker, {key}, historical_adjustment_factor)")
-        else:
-            # An empty snapshot still needs the schema, so that append() can
-            # hash it and close every prior row.
-            select = (f"select null::varchar as id, null::varchar as ticker, "
-                      f"null::date as {key}, "
-                      f"null::double as historical_adjustment_factor "
-                      f"where 1 = 0")
-        duckdb.execute(f"copy ({select}) to '{staged}' (format parquet)")
-        return ca.append(ds.name, staged, pull)
+        vendor = tmp_path / f"{ds.name}-{pull:%Y-%m-%d}.ndjson"
+        vendor.write_text("".join(
+            json.dumps({
+                "id": i, "ticker": t, key: d.isoformat(),
+                "historical_adjustment_factor": f,
+            }) + "\n" for i, t, d, f in rows
+        ), encoding="utf-8")
+
+        if audit:
+            return ca._publish(ds.name, vendor, pull)
+        # Most tests care about the shape of the published table and not about
+        # the audits, which have their own suite. Build and replace directly.
+        staged = ca.build(ds.name, vendor, pull)
+        dest = ca.raw_path(ds.name)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(staged, dest)
+        return dest
 
     return write
 

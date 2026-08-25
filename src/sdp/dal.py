@@ -12,13 +12,13 @@ SQL onto them. Materialise only at the edge, in a notebook or a plot, with
 
 This module does not adjust prices for corporate actions. Adjustment is a dbt
 staging model. See docs/decisions/0005-adjustment-at-query-time.md. This module
-supplies the raw facts and the action snapshots. The join between them is a
-modelling decision and belongs in SQL that a reader can see.
+supplies the raw facts and the corporate action table. The join between them is
+a modelling decision and belongs in SQL that a reader can see.
 
 Reads name the partition files. They do not glob 'date=*'. A date filter
 therefore removes files before the scan and not after it. Hive partitioning is
-off, because build() already writes 'date' and 'pull_date' as columns in the
-file. The same name from two sources gives ambiguity and no benefit.
+off, because build() already writes 'date' as a column in the file. The same
+name from two sources gives ambiguity and no benefit.
 """
 from __future__ import annotations
 
@@ -30,7 +30,8 @@ import duckdb
 
 from sdp.config import settings
 
-PartitionKey = Literal["date", "pull_date"]
+PartitionKey = Literal["date"]
+"""The partition key of an event stream. A current-state dataset has none."""
 
 
 @dataclass(frozen=True)
@@ -42,19 +43,17 @@ class Dataset:
 
     'date'
         Event stream. The partition holds the facts of one session. It is
-        immutable. You can backfill it. Read a range of dates.
-    'pull_date'
-        Current state, stored as a snapshot log. The vendor gives its present
-        belief about all of history and the endpoint has no as_of parameter,
-        so you cannot backfill it. Each partition holds the change of one
-        pull against the pull before it: rows with op = 'add' entered the
-        snapshot, rows with op = 'close' left it. Replay of the log through a
-        pull gives the exact snapshot of that pull. snapshot() does the
-        replay. See docs/decisions/0015-the-snapshot-log.md.
+        immutable. You can backfill it. Read a range of dates with series().
+
+    None
+        Current state. One table, and no date in the path. The vendor gives
+        its present belief about all of history and the endpoint has no
+        as_of parameter. Each pull replaces the table. Read it with
+        current(). See docs/decisions/0016-corporate-actions-are-current-state.md.
     """
 
     name: str
-    key: PartitionKey
+    key: PartitionKey | None
     union_by_name: bool = False
     """True for the datasets from REST. read_json infers the schema of each
     pull. If the vendor adds a field during a backfill, a read without this
@@ -63,6 +62,11 @@ class Dataset:
     @property
     def root(self):
         return settings.raw_dir / self.name
+
+    @property
+    def table_file(self):
+        """The single file of a current-state dataset."""
+        return self.root / "data.parquet"
 
     def partition_dir(self, d: dt.date):
         return self.root / f"{self.key}={d:%Y-%m-%d}"
@@ -73,8 +77,8 @@ class Dataset:
 
 DAY_AGGS = Dataset("us_stocks_day_aggs", "date")
 TICKERS = Dataset("massive_tickers", "date", union_by_name=True)
-SPLITS = Dataset("massive_splits", "pull_date", union_by_name=True)
-DIVIDENDS = Dataset("massive_dividends", "pull_date", union_by_name=True)
+SPLITS = Dataset("massive_splits", None, union_by_name=True)
+DIVIDENDS = Dataset("massive_dividends", None, union_by_name=True)
 
 # The two FINRA short datasets are event streams. For short interest the
 # partition value is the settlement date. See docs/decisions/0009.
@@ -164,9 +168,8 @@ def series(
     """
     if ds.key != "date":
         raise ValueError(
-            f"{ds.name} has the partition key pull_date. It holds current state "
-            f"and not an event stream. A range read mixes vendor beliefs from "
-            f"different days into one table. Use snapshot(ds, as_of) or history(ds)."
+            f"{ds.name} holds current state and not an event stream. It has no "
+            f"date partition. Use current(ds)."
         )
     parts = partitions(ds)
     if not parts:
@@ -190,7 +193,8 @@ def on_date(ds: Dataset, d: dt.date) -> duckdb.DuckDBPyRelation:
     """
     if ds.key != "date":
         raise ValueError(
-            f"{ds.name} has the partition key pull_date. Use snapshot(ds, as_of)."
+            f"{ds.name} holds current state and has no date partition. "
+            f"Use current(ds)."
         )
     if not ds.partition_file(d).exists():
         raise MissingPartition(
@@ -214,124 +218,31 @@ def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
     return [s.date() for s in sessions if s.date() not in have]
 
 
-# ---------- current state: replay the snapshot log ----------
+# ---------- current state: one table ----------
 
-def replay_sql(files: list[str], *, keep_hash: bool = False) -> str:
-    """Return the SQL that replays log partitions into one snapshot.
+def current(ds: Dataset) -> duckdb.DuckDBPyRelation:
+    """Return the corporate action table as the vendor states it now.
 
-    The log is append-only. For each row_hash, the newest log row decides. A
-    hash whose newest row has op = 'add' is in the snapshot. A hash whose
-    newest row has op = 'close' is not. The pull_date column of a returned row
-    is the pull that added the row, so it says when the vendor first asserted
-    that content.
+    The endpoint has no as_of parameter. It answers with the present belief
+    of the vendor about all of history, so raw/ holds one table and each pull
+    replaces it. There is no date in the path and no choice of pull to make
+    at the call site.
 
-    The ingest module uses the same SQL to verify a staged partition before it
-    publishes. One definition serves both, so the write and the read cannot
-    drift apart.
+    This read is not point-in-time and it is not meant to be. A study that
+    needs the belief of the vendor on a past date must read the dated files
+    in vendor/, which ingest keeps for every pull. See
+    docs/decisions/0016-corporate-actions-are-current-state.md.
     """
-    lst = ", ".join(f"'{f}'" for f in files)
-    exclude = "op, _rn" if keep_hash else "op, _rn, row_hash"
-    return f"""
-        select * exclude ({exclude})
-        from (
-            select *, row_number() over (
-                partition by row_hash order by pull_date desc) as _rn
-            from read_parquet([{lst}], union_by_name = true)
-        )
-        where _rn = 1 and op = 'add'
-    """
-
-
-def _state(ds: Dataset, up_to: dt.date, *, keep_hash: bool = False) -> duckdb.DuckDBPyRelation:
-    """Replay the log through the pull of up_to. The caller checked coverage."""
-    wanted = [d for d in partitions(ds) if d <= up_to]
-    files = [str(ds.partition_file(d)) for d in wanted]
-    return con().sql(replay_sql(files, keep_hash=keep_hash))
-
-
-def snapshot(ds: Dataset, as_of: dt.date) -> duckdb.DuckDBPyRelation:
-    """Return the newest pull at or before as_of. This is the point-in-time read.
-
-    You must give as_of. There is no default value. A default value gives the
-    latest pull, and that is the lookahead which this partition scheme
-    prevents. For example, a corporate action snapshot taken today can decide a
-    trade dated last year. The trade then uses every restatement that the
-    vendor made between the two dates.
-
-    This function raises MissingPartition when no pull is that old. That answer
-    is correct and it is not a limit to avoid. These endpoints have no as_of
-    parameter. The first pull is therefore the oldest snapshot that can exist.
-    Nothing can rebuild the belief of the vendor from before that date.
-    """
-    if ds.key != "pull_date":
+    if ds.key is not None:
         raise ValueError(
             f"{ds.name} is an event stream. Use series(ds, start, end) or "
             f"on_date(ds, d)."
         )
-    parts = partitions(ds)
-    eligible = [p for p in parts if p <= as_of]
-    if not eligible:
-        earliest = f" The earliest pull is {parts[0]}." if parts else ""
+    if not ds.table_file.exists():
         raise MissingPartition(
-            f"{ds.name} has no pull at or before {as_of}.{earliest} This dataset "
-            f"holds current state and you cannot backfill it. No snapshot of the "
-            f"vendor belief on {as_of} exists, and you cannot obtain one."
+            f"{ds.name} is not published. Run python -m sdp.daily."
         )
-    return _state(ds, eligible[-1])
-
-
-def snapshot_earliest(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """Return the first pull. This is the policy read for the historical window.
-
-    A current-state dataset has no history before the first pull, so snapshot()
-    raises for every date before it. A study of the years before the first pull
-    therefore cannot be point-in-time, and it must name the pull that it used.
-
-    The first pull is the least contaminated choice that exists. Every
-    restatement that the vendor made after that date is absent from it, so the
-    lookahead is bounded by the age of the archive and it shrinks as a fraction
-    of the study as the archive grows. snapshot_latest() is the opposite choice
-    and it carries every restatement to date.
-
-    Use sdp.restatement to measure the size of what separates the two. The dbt
-    var 'ca_pull_policy' makes the same choice for the staging models.
-    """
-    if ds.key != "pull_date":
-        raise ValueError(f"{ds.name} is an event stream. Use series(ds, start, end).")
-    parts = partitions(ds)
-    if not parts:
-        raise MissingPartition(_describe_coverage(ds))
-    return _state(ds, parts[0])
-
-
-def snapshot_latest(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """Return the most recent pull. This read is not point-in-time.
-
-    The name makes the semantics clear at the call site. Use this function to
-    explore, and to ask what the vendor says today. Do not use it for a number
-    in a backtest.
-    """
-    parts = partitions(ds)
-    if not parts:
-        raise MissingPartition(_describe_coverage(ds))
-    return _state(ds, parts[-1])
-
-
-def history(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """Return the snapshot log itself, every partition stacked.
-
-    This read is not point-in-time. Each row is one change: op = 'add' when
-    the row entered the snapshot on that pull_date, op = 'close' when it left.
-    A row that never changed appears once. The log is therefore the direct
-    record of every restatement, and it is the input to any SCD Type 2 view.
-    Use sdp.restatement for a keyed comparison of two snapshots.
-    """
-    if ds.key != "pull_date":
-        raise ValueError(f"{ds.name} is an event stream. Use series(ds, start, end).")
-    parts = partitions(ds)
-    if not parts:
-        raise MissingPartition(_describe_coverage(ds))
-    return _read(ds, parts)
+    return con().read_parquet(str(ds.table_file), union_by_name=ds.union_by_name)
 
 
 # ---------- named accessors ----------
@@ -362,14 +273,14 @@ def tickers_on(d: dt.date):
     return on_date(TICKERS, d)
 
 
-def splits(as_of: dt.date):
-    """Return the split snapshot as it was known on as_of. See snapshot()."""
-    return snapshot(SPLITS, as_of)
+def splits():
+    """Return the split table as the vendor states it now. See current()."""
+    return current(SPLITS)
 
 
-def dividends(as_of: dt.date):
-    """Return the dividend snapshot as it was known on as_of. See snapshot()."""
-    return snapshot(DIVIDENDS, as_of)
+def dividends():
+    """Return the dividend table as the vendor states it now. See current()."""
+    return current(DIVIDENDS)
 
 
 def short_volume(start: dt.date | None = None, end: dt.date | None = None):
@@ -398,6 +309,16 @@ def status() -> str:
     """Return one line for each dataset with its partition count and range."""
     lines = []
     for ds in DATASETS.values():
+        if ds.key is None:
+            if ds.table_file.exists():
+                n = con().sql(
+                    f"select count(*) from read_parquet('{ds.table_file}')"
+                ).fetchone()
+                rows = n[0] if n else 0
+                lines.append(f"{ds.name:24s} {'current':10s} {rows:>9} rows")
+            else:
+                lines.append(f"{ds.name:24s} {'current':10s} not published")
+            continue
         parts = partitions(ds)
         if parts:
             lines.append(f"{ds.name:24s} {ds.key:10s} {len(parts):>5} partitions  "

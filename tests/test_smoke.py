@@ -39,15 +39,16 @@ def test_settings_paths_are_absolute_and_under_data_root():
         assert settings.data_root in path.parents
 
 
-def test_every_dal_dataset_has_a_known_partition_key():
+def test_every_dal_dataset_has_a_known_kind():
+    """An event stream keys on 'date'. A current-state dataset has no key."""
     from sdp import dal
 
     for ds in dal.DATASETS.values():
-        assert ds.key in ("date", "pull_date")
+        assert ds.key in ("date", None)
 
 
 def test_backfill_targets_are_all_event_streams():
-    """Check that the backfill runner cannot reach a pull_date dataset."""
+    """Check that the backfill runner cannot reach a current-state dataset."""
     from sdp import backfill, dal
 
     by_module = {

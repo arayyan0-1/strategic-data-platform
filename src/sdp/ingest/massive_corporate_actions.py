@@ -1,44 +1,29 @@
 # src/sdp/ingest/massive_corporate_actions.py
-"""Splits and dividends, stored as an append-only snapshot log.
+"""Splits and dividends. One table for each, replaced by every pull.
 
 The two endpoints give current state. Each pull is the full present belief of
-the vendor about all of history, and consecutive pulls repeat almost all of
-it. Measured on 2026-08-23: the pull was byte for byte identical to the pull
-of 2026-08-22, and the full-snapshot format still stored 38 MB of Parquet to
-record that nothing happened.
+the vendor about all of history, and the endpoint has no as_of parameter.
 
-The published partition for a pull therefore holds the change and not the
-snapshot. A row with op = 'add' entered the snapshot on that pull. A row with
-op = 'close' left it. A pull that changes nothing publishes a partition with
-zero rows, and that partition still records that the pull happened. Replay of
-the log through a pull gives the exact snapshot of that pull. dal.snapshot()
-does the replay. See docs/decisions/0015-the-snapshot-log.md.
+raw/ therefore holds one table for each dataset and no date in the path. A
+pull builds the whole table again and replaces it. There is no partition to
+choose at a call site and no policy to state in a study.
 
-Row identity is row_hash, an md5 over every vendor column in name order. The
-vendor id cannot be the identity, because the vendor regenerates ids between
-pulls. The event key cannot be the identity, because it is not unique inside
-one pull. Content is the only identity that reconstructs a snapshot exactly.
+vendor/ still keeps every pull, dated, byte for byte. That archive is what
+makes a past belief of the vendor recoverable, and it is where sdp.restatement
+reads. The published table is the belief of the vendor now. See
+docs/decisions/0016-corporate-actions-are-current-state.md.
 
-Two consequences follow from the log form.
-
-1. A partition depends on every partition before it. The log therefore grows
-   in strict pull order. append() refuses a pull date before the newest
-   published partition.
-2. The recovery path is rebuild(). It replays every vendor file in order,
-   through the same audits and the same append. A doubt about one partition
-   is a doubt about the chain, and the chain rebuilds from vendor/ with a
-   deterministic result.
-
-The flow of one pull is Write-Audit-Publish, with one more audit than the
-event streams have:
+The flow of one pull is Write-Audit-Publish:
 
 1. Fetch the full pull into vendor/, as gzip NDJSON.
-2. build() the full snapshot into _staging/. This file is the audit surface
-   and the diff input. It is never published.
-3. The audits run on the full snapshot.
-4. append() diffs the snapshot against the replayed prior state, verifies
-   that prior state plus the staged change replays back to the snapshot
-   exactly, and only then publishes the change with os.replace.
+2. build() the whole table into _staging/.
+3. audit().
+4. os.replace into raw/.
+
+The replace is atomic, so a reader sees the pull before or the pull after and
+never a file part way through. An audit that raises leaves the table of the
+previous pull in place, which is the correct answer for current state: the
+newest belief that passed its checks.
 """
 from __future__ import annotations
 
@@ -46,12 +31,10 @@ import datetime as dt
 import logging
 import os
 import re
-import shutil
 from pathlib import Path
 
 import duckdb
 
-from sdp import dal
 from sdp.config import settings
 from sdp.ingest.rest import dump_ndjson
 
@@ -68,12 +51,10 @@ SPECS = {
     },
 }
 
-_BOOKKEEPING = ("pull_date", "op", "row_hash")
-"""Columns that the log adds. The row hash covers the vendor columns only."""
 
-
-def raw_path(dataset: str, pull_date: dt.date) -> Path:
-    return settings.raw_dir / dataset / f"pull_date={pull_date:%Y-%m-%d}" / "data.parquet"
+def raw_path(dataset: str) -> Path:
+    """Return the single published table of a current-state dataset."""
+    return settings.raw_dir / dataset / "data.parquet"
 
 
 def _one(sql: str, con: duckdb.DuckDBPyConnection | None = None) -> tuple:
@@ -87,32 +68,25 @@ class AuditFailure(RuntimeError):
     pass
 
 
-class ChainError(RuntimeError):
-    """The pull order would break the log.
-
-    Each partition holds the change against the partition before it, so a
-    partition depends on every partition before it. A pull can only extend
-    the log or replace its newest entry. To change an older entry, run
-    rebuild() and replay the whole log from vendor/.
-    """
-
-
-# ---------- STAGE THE SNAPSHOT ----------
+# ---------- BUILD ----------
 
 def build(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
-    """Stage the full snapshot of one pull. The audits read this file.
+    """Stage the whole table from one vendor pull.
 
-    append() then reduces it to the change against the prior state. The full
-    snapshot itself is never published.
+    'vendor_pull_date' records which pull built the table. It is provenance
+    and not a key. Nothing joins on it and nothing filters by it. It answers
+    the question "which vendor file made this file", which a rebuild needs
+    and a reader of a stale lake needs. Its value comes from the name of the
+    vendor file, so a rebuild from the same file gives the same value.
     """
-    staged = settings.staging_dir / dataset / f"{pull_date:%Y-%m-%d}.snapshot.parquet"
+    staged = settings.staging_dir / dataset / f"{pull_date:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
     duckdb.execute(f"""
         copy (
             select
                 *,
-                date '{pull_date:%Y-%m-%d}' as pull_date
+                date '{pull_date:%Y-%m-%d}' as vendor_pull_date
             from read_json(
                 '{vendor_file}',
                 format = 'newline_delimited',
@@ -272,187 +246,84 @@ def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
         log.warning("dividends: %s rows have an unexpected frequency value.", bad_freq)
 
 
-def _audit_vs_previous(dataset: str, staged: Path, pull_date: dt.date, n_rows: int) -> None:
-    """Compare the staged snapshot against the replayed previous state.
+def _audit_vs_previous(dataset: str, staged: Path, n_rows: int) -> None:
+    """Compare the staged table against the table that is published now.
 
     The sharp check is the delta between two pulls and not the absolute
     count. An absolute threshold on a dataset that grows becomes meaningless
-    or noisy over time. The delta check stays sharp for ever.
+    or noisy over time. The delta check stays sharp for ever, and it is the
+    reason a pull that loses history or breaks many tickers at once cannot
+    replace a good table.
     """
-    ds = dal.DATASETS[dataset]
-    priors = [p for p in dal.partitions(ds) if p < pull_date]
-    if not priors:
+    prev = raw_path(dataset)
+    if not prev.exists():
         log.info("%s: first pull. %s rows. There is no baseline.", dataset, n_rows)
         return
 
-    c = dal.con()
-    c.register("_ca_prev_state", dal._state(ds, priors[-1]))
-    try:
-        prev_n = _one("select count(*) from _ca_prev_state", c)[0]
-        if n_rows < prev_n * 0.99:
-            raise AuditFailure(
-                f"{dataset}: {n_rows} rows against {prev_n} in the previous pull. "
-                f"The history became smaller."
-            )
-
-        new_bad = c.execute(f"""
-            select ticker, count(*) as n
-            from read_parquet('{staged}')
-            where historical_adjustment_factor <= 0
-              and ticker not in (
-                  select ticker from _ca_prev_state
-                  where historical_adjustment_factor <= 0
-              )
-            group by ticker order by n desc
-        """).fetchall()
-
-        if len(new_bad) > MAX_NEW_BAD_TICKERS:
-            raise AuditFailure(
-                f"{dataset}: {len(new_bad)} tickers became defective in this pull: "
-                f"{new_bad[:10]}"
-            )
-        if new_bad:
-            log.warning("%s: these tickers have new factors that are not positive: %s",
-                        dataset, new_bad)
-
-        log.info("%s: %s rows. Change of %s against the pull of %s.",
-                 dataset, n_rows, n_rows - prev_n, priors[-1])
-    finally:
-        c.unregister("_ca_prev_state")
-
-# ---------- APPEND AND PUBLISH ----------
-
-def _hash_expr(columns: list[str]) -> str:
-    """Return the row_hash expression over the vendor columns, in name order.
-
-    Name order makes the hash independent of the column order that read_json
-    infers. The bookkeeping columns stay out, because the hash identifies
-    content and the same content must hash the same on every pull.
-    """
-    keep = sorted(c for c in columns if c not in _BOOKKEEPING)
-    packed = ", ".join(f'"{c}" := "{c}"' for c in keep)
-    return f"md5(to_json(struct_pack({packed})))"
-
-
-def append(dataset: str, snapshot: Path, pull_date: dt.date) -> Path:
-    """Diff the staged snapshot against the prior state, verify, publish.
-
-    The published partition holds the change only. Before the partition
-    exists, this function replays prior state plus the staged change and
-    requires the result to equal the snapshot row for row. A partition that
-    would not replay correctly is never published.
-    """
-    ds = dal.DATASETS[dataset]
-    dest = raw_path(dataset, pull_date)
-    parts = dal.partitions(ds)
-    later = [p for p in parts if p > pull_date]
-    if later:
-        raise ChainError(
-            f"{dataset}: cannot publish {pull_date}. The log already has "
-            f"{len(later)} newer partition(s), up to {later[-1]}. Each partition "
-            f"depends on every partition before it. Run rebuild() to replay the "
-            f"log from vendor/."
+    prev_n = _one(f"select count(*) from read_parquet('{prev}')")[0]
+    if n_rows < prev_n * 0.99:
+        raise AuditFailure(
+            f"{dataset}: {n_rows} rows against {prev_n} in the published table. "
+            f"The history became smaller."
         )
-    priors = [p for p in parts if p < pull_date]
 
-    c = dal.con()
-    cols = c.read_parquet(str(snapshot)).columns
-    # The hash covers the vendor columns only, so the view drops pull_date
-    # before hashing and the log write adds it back with the value of this
-    # pull. build() writes the column and a test fixture may not.
-    select = "* exclude (pull_date)" if "pull_date" in cols else "*"
-    c.execute(f"""
-        create or replace temp view _ca_pull as
-        select {select}, {_hash_expr(cols)} as row_hash
-        from read_parquet('{snapshot}')
-    """)
-    if priors:
-        c.register("_ca_prior", dal._state(ds, priors[-1], keep_hash=True))
-    else:
-        c.execute(f"create or replace temp view _ca_prior as "
-                  f"select *, date '{pull_date:%Y-%m-%d}' as pull_date "
-                  f"from _ca_pull where 1 = 0")
+    new_bad = duckdb.execute(f"""
+        select ticker, count(*) as n
+        from read_parquet('{staged}')
+        where historical_adjustment_factor <= 0
+          and ticker not in (
+              select ticker from read_parquet('{prev}')
+              where historical_adjustment_factor <= 0
+          )
+        group by ticker order by n desc
+    """).fetchall()
 
-    staged = settings.staging_dir / dataset / f"{pull_date:%Y-%m-%d}.parquet"
-    staged.parent.mkdir(parents=True, exist_ok=True)
+    if len(new_bad) > MAX_NEW_BAD_TICKERS:
+        raise AuditFailure(
+            f"{dataset}: {len(new_bad)} tickers became defective in this pull: "
+            f"{new_bad[:10]}"
+        )
+    if new_bad:
+        log.warning("%s: these tickers have new factors that are not positive: %s",
+                    dataset, new_bad)
+
+    log.info("%s: %s rows. Change of %s against the published table.",
+             dataset, n_rows, n_rows - prev_n)
+
+# ---------- PUBLISH ----------
+
+def _publish(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
+    """Build the table, audit it, and replace the published table."""
+    staged = build(dataset, vendor_file, pull_date)
     try:
-        c.execute(f"""
-            copy (
-                select *, date '{pull_date:%Y-%m-%d}' as pull_date,
-                       'add' as op
-                from _ca_pull
-                where row_hash not in (select row_hash from _ca_prior)
-                union all by name
-                select * replace (date '{pull_date:%Y-%m-%d}' as pull_date),
-                       'close' as op
-                from _ca_prior
-                where row_hash not in (select row_hash from _ca_pull)
-            ) to '{staged}' (format parquet, compression zstd)
-        """)
+        n_rows = _audit_common(staged, dataset)
+        (_audit_splits if dataset == "massive_splits" else _audit_dividends)(
+            staged, pull_date)
+        _audit_vs_previous(dataset, staged, n_rows)
 
-        files = [str(ds.partition_file(p)) for p in priors] + [str(staged)]
-        n_pull, n_replay, only_replay, only_pull = _one(f"""
-            with recon as ({dal.replay_sql(files, keep_hash=True)})
-            select
-                (select count(*) from _ca_pull),
-                (select count(*) from recon),
-                (select count(*) from
-                    ((select row_hash from recon)
-                     except (select row_hash from _ca_pull))),
-                (select count(*) from
-                    ((select row_hash from _ca_pull)
-                     except (select row_hash from recon)))
-        """, c)
-        if n_pull != n_replay or only_replay or only_pull:
-            raise AuditFailure(
-                f"{dataset}: the log does not replay to the snapshot of "
-                f"{pull_date}. Snapshot {n_pull} rows, replay {n_replay} rows, "
-                f"{only_pull} missing, {only_replay} extra. The partition was "
-                f"not published."
-            )
-
-        n_add, n_close = _one(
-            f"select count(*) filter (op = 'add'), count(*) filter (op = 'close') "
-            f"from read_parquet('{staged}')", c)
+        dest = raw_path(dataset)
         dest.parent.mkdir(parents=True, exist_ok=True)
         os.replace(staged, dest)
-        if n_add or n_close:
-            log.info("Published %s: %s added, %s closed.", dest, n_add, n_close)
-        else:
-            log.info("Published %s: no change against the previous pull.", dest)
+        log.info("Published %s: %s rows from the pull of %s.",
+                 dest, n_rows, pull_date)
         return dest
     finally:
         staged.unlink(missing_ok=True)
-        c.execute("drop view if exists _ca_pull")
-        if priors:
-            c.unregister("_ca_prior")
-        else:
-            c.execute("drop view if exists _ca_prior")
 
 
-def _publish_pull(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
-    """Run one pull through build, the audits and append."""
-    snapshot = build(dataset, vendor_file, pull_date)
-    try:
-        n_rows = _audit_common(snapshot, dataset)
-        (_audit_splits if dataset == "massive_splits" else _audit_dividends)(snapshot, pull_date)
-        _audit_vs_previous(dataset, snapshot, pull_date, n_rows)
-        return append(dataset, snapshot, pull_date)
-    finally:
-        snapshot.unlink(missing_ok=True)
+def ingest(dataset: str, pull_date: dt.date | None = None, *,
+           force: bool = False) -> Path | None:
+    """Fetch the pull of the day and replace the published table.
 
-
-def ingest(dataset: str, pull_date: dt.date | None = None, *, force: bool = False) -> Path | None:
+    A pull that already has its vendor file does not fetch again unless force
+    is set, but it does build and publish. There is no partition to skip,
+    because the table has no date in its path.
+    """
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
-    dest = raw_path(dataset, pull_date)
-    if dest.exists() and not force:
-        log.info("The pull for today is already published: %s", dest)
-        return dest
-
     spec = SPECS[dataset]
     vendor_file = dump_ndjson(dataset, spec["path"], spec["params"], pull_date,
                               force=force, compress=True)
-    return _publish_pull(dataset, vendor_file, pull_date)
+    return _publish(dataset, vendor_file, pull_date)
 
 # ---------- REBUILD ----------
 
@@ -472,31 +343,29 @@ def vendor_pulls(dataset: str) -> list[tuple[dt.date, Path]]:
     return sorted(found.items())
 
 
-def rebuild(dataset: str) -> None:
-    """Build the whole log again from vendor/, in pull order.
+def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
+    """Build the table again from a vendor pull, with no fetch.
 
-    This is the recovery path of the log form. A partition depends on every
-    partition before it, so a doubt about one partition is a doubt about the
-    chain. The replay runs every pull through the same audits and the same
-    append as the daily run, so a rebuilt log is identical in content to a
-    log that grew one day at a time.
+    The default is the newest pull, which reproduces the published table. Name
+    an older pull to rebuild the table as that pull stated it. This is the one
+    path back to a past belief of the vendor, and it works because vendor/
+    keeps every pull. See docs/decisions/0016.
     """
     pulls = vendor_pulls(dataset)
     if not pulls:
         raise FileNotFoundError(
             f"{dataset}: no vendor files in {settings.vendor_dir / dataset}. "
-            f"A rebuild replays vendor/ and cannot run without it."
+            f"A rebuild reads vendor/ and cannot run without it."
         )
-    root = settings.raw_dir / dataset
-    if root.exists():
-        # The guard keeps a path error from deleting outside the lake.
-        assert root.is_relative_to(settings.raw_dir)
-        shutil.rmtree(root)
-        log.info("%s: removed the published log. The replay builds it again.", dataset)
-
-    for pull_date, vendor_file in pulls:
-        _publish_pull(dataset, vendor_file, pull_date)
-    log.info("%s: replayed %s pulls from vendor/.", dataset, len(pulls))
+    available = dict(pulls)
+    if pull_date is None:
+        pull_date = pulls[-1][0]
+    elif pull_date not in available:
+        raise FileNotFoundError(
+            f"{dataset}: no vendor pull for {pull_date}. Available: "
+            f"{sorted(available)}."
+        )
+    return _publish(dataset, available[pull_date], pull_date)
 
 
 if __name__ == "__main__":

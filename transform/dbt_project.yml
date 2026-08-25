@@ -14,12 +14,6 @@ vars:
   # profiles.yml and this value both come from the SDP_DATA_ROOT variable.
   data_root: "{{ env_var('SDP_DATA_ROOT') }}"
 
-  # Which corporate action pull to read. See docs/decisions/0011.
-  #   earliest  the first pull. Use this for a study of the historical window.
-  #   latest    the most recent pull. Not point-in-time.
-  #   a date    that pull, as YYYY-MM-DD.
-  ca_pull_policy: "earliest"
-
   # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
   # A study must not read a short interest number before this many sessions have
   # passed. It is a var and not a constant, because the schedule changed in the

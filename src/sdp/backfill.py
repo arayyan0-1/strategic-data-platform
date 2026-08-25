@@ -85,9 +85,9 @@ def backfill(
     if target in _NOT_BACKFILLABLE and target not in TARGETS:
         raise SystemExit(
             f"You cannot backfill {target} ({_NOT_BACKFILLABLE[target]}). This "
-            f"dataset holds current state. The endpoint has no as_of parameter, "
-            f"so there is no history to fetch. The pull of today is the oldest "
-            f"snapshot that can exist. Run this command each day instead:\n"
+            f"dataset holds current state. The endpoint has no as_of parameter "
+            f"and raw/ holds one table with no date in its path, so there is "
+            f"no range to fill. Run this command to refresh it:\n"
             f"    python -m sdp.ingest.massive_corporate_actions {_NOT_BACKFILLABLE[target]}"
         )
     if target not in TARGETS:
