@@ -154,3 +154,29 @@ class TestRebuild:
     def test_rebuild_without_vendor_files_refuses(self, tmp_data_root):
         with pytest.raises(FileNotFoundError, match="vendor"):
             ca.rebuild("massive_splits")
+
+
+class TestThePartitionHelpersRefuseIt:
+    """A current-state dataset has no partition, so these have no answer.
+
+    An empty list or a list of missing dates would be the wrong answer in the
+    right shape, which is the failure mode this platform cares about most.
+    gaps() was the sharp one: it reported every session in the range as
+    missing for a table that was published and complete.
+    """
+
+    @pytest.mark.parametrize("call, name", [
+        (lambda: dal.partitions(dal.SPLITS), "partitions"),
+        (lambda: dal.coverage(dal.SPLITS), "coverage"),
+        (lambda: dal.gaps(dal.SPLITS, D(2026, 8, 3), D(2026, 8, 5)), "gaps"),
+    ])
+    def test_it_raises_and_names_the_read_to_use(self, ca_lake, call, name):
+        ca_lake(dal.SPLITS, P1, [ROW_A])
+        with pytest.raises(ValueError, match="current"):
+            call()
+
+    def test_status_still_reports_a_current_state_dataset(self, ca_lake):
+        """status() must not trip over the guard. It reports rows instead."""
+        ca_lake(dal.SPLITS, P1, [ROW_A])
+        line = [x for x in dal.status().split("\n") if "massive_splits" in x][0]
+        assert "current" in line and "1 rows" in line

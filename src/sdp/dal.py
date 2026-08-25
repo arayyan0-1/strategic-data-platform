@@ -55,9 +55,10 @@ class Dataset:
     name: str
     key: PartitionKey | None
     union_by_name: bool = False
-    """True for the datasets from REST. read_json infers the schema of each
-    pull. If the vendor adds a field during a backfill, a read without this
-    flag fails."""
+    """True for an event stream from REST that spans many files. read_json
+    infers the schema of each pull, so a field the vendor added part way
+    through a backfill makes a read without this flag fail. A current-state
+    dataset is one file and has nothing to union."""
 
     @property
     def root(self):
@@ -77,8 +78,8 @@ class Dataset:
 
 DAY_AGGS = Dataset("us_stocks_day_aggs", "date")
 TICKERS = Dataset("massive_tickers", "date", union_by_name=True)
-SPLITS = Dataset("massive_splits", None, union_by_name=True)
-DIVIDENDS = Dataset("massive_dividends", None, union_by_name=True)
+SPLITS = Dataset("massive_splits", None)
+DIVIDENDS = Dataset("massive_dividends", None)
 
 # The two FINRA short datasets are event streams. For short interest the
 # partition value is the settlement date. See docs/decisions/0009.
@@ -111,11 +112,25 @@ class MissingPartition(FileNotFoundError):
 
 # ---------- partition discovery ----------
 
+def _require_event_stream(ds: Dataset, function: str) -> None:
+    """Refuse a current-state dataset. It has no partition to describe.
+
+    An empty list would be the wrong answer in the right shape. A current
+    state table is published or it is not, and neither answer is a date.
+    """
+    if ds.key is None:
+        raise ValueError(
+            f"{ds.name} holds current state and has no date partition, so "
+            f"{function}() has no answer for it. Use current(ds)."
+        )
+
+
 def partitions(ds: Dataset) -> list[dt.date]:
     """Return every published partition date, in ascending order.
 
     The list is empty when no partition exists.
     """
+    _require_event_stream(ds, "partitions")
     if not ds.root.exists():
         return []
     prefix = f"{ds.key}="
@@ -135,6 +150,7 @@ def coverage(ds: Dataset) -> tuple[dt.date, dt.date] | None:
 
     Return None when no partition exists.
     """
+    _require_event_stream(ds, "coverage")
     parts = partitions(ds)
     return (parts[0], parts[-1]) if parts else None
 
@@ -209,6 +225,7 @@ def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
     The import of exchange_calendars is inside the function. That import is
     slow and most reads do not need a calendar.
     """
+    _require_event_stream(ds, "gaps")
     import exchange_calendars as xcals
 
     sessions = xcals.get_calendar("XNYS").sessions_in_range(
