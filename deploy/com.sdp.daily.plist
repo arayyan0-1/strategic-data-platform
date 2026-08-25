@@ -14,11 +14,9 @@
   Remove:
     launchctl bootout gui/$(id -u)/com.sdp.daily
 
-  This uses launchd and not cron. On macOS, cron skips a job when the machine is
-  asleep at the scheduled time and it never runs it. launchd runs a missed job
-  when the machine wakes. massive_splits and massive_dividends hold current
-  state, so a missed day cannot be recovered. That difference is the whole
-  reason for the choice.
+  This uses launchd and not cron. On macOS, cron skips a job when the machine
+  is asleep at the scheduled time and it never runs it. launchd runs a missed
+  job when the machine wakes.
 
   The machine is on Europe/London. The S3 flat file for session D was
   measured to land between 04:50 and 05:40 UTC on D+1, so every tick here is
@@ -27,9 +25,13 @@
 
   The ticks are hourly from 17:00 to 00:00 local. Network availability on
   this machine is not constant, so one tick a day is one chance a day. Each
-  tick is a further chance. ingest() returns immediately when the partition
-  of the day is already published, so at most one tick does work and the
-  others cost a few seconds.
+  tick is a further chance.
+
+  A repeat tick is cheap. The event streams skip a session that is already
+  published. The corporate action tables have no partition to skip, so each
+  tick builds them again from the vendor file that is already on disk, which
+  is measured at 3 seconds for the two together. That rebuild also runs the
+  audits again, so a repeat tick is a check and not only a cost.
 
   The pull date is the UTC date and not the local date. On BST, which is
   UTC+1, the UTC date changes at 01:00 local, so every tick from 17:00 to
