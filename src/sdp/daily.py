@@ -181,6 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    # httpx logs one INFO line for each request. That was 41 percent of
+    # daily.err.log, which the launchd agent appends to and never rotates.
+    # The retry and the failure of a request come from the sdp loggers, so
+    # this level removes noise and no diagnostic information.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     return run(
         args.date,
         max_sessions=args.max_sessions,

@@ -183,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     failures = backfill(args.target, args.start, args.end,
                         force=args.force, dry_run=args.dry_run, limit=args.limit)
     return 1 if failures else 0
