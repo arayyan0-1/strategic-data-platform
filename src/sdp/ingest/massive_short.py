@@ -219,7 +219,7 @@ def _ingest(dataset: str, path: str, params: dict, d: dt.date, audit,
         return dest
 
     vendor_file = dump_ndjson(dataset, path, params, d,
-                              force=force, allow_empty=True)
+                              force=force, allow_empty=True, compress=True)
     if vendor_file is None:
         return None
 

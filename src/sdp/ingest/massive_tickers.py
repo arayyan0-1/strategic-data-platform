@@ -171,7 +171,7 @@ def ingest(d: dt.date, *, force: bool = False) -> Path | None:
     vendor_file = dump_ndjson(
         DATASET, PATH,
         {"date": d.isoformat(), "active": "true", "market": "stocks", "limit": 1000},
-        d, force=force,
+        d, force=force, compress=True,
     )
 
     staged = build(vendor_file, d)
