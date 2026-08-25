@@ -183,12 +183,14 @@ class TestCommonAudit:
 class TestDeltaAudit:
     """The sharp check. An absolute threshold on a growing dataset goes blunt."""
 
-    def _publish_prior(self, tmp_data_root, rows, pull_date=dt.date(2024, 1, 2)):
-        staged = _write(tmp_data_root / "prior.snapshot.parquet", SPLITS_DDL, rows)
-        return ca.append("massive_splits", staged, pull_date)
+    def _publish_prior(self, tmp_data_root, rows):
+        """Put a table in raw/. The delta audit compares against it."""
+        dest = ca.raw_path("massive_splits")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        return _write(dest, SPLITS_DDL, rows)
 
     def test_the_first_pull_has_no_baseline_and_passes(self, tmp_data_root, splits):
-        ca._audit_vs_previous("massive_splits", splits([split_row()]), PULL, 1)
+        ca._audit_vs_previous("massive_splits", splits([split_row()]), 1)
 
     def test_more_new_defective_tickers_than_the_threshold_is_fatal(
         self, tmp_data_root, splits
@@ -198,27 +200,27 @@ class TestDeltaAudit:
                for i in range(ca.MAX_NEW_BAD_TICKERS + 1)]
         with pytest.raises(ca.AuditFailure, match="became defective"):
             ca._audit_vs_previous("massive_splits", splits(bad + [split_row()]),
-                                  PULL, len(bad) + 1)
+                                  len(bad) + 1)
 
     def test_exactly_the_threshold_warns_and_does_not_raise(self, tmp_data_root, splits):
         self._publish_prior(tmp_data_root, [split_row()])
         bad = [split_row(id=f"s{i}", ticker=f"BAD{i}", factor=0.0)
                for i in range(ca.MAX_NEW_BAD_TICKERS)]
         ca._audit_vs_previous("massive_splits", splits(bad + [split_row()]),
-                              PULL, len(bad) + 1)
+                              len(bad) + 1)
 
     def test_a_ticker_that_was_already_defective_is_not_new(self, tmp_data_root, splits):
         """This is why the delta check stays sharp. FSFF is static."""
         known_bad = [split_row(id=f"s{i}", ticker=f"BAD{i}", factor=0.0)
                      for i in range(10)]
         self._publish_prior(tmp_data_root, known_bad)
-        ca._audit_vs_previous("massive_splits", splits(known_bad), PULL, len(known_bad))
+        ca._audit_vs_previous("massive_splits", splits(known_bad), len(known_bad))
 
     def test_a_history_that_shrank_is_fatal(self, tmp_data_root, splits):
         prior = [split_row(id=f"s{i}", ticker=f"T{i}") for i in range(100)]
         self._publish_prior(tmp_data_root, prior)
         with pytest.raises(ca.AuditFailure, match="became smaller"):
-            ca._audit_vs_previous("massive_splits", splits([split_row()]), PULL, 1)
+            ca._audit_vs_previous("massive_splits", splits([split_row()]), 1)
 
 
 def _write_day_aggs(path, n=6000, extra=""):

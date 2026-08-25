@@ -102,36 +102,16 @@ class TestCurrentStatePull:
         assert "massive_dividends" in calls, "the second pull must still run"
 
 
-class TestGapWarning:
-    def test_a_gap_is_reported(self, lake, caplog):
-        lake(dal.SPLITS, D(2024, 1, 5), [("AAA", 1.0)])
-        daily._warn_if_the_record_has_a_gap(TODAY)
-        assert "gap of 4 days" in caplog.text
-        assert "permanent" in caplog.text
-
-    def test_no_gap_is_reported_when_the_pull_was_yesterday(self, lake, caplog):
-        lake(dal.SPLITS, D(2024, 1, 9), [("AAA", 1.0)])
-        daily._warn_if_the_record_has_a_gap(TODAY)
-        assert "gap" not in caplog.text
-
-    def test_an_empty_dataset_is_reported(self, tmp_data_root, caplog):
-        daily._warn_if_the_record_has_a_gap(TODAY)
-        assert "no pull yet" in caplog.text
-
-
 class TestExitCode:
     def test_a_clean_run_returns_zero(self, lake, fake_backfill, fake_pull):
-        lake(dal.SPLITS, D(2024, 1, 9), [("AAA", 1.0)])
         fake_pull()
         assert daily.run(TODAY) == 0
 
     def test_a_failed_pull_returns_one(self, lake, fake_backfill, fake_pull):
-        lake(dal.SPLITS, D(2024, 1, 9), [("AAA", 1.0)])
         fake_pull(fail=("massive_splits",))
         assert daily.run(TODAY) == 1
 
     def test_a_failed_session_returns_one(self, lake, fake_pull, monkeypatch):
-        lake(dal.SPLITS, D(2024, 1, 9), [("AAA", 1.0)])
         lake(dal.DAY_AGGS, D(2024, 1, 4), [("AAA", 1.0)])
         fake_pull()
         monkeypatch.setattr(daily.backfill, "backfill",

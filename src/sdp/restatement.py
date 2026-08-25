@@ -1,14 +1,11 @@
-# src/sdp/restatement.py
-"""Measure what changes between two pulls of a current-state dataset.
+"""Measure what changed between two vendor pulls of a corporate action dataset.
 
-A restatement is the event that the pull_date partition key exists to catch. It
-is not hypothetical. It was found in the first pair of pulls that made a diff
-possible.
+raw/ holds one table for each of splits and dividends, replaced by every pull,
+so the published lake has no record of what an earlier pull said. vendor/ does:
+ingest keeps every pull, dated, byte for byte. This module reads that archive.
 
-The storage is a snapshot log, so every row-level change is already on disk
-with an op and a pull_date. dal.history() shows those rows directly. This
-module answers a different question: it replays two full snapshots and
-compares them on the event key, so that its counts mean events and not rows.
+It is therefore a tool over vendor/ and not a read of the published lake. The
+rule that every read of raw/ goes through sdp.dal is unaffected.
 
 Read the diff on the event key and never on the vendor id. The id is not stable
 across pulls. A diff on the id reports hundreds of deletions and insertions for
@@ -25,7 +22,10 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, field
 
+import duckdb
+
 from sdp import dal
+from sdp.ingest import massive_corporate_actions as ca
 
 # The event key of each current-state dataset.
 KEYS: dict[str, str] = {
@@ -66,13 +66,30 @@ class Diff:
 
 
 def _pull_dates(ds: dal.Dataset) -> list[dt.date]:
-    parts = dal.partitions(ds)
-    if len(parts) < 2:
-        raise dal.MissingPartition(
-            f"{ds.name} has {len(parts)} pull(s). A diff needs two. Run "
+    """Return the dates of the vendor pulls that are kept for this dataset."""
+    pulls = [d for d, _ in ca.vendor_pulls(ds.name)]
+    if len(pulls) < 2:
+        raise FileNotFoundError(
+            f"{ds.name} has {len(pulls)} vendor pull(s). A diff needs two. Run "
             f"python -m sdp.daily on more than one day."
         )
-    return parts
+    return pulls
+
+
+def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
+    """Register one vendor pull as a view under the given name."""
+    path = dict(ca.vendor_pulls(ds.name))[pull]
+    # DuckDB reads gzip NDJSON directly, so no file is expanded on disk.
+    #
+    # The cast is defensive. read_json infers the type of each column, and a
+    # pull whose factors are all null gives that column a type with no
+    # arithmetic. The comparison below would then fail on a binder error
+    # instead of reporting a restatement.
+    con.execute(
+        f"create or replace temp view {name} as select * replace ("
+        f"cast(historical_adjustment_factor as double) "
+        f"as historical_adjustment_factor) from "
+        f"read_json('{path}', format='newline_delimited', sample_size=-1)")
 
 
 def diff(ds: dal.Dataset, older: dt.date | None = None,
@@ -87,9 +104,9 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
     if older >= newer:
         raise ValueError(f"The older pull {older} is not before the newer {newer}.")
 
-    con = dal.con()
-    con.register("_ca_older", dal.snapshot(ds, older))
-    con.register("_ca_newer", dal.snapshot(ds, newer))
+    con = duckdb.connect()
+    _register(con, "_ca_older", ds, older)
+    _register(con, "_ca_newer", ds, newer)
 
     sql = f"""
         with o as (select * from _ca_older),
@@ -139,25 +156,25 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
         order by abs(nk.f - ok.f) / nullif(abs(ok.f), 0) desc
         limit {examples}
     """).fetchall()
-    con.unregister("_ca_older")
-    con.unregister("_ca_newer")
+    con.close()
 
     return Diff(ds.name, older, newer, *row, restated_examples=sample)
 
 
 def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
-    """Bound the error of the earliest-pull policy over one event window.
+    """Measure how far the vendor moved between the oldest and newest pull.
 
-    A study of the years before the first pull cannot be point-in-time. It must
-    name a pull. The first pull is the least contaminated one that exists, and
-    this function measures how far it has already moved from the newest pull
-    over the event dates that the study consumes.
+    raw/ holds the belief of the vendor now, so a rebuild of the lake changes
+    the adjusted prices whenever the vendor restates a factor. This function
+    puts a number on that movement over the event dates that a study consumes,
+    which is what a writeup needs to quote. It reads the vendor archive, so it
+    keeps working however raw/ is stored.
     """
     key = KEYS[ds.name]
     parts = _pull_dates(ds)
-    con = dal.con()
-    con.register("_ca_older", dal.snapshot(ds, parts[0]))
-    con.register("_ca_newer", dal.snapshot(ds, parts[-1]))
+    con = duckdb.connect()
+    _register(con, "_ca_older", ds, parts[0])
+    _register(con, "_ca_newer", ds, parts[-1])
     row = con.execute(f"""
         with o as (select ticker, {key} as ev, count(*) n_rows,
                           min(historical_adjustment_factor) f
@@ -178,13 +195,12 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
         from o join n using (ticker, ev)
         where o.n_rows = 1 and n.n_rows = 1
     """).fetchone()
-    con.unregister("_ca_older")
-    con.unregister("_ca_newer")
+    con.close()
     assert row is not None
     n, changed, tickers, med, worst = row
     pct = (100.0 * changed / n) if n else 0.0
     return (
-        f"{ds.name} drift, {parts[0]} against {parts[-1]}, "
+        f"{ds.name} drift, vendor pull {parts[0]} against {parts[-1]}, "
         f"events from {start} to {end}\n"
         f"  matched events       {n}\n"
         f"  restated             {changed} ({pct:.3f} percent), "
@@ -199,7 +215,7 @@ def report() -> str:
     for ds in (dal.SPLITS, dal.DIVIDENDS):
         try:
             out.append(str(diff(ds)))
-        except (dal.MissingPartition, ValueError) as exc:
+        except (FileNotFoundError, ValueError) as exc:
             out.append(f"{ds.name}: {exc}")
     return "\n\n".join(out)
 

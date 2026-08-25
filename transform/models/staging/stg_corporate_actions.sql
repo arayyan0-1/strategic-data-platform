@@ -6,7 +6,7 @@
   and a recurring distribution can share an ex-date. For splits it is a vendor
   contradiction, because a cumulative factor is a property of the date.
 
-  Measured on the pull of 2026-08-22:
+  Measured on the pull of 2026-08-25:
     splits     211 duplicate (ticker, execution_date) pairs. All 211 disagree on
                the factor. 137 also disagree on adjustment_type.
     dividends  13,926 duplicate (ticker, ex_dividend_date) pairs, of which 3,835
@@ -27,7 +27,7 @@ with splits_src as (
         split_to,
         historical_adjustment_factor          as factor,
         adjustment_type
-    from {{ ca_snapshot('massive_splits') }}
+    from {{ ca_table('massive_splits') }}
     where ticker is not null
       and execution_date is not null
       -- A null factor on a split is fatal at ingest, so a null here cannot occur.
@@ -58,7 +58,7 @@ with splits_src as (
         cast(ex_dividend_date as date)        as event_date,
         historical_adjustment_factor          as factor,
         cash_amount
-    from {{ ca_snapshot('massive_dividends') }}
+    from {{ ca_table('massive_dividends') }}
     where ticker is not null
       and ex_dividend_date is not null
       and currency = 'USD'

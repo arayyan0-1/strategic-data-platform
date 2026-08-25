@@ -6,10 +6,10 @@
 The command does two different jobs, because the two kinds of dataset need
 different treatment.
 
-1. It pulls the current-state datasets for today. These are `massive_splits` and
-   `massive_dividends`. A missed day here is unrecoverable, so this step runs
-   every day and it includes a weekend. An announcement made on a Friday evening
-   is captured by the Saturday pull.
+1. It pulls the current-state datasets. These are `massive_splits` and
+   `massive_dividends`. Each pull replaces the whole table, so a missed day
+   costs nothing. The next pull states the belief of the vendor now, which is
+   what these tables hold.
 
 2. It fills the event streams up to today. These are `day_aggs` and `tickers`.
    The step starts at the day after the last published partition. The driver is
@@ -73,26 +73,6 @@ def _pull_current_state(today: dt.date, *, force: bool = False) -> list[str]:
     return failed
 
 
-def _warn_if_the_record_has_a_gap(today: dt.date) -> None:
-    """Log the size of any break in the pull_date series.
-
-    A missed day is permanent. The splits endpoint has no declaration_date, so
-    the pull_date partitions are the only record of when a split became
-    knowable. A break must be visible in the log and not silent.
-    """
-    parts = dal.partitions(dal.SPLITS)
-    if not parts:
-        log.warning("massive_splits has no pull yet. The record starts today.")
-        return
-    missed = (today - parts[-1]).days - 1
-    if missed > 0:
-        log.warning(
-            "The record has a gap of %s days, from %s to %s. Those days are "
-            "permanent losses. No later pull can recover them.",
-            missed, parts[-1] + dt.timedelta(days=1), today - dt.timedelta(days=1),
-        )
-
-
 def _fill_event_stream(
     name: str,
     ds: dal.Dataset,
@@ -139,7 +119,6 @@ def run(
     problems: list[str] = []
 
     if not skip_current_state:
-        _warn_if_the_record_has_a_gap(today)
         failed = _pull_current_state(today, force=force)
         problems += [f"{name} pull failed" for name in failed]
 
