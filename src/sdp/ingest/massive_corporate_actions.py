@@ -502,6 +502,7 @@ def rebuild(dataset: str) -> None:
 if __name__ == "__main__":
     import sys
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     names = [t for t in sys.argv[1:] if not t.startswith("-")] or list(SPECS)
     for name in names:
         if "--rebuild" in sys.argv:
