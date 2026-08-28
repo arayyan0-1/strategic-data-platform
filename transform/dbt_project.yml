@@ -10,17 +10,17 @@ target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
 vars:
-  # The lake. dbt starts from its own directory, so this must be absolute.
-  # profiles.yml and this value both come from the SDP_DATA_ROOT variable.
+  # The lake root. Absolute, because dbt starts from its own directory.
   data_root: "{{ env_var('SDP_DATA_ROOT') }}"
 
-  # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
-  # A study must not read a short interest number before this many sessions have
-  # passed. It is a var and not a constant, because the schedule changed in the
-  # past and a robustness check on it is cheap. See docs/decisions/0009.
+  # Sessions FINRA takes to publish a settlement date. A study must not read a
+  # short interest number before this many sessions pass.
   short_interest_publication_sessions: 8
 
-  # Universe. Each value is a modelling choice. Change one and run the study again.
+  # A session with fewer in_universe names than this is dropped from the IC.
+  ic_min_names: 100
+
+  # Universe filters. Each value is a modelling choice.
   universe_types: ["CS"]
   universe_exchanges: ["XNYS", "XNAS", "XASE"]
   min_price: 5.0
@@ -34,3 +34,6 @@ models:
     staging:
       +materialized: table
       +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
