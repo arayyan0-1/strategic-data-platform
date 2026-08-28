@@ -1,14 +1,8 @@
 # src/sdp/diagnostics.py
-"""The measurements that close the open questions.
-
-Each function answers one question with a number. Run the module after the
-backfill. Before the backfill the answers are correct for the window that exists,
-and that window is too short to decide anything.
+"""Measurements that close the open questions. Each function answers one question
+with a number. Run after the backfill. Every read goes through sdp.dal.
 
     python -m sdp.diagnostics
-
-Every read uses sdp.dal. This module replaces the queries that lived in
-scratch.py.
 """
 from __future__ import annotations
 
@@ -16,9 +10,8 @@ import datetime as dt
 
 from sdp import dal
 
-# The proxy for the universe. It is the same shape as the dbt model and it is
-# not the same code, so the two can disagree. The dbt model is the definition.
-# This proxy exists so that a diagnostic does not need a dbt run.
+# A universe proxy so a diagnostic needs no dbt run. The dbt model is the
+# definition, and the two can disagree.
 MIN_PRICE = 5.0
 MIN_ADV = 1_000_000.0
 ADV_WINDOW = 20
@@ -50,13 +43,9 @@ def _liquid_bars_sql() -> str:
 # ---------- decision 0007: the identifier ----------
 
 def figi_reuse() -> str:
-    """How many CS tickers map to more than one composite_figi in the window?
-
-    A ticker that a delisting frees can go to a different company. A key on the
-    ticker then joins the returns of two companies into one series, and the
-    discontinuity looks like a fat tail. If reuse affects a dozen names over five
-    years, a simpler scheme is defensible.
-    """
+    """How many CS tickers map to more than one composite_figi in the window? A
+    freed-then-reused ticker would join two companies into one fat-tailed series,
+    so a large count means a ticker key is not defensible."""
     rows = _sql("""
         with cs as (
             select ticker, composite_figi, share_class_figi, date
@@ -80,12 +69,9 @@ def figi_reuse() -> str:
 
 
 def figi_exposure() -> str:
-    """What share of the traded universe falls back off FIGI?
-
-    The raw null rate for common stock is about 20 percent. The number that
-    matters is the rate after the liquidity filter, because those are the rows
-    that a study consumes.
-    """
+    """What share of the traded universe falls back off FIGI? The raw CS null rate
+    is ~20%, but the rate after the liquidity filter is the one that matters,
+    because those are the rows a study consumes."""
     rows = _sql(f"""
         with liquid as ({_liquid_bars_sql()}),
         screened as (
@@ -114,14 +100,12 @@ def figi_exposure() -> str:
             f"  and with no CIK either      {scr_no_key}")
 
 
-# ---------- decision 0010: the ambiguous event key ----------
+# ---------- the ambiguous event key ----------
 
 def corporate_action_duplicates() -> str:
-    """How many events share a ticker and a date, and disagree about the factor?
-
-    An as-of join against the raw rows makes one price row into two. The staging
-    model collapses them first. This is the exposure that the collapse hides.
-    """
+    """How many events share a ticker and date and disagree about the factor? An
+    as-of join against the raw rows would fan out; the staging model collapses
+    them first, and this is the exposure it hides."""
     out = []
     for ds, key in ((dal.SPLITS, "execution_date"),
                     (dal.DIVIDENDS, "ex_dividend_date")):
@@ -150,16 +134,10 @@ def corporate_action_duplicates() -> str:
 # ---------- the null dividend factor ----------
 
 def dividend_factor_nulls() -> str:
-    """Is the null dividend factor structural, or is it a defect?
-
-    The factor needs a price on the ex-date. A null therefore means that the
-    vendor has no price for that security. The check that decides this is the
-    rate inside the set of tickers that trade on the ingested tape, against the
-    rate outside it. The earlier measurement used two day-aggregate partitions,
-    so every name that delisted before those dates counted as 'not traded'. That
-    is exactly the set which survivorship affects. This function uses the whole
-    bar history instead.
-    """
+    """Is the null dividend factor structural or a defect? The factor needs a
+    price on the ex-date, so a null means the vendor has no price. The deciding
+    check is the null rate inside the traded tape against outside it, over the
+    whole bar history (a short window would count early delistings as untraded)."""
     rows = _sql("""
         with traded as (select distinct ticker from _bars),
         d as (select ticker, historical_adjustment_factor as f,

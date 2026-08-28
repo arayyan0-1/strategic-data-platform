@@ -1,21 +1,7 @@
 {#
-  One row for each (ticker, event_date, kind).
-
-  The vendor gives one row for each event. Two rows can carry the same ticker and
-  the same date. For dividends this is often real, because a special distribution
-  and a recurring distribution can share an ex-date. For splits it is a vendor
-  contradiction, because a cumulative factor is a property of the date.
-
-  Measured on the pull of 2026-08-25:
-    splits     211 duplicate (ticker, execution_date) pairs. All 211 disagree on
-               the factor. 137 also disagree on adjustment_type.
-    dividends  13,926 duplicate (ticker, ex_dividend_date) pairs, of which 3,835
-               have an ex-date inside the price window.
-
-  An as-of join against the raw rows therefore makes one price row into two, with
-  two different adjusted prices. This model collapses the duplicates first and
-  records the disagreement, so that the exposure is measurable and not hidden.
-  See docs/decisions/0010.
+  One row per (ticker, event_date, kind). The vendor can give two rows for one
+  key that disagree on the factor. Collapse them and record the disagreement, so
+  an as-of join cannot turn one price row into two.
 #}
 
 with splits_src as (
@@ -30,8 +16,8 @@ with splits_src as (
     from {{ ca_table('massive_splits') }}
     where ticker is not null
       and execution_date is not null
-      -- A null factor on a split is fatal at ingest, so a null here cannot occur.
-      -- A factor of 0 is RYCEF and it has no valid adjustment.
+      -- factor is null (fatal at ingest, so absent here) or 0 (RYCEF, no valid
+      -- adjustment). Drop both.
       and historical_adjustment_factor > 0
       and split_from > 0
       and split_to > 0
@@ -62,11 +48,9 @@ with splits_src as (
     where ticker is not null
       and ex_dividend_date is not null
       and currency = 'USD'
-      -- Keep the null factor. It is structural: the vendor has no price on the
-      -- ex-date for that security. A predicate of "factor > 0" alone removes the
-      -- null rows without a message, and the as-of join then reports 1.0 for a
-      -- date whose factor is unknown. Three-valued logic, the same trap as the
-      -- cash_amount predicate in the audits.
+      -- Keep the null factor. It is structural (no vendor price on the ex-date).
+      -- `factor > 0` alone would drop nulls silently, and the as-of join would
+      -- then report 1.0 for an unknown date.
       and (historical_adjustment_factor is null or historical_adjustment_factor > 0)
 
 ), dividends_grouped as (
@@ -75,7 +59,7 @@ with splits_src as (
         ticker,
         event_date,
         'dividend'                                    as kind,
-        -- One null distribution makes the date unknown. It does not make it 1.0.
+        -- One null distribution makes the date unknown, not 1.0.
         case when bool_or(factor is null) then null else min(factor) end as factor,
         cast(null as double)                          as ratio,
         count(*)                                      as n_events,
@@ -104,26 +88,15 @@ select
     factor_spread,
     factor_is_null,
     n_events > 1 as is_collapsed,
-    {#
-      True when this event, or any later event on the same ticker, had its rows
-      collapsed. The vendor factor is cumulative, so an ambiguity at one date
-      travels backwards through every earlier factor of that ticker. Measured on
-      the pull of 2026-08-09: the chained check disagrees with the vendor factor
-      on 170 split events, and all 170 have a collapsed event at or after them.
-      There is no case of a disagreement without one.
-    #}
+    -- True when this event, or any later one on the same ticker, was collapsed.
+    -- The factor is cumulative, so an ambiguity travels back through earlier dates.
     bool_or(n_events > 1) over (
         partition by ticker, kind
         order by event_date desc
         rows between unbounded preceding and current row
     ) as has_collapsed_at_or_after,
-    {#
-      The validation column. The vendor factor is cumulative and it includes the
-      event itself: factor(e) = product of split_from/split_to over every event
-      with a date at or after e. This column reproduces that product from the
-      ratio components. It is a check on the semantics and it is never a
-      substitute for the vendor factor. See docs/decisions/0005.
-    #}
+    -- Validation only: reproduce the cumulative split factor from the ratios.
+    -- Never a substitute for the vendor factor.
     case when kind = 'split' then
         exp(sum(ln(ratio)) over (
             partition by ticker, kind

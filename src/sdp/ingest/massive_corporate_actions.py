@@ -1,29 +1,12 @@
 # src/sdp/ingest/massive_corporate_actions.py
 """Splits and dividends. One table for each, replaced by every pull.
 
-The two endpoints give current state. Each pull is the full present belief of
-the vendor about all of history, and the endpoint has no as_of parameter.
-
-raw/ therefore holds one table for each dataset and no date in the path. A
-pull builds the whole table again and replaces it. There is no partition to
-choose at a call site and no policy to state in a study.
-
-vendor/ still keeps every pull, dated, byte for byte. That archive is what
-makes a past belief of the vendor recoverable, and it is where sdp.restatement
-reads. The published table is the belief of the vendor now. See
-docs/decisions/0016-corporate-actions-are-current-state.md.
-
-The flow of one pull is Write-Audit-Publish:
-
-1. Fetch the full pull into vendor/, as gzip NDJSON.
-2. build() the whole table into _staging/.
-3. audit().
-4. os.replace into raw/.
-
-The replace is atomic, so a reader sees the pull before or the pull after and
-never a file part way through. An audit that raises leaves the table of the
-previous pull in place, which is the correct answer for current state: the
-newest belief that passed its checks.
+The endpoints give current state, so raw/ holds one table per dataset with no
+date in the path. vendor/ keeps every pull dated, which is what makes a past
+belief recoverable and where sdp.restatement reads. The flow is
+Write-Audit-Publish: fetch into vendor/, build() into _staging/, audit(),
+os.replace into raw/. The replace is atomic, and a failed audit leaves the
+previous pull in place.
 """
 from __future__ import annotations
 
@@ -71,14 +54,8 @@ class AuditFailure(RuntimeError):
 # ---------- BUILD ----------
 
 def build(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
-    """Stage the whole table from one vendor pull.
-
-    'vendor_pull_date' records which pull built the table. It is provenance
-    and not a key. Nothing joins on it and nothing filters by it. It answers
-    the question "which vendor file made this file", which a rebuild needs
-    and a reader of a stale lake needs. Its value comes from the name of the
-    vendor file, so a rebuild from the same file gives the same value.
-    """
+    """Stage the whole table from one vendor pull. vendor_pull_date is
+    provenance, not a key: it names the vendor file that built the table."""
     staged = settings.staging_dir / dataset / f"{pull_date:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
@@ -131,14 +108,9 @@ def _audit_common(staged: Path, dataset: str) -> int:
 
 
 def _audit_splits(staged: Path, pull_date: dt.date) -> None:
-    """The past and the future divide at the pull date and not at today.
-
-    The vendor computes a factor when an event executes, so a null factor is
-    fatal only on an event that had already executed when this pull ran. A
-    comparison against current_date would reclassify pending events as
-    executed on every later day, and rebuild() would then fail on a pull
-    that passed when it was live.
-    """
+    """The past and future divide at the pull date, not today. A null factor is
+    fatal only on an event already executed at the pull. Comparing against
+    current_date would fail a later rebuild of a pull that passed when live."""
     (null_past, null_future, zero_f, neg_f, null_date,
      bad_fwd, bad_rev, bad_stk, bad_from, bad_to, extreme) = _one(f"""
         select
@@ -225,11 +197,8 @@ def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
     if fatal:
         raise AuditFailure("dividends: " + ". ".join(fatal) + ".")
 
-    # The dividend factor is different from the split factor. To compute it,
-    # the vendor needs a price on the ex-date, as a product of (1 - D/P)
-    # terms. A null factor therefore means that the vendor has no price for
-    # that security. This is structural. Most of these rows are old or
-    # delisted. It is not fatal.
+    # A null dividend factor is structural, not fatal: computing it needs a
+    # price on the ex-date, and the vendor has none for that security.
     if null_past:
         log.info("dividends: %s null factors on past ex-dates, on %s tickers. "
                  "The vendor has no price to compute them with.",
@@ -247,14 +216,9 @@ def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
 
 
 def _audit_vs_previous(dataset: str, staged: Path, n_rows: int) -> None:
-    """Compare the staged table against the table that is published now.
-
-    The sharp check is the delta between two pulls and not the absolute
-    count. An absolute threshold on a dataset that grows becomes meaningless
-    or noisy over time. The delta check stays sharp for ever, and it is the
-    reason a pull that loses history or breaks many tickers at once cannot
-    replace a good table.
-    """
+    """Compare the staged table against the one published now. The sharp check
+    is the delta between two pulls, not an absolute count, which on a growing
+    dataset goes noisy. It stops a pull that loses history replacing a good one."""
     prev = raw_path(dataset)
     if not prev.exists():
         log.info("%s: first pull. %s rows. There is no baseline.", dataset, n_rows)
@@ -313,12 +277,9 @@ def _publish(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
 
 def ingest(dataset: str, pull_date: dt.date | None = None, *,
            force: bool = False) -> Path | None:
-    """Fetch the pull of the day and replace the published table.
-
-    A pull that already has its vendor file does not fetch again unless force
-    is set, but it does build and publish. There is no partition to skip,
-    because the table has no date in its path.
-    """
+    """Fetch the day's pull and replace the published table. An existing vendor
+    file is not refetched unless force is set, but it is still built and
+    published; there is no partition to skip."""
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
     spec = SPECS[dataset]
     vendor_file = dump_ndjson(dataset, spec["path"], spec["params"], pull_date,
@@ -344,13 +305,9 @@ def vendor_pulls(dataset: str) -> list[tuple[dt.date, Path]]:
 
 
 def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
-    """Build the table again from a vendor pull, with no fetch.
-
-    The default is the newest pull, which reproduces the published table. Name
-    an older pull to rebuild the table as that pull stated it. This is the one
-    path back to a past belief of the vendor, and it works because vendor/
-    keeps every pull. See docs/decisions/0016.
-    """
+    """Build the table again from a vendor pull, with no fetch. The default is
+    the newest pull. Name an older pull to rebuild the table as it stated it,
+    the one path back to a past belief of the vendor."""
     pulls = vendor_pulls(dataset)
     if not pulls:
         raise FileNotFoundError(

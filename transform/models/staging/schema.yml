@@ -2,9 +2,7 @@ version: 2
 
 models:
   - name: stg_corporate_actions
-    description: >
-      One row for each ticker, event date and kind. Duplicate vendor rows are
-      collapsed and the disagreement is recorded. See docs/decisions/0010.
+    description: One row per ticker, event date and kind. Duplicate vendor rows are collapsed.
     columns:
       - name: ticker
         tests: [not_null]
@@ -17,9 +15,7 @@ models:
               values: ["split", "dividend"]
 
   - name: stg_prices_adjusted
-    description: >
-      Unadjusted prices, the two factors and the adjusted columns. The adjustment
-      is one as-of lookup with a strict comparison. See docs/decisions/0005.
+    description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins.
     columns:
       - name: ticker
         tests: [not_null]
@@ -31,9 +27,7 @@ models:
         tests: [not_null]
 
   - name: stg_universe
-    description: >
-      The universe for each date, from an instrument filter and a liquidity
-      filter. Every threshold is a var.
+    description: The universe per date, from an instrument filter and a liquidity filter.
     columns:
       - name: date
         tests: [not_null]
@@ -47,25 +41,16 @@ models:
               values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
 
   - name: stg_short_interest
-    description: >
-      Short interest with the publication lag applied and the censored
-      days_to_cover removed. Join a signal on effective_date and never on
-      settlement_date. See docs/decisions/0009.
+    description: Short interest with the publication lag applied and the 999.99 cap removed.
     columns:
       - name: settlement_date
-        description: The date that the number describes.
+        description: The date the number describes.
         tests: [not_null]
       - name: effective_date
-        description: >
-          The first session on which the number was public. Null when the bar
-          calendar does not cover the settlement date at both ends, because the
-          lag cannot then be counted in sessions.
+        description: The first session the number was public. Null where the bars do not cover the settlement date.
       - name: ticker
         tests: [not_null]
       - name: days_to_cover
-        description: >
-          Null where the vendor returned the 999.99 cap, because the cap is not
-          a measurement. Use days_to_cover_computed for an uncensored ratio.
+        description: Null where the vendor returned the 999.99 cap. Use days_to_cover_computed.
       - name: days_to_cover_is_censored
         tests: [not_null]
-

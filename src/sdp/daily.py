@@ -1,28 +1,13 @@
 # src/sdp/daily.py
-"""The daily driver. One command for a scheduler to call.
+"""The daily driver, one command for a scheduler.
 
     python -m sdp.daily
 
-The command does two different jobs, because the two kinds of dataset need
-different treatment.
-
-1. It pulls the current-state datasets. These are `massive_splits` and
-   `massive_dividends`. Each pull replaces the whole table, so a missed day
-   costs nothing. The next pull states the belief of the vendor now, which is
-   what these tables hold.
-
-2. It fills the event streams up to today. These are `day_aggs` and `tickers`.
-   The step starts at the day after the last published partition. The driver is
-   therefore self-healing. A machine that was asleep, or a run that failed,
-   recovers on the next run with no manual step.
-
-Step 2 has a limit on the number of sessions, so that a long gap does not turn
-one daily run into a backfill of several hours. A gap larger than the limit
-closes over the runs of the next days. Use `sdp.backfill` directly for a real
-backfill.
-
-The command exits with 1 when any step fails, so that a wrapper can raise an
-alert.
+Two jobs. (1) Pull the current-state datasets (splits, dividends); each pull
+replaces the whole table, so a missed day costs nothing. (2) Fill the event
+streams (day_aggs, tickers) from the day after the last partition, so a machine
+that slept self-heals. Step 2 is capped so a long gap does not become a
+backfill. Exits 1 on any failure.
 """
 from __future__ import annotations
 
@@ -41,10 +26,8 @@ CURRENT_STATE = ["massive_splits", "massive_dividends"]
 EVENT_STREAMS = {
     "day_aggs": dal.DAY_AGGS,
     "tickers": dal.TICKERS,
-    # Short interest reports on a two-week cadence. Most sessions have no
-    # settlement, so the fill tries those dates again on each run and publishes
-    # nothing. The endpoint has no call limit and the session limit bounds the
-    # work, so the cost is small and the code stays the same for both kinds.
+    # Short interest reports on a two-week cadence, so most sessions publish
+    # nothing and the fill retries them cheaply on each run.
     "short_volume": dal.SHORT_VOLUME,
     "short_interest": dal.SHORT_INTEREST,
 }
@@ -160,10 +143,8 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    # httpx logs one INFO line for each request. That was 41 percent of
-    # daily.err.log, which the launchd agent appends to and never rotates.
-    # The retry and the failure of a request come from the sdp loggers, so
-    # this level removes noise and no diagnostic information.
+    # Quiet httpx's one-INFO-line-per-request. Retries and failures still log
+    # from the sdp loggers.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     return run(
         args.date,
