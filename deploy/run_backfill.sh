@@ -1,35 +1,23 @@
 #!/usr/bin/env bash
 #
-# Run the four backfills together, one log for each.
+# Run the four backfills together, one log each. ~55 min.
 #
 #     caffeinate -is bash deploy/run_backfill.sh
 #
-# caffeinate keeps the Mac awake. The run takes about 55 minutes, which is set by
-# the slowest of the four and not by their total.
-#
-# Pass any flag of sdp.backfill and every target receives it:
-#
-#     bash deploy/run_backfill.sh --dry-run      # count the sessions and stop
-#     bash deploy/run_backfill.sh --limit 5      # test the first five dates
-#
-# Nothing needs a rerun by hand. ingest() skips a partition that is already
-# published, so running this script again retries only the gaps.
-#
-# Stop the launchd agent first. It fires at 09:00 on the same targets, and two
-# processes that reach the same date write the same .part file in vendor/.
+# Any sdp.backfill flag passes through (--dry-run, --limit 5, --force). A rerun
+# retries only the gaps, because ingest() skips published partitions. Stop the
+# launchd agent first, or two runs race on the same vendor files:
 #
 #     launchctl bootout gui/$(id -u)/com.sdp.daily
 #     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sdp.daily.plist
 #
 set -u -o pipefail
 
-# The script must not depend on the working directory. That error happened twice
-# already with the Python paths.
+# Independent of the working directory.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-# Use the interpreter of the venv and not `uv run`. Four concurrent `uv run`
-# calls each rebuild and reinstall the package, and they race on one venv.
+# Use the venv interpreter, not `uv run`: concurrent `uv run` calls race on the venv.
 PY="$REPO/.venv/bin/python"
 if [ ! -x "$PY" ]; then
     echo "The venv interpreter is absent: $PY" >&2
@@ -37,31 +25,22 @@ if [ ! -x "$PY" ]; then
     exit 1
 fi
 
-# The S3 flat files sit on a rolling five-year window. Measured on 2026-08-23:
-# 2021-08-20 is absent and 2021-08-23 is present, which is that date minus five
-# years exactly. The floor therefore moves forward every day, so it is computed
-# and never written down. See docs/decisions/0014.
+# The S3 flat files roll on a five-year window, so the floor is today minus five
+# years, computed and never written down.
 BARS_START="${BARS_START:-$(date -v-5y +%Y-%m-%d)}"
 
-# Short volume has a real coverage floor and it is not the rolling window.
-# 2023-06-01 returns nothing and 2024-02-06 returns records.
+# Short volume has a real coverage floor at 2024-02-06, not the rolling window.
 SHORT_VOLUME_START="${SHORT_VOLUME_START:-2024-02-06}"
 
-# Yesterday. The flat file for session D lands at about 05:00 UTC on D+1, so
-# today's file does not exist yet. A failure on the newest date means only that
-# the vendor has not published it. Run the script again and it is picked up.
+# Yesterday. Session D's flat file lands ~05:00 UTC on D+1, so a failure on the
+# newest date only means the vendor has not published it yet.
 END="${END:-$(date -v-1d +%Y-%m-%d)}"
 
 LOGS="$REPO/data/_logs"
 mkdir -p "$LOGS"
 
-# Refuse a second run while one is in progress. `mkdir` either creates the
-# directory or fails, in one step, so it is a lock and a test at the same time.
-#
-# This exists because it happened. On 2026-08-23 a second copy of this script ran
-# beside the first and 288 of 1,255 ticker dates failed. Unique temporary names
-# now make that harmless rather than destructive, but two runs still fetch every
-# date twice and neither finishes sooner.
+# Refuse a second run while one is in progress. `mkdir` is a lock and a test in
+# one step. Two concurrent runs once failed 288 of 1,255 dates.
 LOCK="$LOGS/.backfill.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
     running=$(cat "$LOCK/pid" 2>/dev/null || echo "unknown")
@@ -85,7 +64,7 @@ echo
 declare -a NAMES=()
 declare -a PIDS=()
 
-# "$@" carries any flag that the caller passed, such as --dry-run.
+# "$@" passes the caller's flags through.
 "$PY" -m sdp.backfill day_aggs       "$BARS_START"         "$END" "$@" >"$LOGS/bf_day_aggs.log"       2>&1 &
 NAMES+=("day_aggs");       PIDS+=("$!")
 "$PY" -m sdp.backfill tickers        "$BARS_START"         "$END" "$@" >"$LOGS/bf_tickers.log"        2>&1 &

@@ -1,34 +1,9 @@
 {#
-  Short interest, with the two rules that decision 0009 requires.
-
-  1. The publication lag. FINRA disseminates a settlement date about eight
-     sessions later. The raw partition is keyed on the settlement date, so a
-     study that reads it on that date uses a number that nobody had. This model
-     adds `effective_date`, which is the first session on which the number was
-     public. Join a signal on `effective_date` and never on `settlement_date`.
-
-     The lag is counted in XNYS sessions and the session list comes from the
-     bars, so a market holiday cannot shorten it.
-
-     `effective_date` is null unless the bar calendar covers the settlement date
-     at both ends. The upper guard is obvious. The lower guard is not, and it
-     matters more: without it, a settlement date before the first bar counts its
-     lag from the first bar instead of from itself, and every such settlement
-     collapses onto the same wrong date. That date looks reasonable, which is
-     worse than an error. Null is the honest answer, and the backfill removes
-     the case.
-
-  2. The censored days_to_cover. The vendor caps this field at 999.99. Decision
-     0009 recorded the cap as a sentinel for `avg_daily_volume = 0`, and that is
-     incomplete. Measured on four settlement dates: 15,317 rows hold 999.99 and
-     only 12,074 of them have zero volume. The other 3,243 have an implied
-     ratio at or above the cap, from 1,001 to 21.4 million, while the largest
-     value below the cap is 998.82. So 999.99 means "at or above 999.99" and it
-     is never a measurement.
-
-     The field is therefore null in this model and a flag records the censoring.
-     `days_to_cover_computed` holds the ratio that the two raw columns give,
-     which is uncensored wherever volume is above zero.
+  Short interest, with two rules. (1) FINRA publishes a settlement date about
+  eight sessions later, so `effective_date` marks the first session the number
+  was public. Join on it, never on settlement_date. It is null unless the bars
+  cover the settlement date at both ends. (2) days_to_cover is null where the
+  vendor caps it at 999.99 (not a measurement); use days_to_cover_computed.
 #}
 
 with sessions as (
@@ -52,9 +27,8 @@ raw as (
 
 ),
 
--- The first session strictly after each settlement date. Restricted to the
--- settlement dates that the bar calendar actually covers, so that the count
--- never starts from the first bar instead of from the settlement.
+-- First session after each settlement date. Restricted to settlement dates the
+-- bars cover, so the count never starts from the first bar.
 first_session_after as (
 
     select
@@ -86,12 +60,11 @@ select
     r.short_interest,
     r.avg_daily_volume,
 
-    -- Null, because the cap is not a measurement. See the header.
+    -- Null where censored, because the 999.99 cap is not a measurement.
     case when r.days_to_cover < 999.99 then r.days_to_cover end as days_to_cover,
     r.days_to_cover >= 999.99                                   as days_to_cover_is_censored,
 
-    -- The ratio computed from the two raw columns. Uncensored, and null only
-    -- where the vendor reports no volume at all.
+    -- Uncensored ratio from the raw columns, null only where volume is zero.
     r.short_interest / nullif(r.avg_daily_volume, 0)            as days_to_cover_computed
 
 from raw r

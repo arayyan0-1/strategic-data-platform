@@ -1,17 +1,8 @@
 # src/sdp/transform.py
-"""Run dbt with the paths that config.Settings holds.
-
-dbt starts from its own directory and it reads its inputs from environment
-variables. A relative path in profiles.yml therefore breaks as soon as the
-command starts from another working directory. That error happened twice
-already with the Python paths.
-
-This module passes settings.data_root and settings.warehouse_path to the dbt
-process, so that the lake has one definition and dbt has no second copy of it.
-config.py stays the only module that reads the environment.
+"""Run dbt with the paths from config.Settings, so the lake has one definition
+and dbt works from any working directory.
 
     python -m sdp.transform build
-    python -m sdp.transform build --vars '{ca_pull_policy: latest}'
     python -m sdp.transform test --select stg_prices_adjusted
 """
 from __future__ import annotations

@@ -70,21 +70,9 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
 
 
 def _temp_beside(dest: Path) -> Path:
-    """Return an unused temporary path in the directory of `dest`.
-
-    The name is unique for each call. Two fetches of the same date therefore
-    write to two different files, and each rename is atomic and independent of
-    the other.
-
-    A shared name is what breaks. The loser of the race finds that the winner
-    has already renamed the file away, and its own rename fails with
-    FileNotFoundError. That happened on 2026-08-23, when a second copy of the
-    backfill script ran beside the first: 247 dates failed that way and 41 more
-    failed reading a file mid-rename.
-
-    The directory is the same as the destination on purpose. `os.replace` is
-    atomic only inside one filesystem.
-    """
+    """An unused temporary path beside `dest`, unique per call, so two fetches of
+    the same date do not share a name and race on the rename. The directory
+    matches `dest`, because os.replace is atomic only within one filesystem."""
     fd, name = tempfile.mkstemp(dir=dest.parent, prefix=f"{dest.name}.", suffix=".part")
     os.close(fd)
     # mkstemp creates the file with mode 0600 and os.replace keeps that mode.
@@ -93,10 +81,8 @@ def _temp_beside(dest: Path) -> Path:
     return Path(name)
 
 
-# The two signatures below say that this function returns None only when the
-# caller asked for it. Without them the return type is `Path | None` for every
-# call, and each of the four call sites has to test for a None that three of
-# them can never receive. The rule belongs in the type and not in a branch.
+# The overloads make the return type None only when allow_empty is True, so the
+# call sites that never pass it do not test for a None they cannot receive.
 @overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date: dt.date, *, force: bool = ...,
@@ -117,17 +103,10 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 compress: bool = False) -> Path | None:
     """Write every record of an endpoint to one NDJSON file in vendor/.
 
-    Set allow_empty for a dataset that has no record on some dates. The short
-    interest endpoint reports on a two-week cadence, so most sessions have no
-    settlement. The short volume endpoint starts on 2024-02-06 and has nothing
-    before that date. An empty answer on those dates is the correct answer and
-    it is not a failure. The function then writes no file and returns None.
-
-    Set compress for a large full pull that repeats each day. The file is then
-    gzip NDJSON with the suffix .ndjson.gz, and DuckDB reads it directly. The
-    dividends pull is 246 MB each day as plain text and about a tenth of that
-    in gzip. The content is the same bytes after gunzip, so the vendor/ rule
-    holds.
+    allow_empty: for a dataset with no record on some dates (short interest's off
+    weeks, short volume before 2024-02-06), write no file and return None.
+    compress: write gzip NDJSON (.ndjson.gz), which DuckDB reads directly, for a
+    large daily full pull like dividends.
     """
     stem = f"{pull_date:%Y-%m-%d}"
     dest = settings.vendor_dir / dataset / f"{stem}{'.ndjson.gz' if compress else '.ndjson'}"

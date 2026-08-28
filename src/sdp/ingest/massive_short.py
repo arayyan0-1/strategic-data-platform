@@ -1,24 +1,12 @@
 # src/sdp/ingest/massive_short.py
-"""Ingest of the two FINRA short datasets.
+"""Ingest of the two FINRA short datasets, both event streams keyed on 'date'.
 
-Both are event streams and both use the partition key 'date'. See
-docs/decisions/0009-short-datasets.md for the reason, and for the accuracy that
-this choice gives up.
+massive_short_volume: daily off-exchange short volume, coverage from 2024-02-06.
+massive_short_interest: short interest on a two-week cadence, partition 'date'
+equals the settlement date, coverage from 2017-12-29.
 
-**massive_short_volume.** Daily off-exchange short sale volume. The endpoint
-takes a 'date' parameter and returns every ticker for that date. Coverage starts
-on 2024-02-06. The endpoint returns nothing before that date.
-
-**massive_short_interest.** Short interest on a two-week cadence. The endpoint
-takes a 'settlement_date' parameter and returns every ticker for that date. The
-partition column 'date' equals settlement_date. Coverage starts on 2017-12-29.
-Most sessions have no settlement, and an empty answer on those dates is correct.
-
-A warning about the volume fields. 'total_volume' in the short volume endpoint is
-FINRA off-exchange volume only. It is not consolidated tape volume, and it is
-much smaller than 'volume' in the day aggregates for the same name and date.
-Never divide one by the other. 'short_volume_ratio' is internally consistent,
-because both of its inputs come from FINRA.
+total_volume is FINRA off-exchange volume only, much smaller than the
+day-aggregate volume, so never divide one by the other.
 """
 from __future__ import annotations
 
@@ -45,10 +33,8 @@ _INTEREST_PATH = "/stocks/v1/short-interest"
 VOLUME_FLOOR = dt.date(2024, 2, 6)
 INTEREST_FLOOR = dt.date(2017, 12, 29)
 
-# The vendor writes this value into days_to_cover when avg_daily_volume is 0.
-# It is a sentinel and it is not a measurement of 1000 days. A study that reads
-# it as a number gets a very large value for the least liquid names, which is
-# the exact set that a short signal must handle with care.
+# The vendor writes this into days_to_cover when avg_daily_volume is 0. A
+# sentinel, not 1000 days, so reading it as a number inflates the least liquid names.
 DAYS_TO_COVER_SENTINEL = 999.99
 
 _CAL = xcals.get_calendar("XNYS")
@@ -78,12 +64,9 @@ def is_trading_day(d: dt.date) -> bool:
 # ---------- WRITE ----------
 
 def build(dataset: str, vendor_file: Path, d: dt.date) -> Path:
-    """Convert the vendor NDJSON file to a staged Parquet file.
-
-    The column 'date' is the partition column. For short interest it holds the
-    settlement date. The vendor column 'settlement_date' stays in the file,
-    because raw/ records what the vendor sent.
-    """
+    """Convert the vendor NDJSON to staged Parquet. The 'date' column is the
+    partition; for short interest it is the settlement date, and the vendor
+    'settlement_date' column stays, because raw/ records what was sent."""
     staged = settings.staging_dir / dataset / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
@@ -240,12 +223,8 @@ def ingest_short_volume(d: dt.date, *, force: bool = False) -> Path | None:
 
 
 def ingest_short_interest(d: dt.date, *, force: bool = False) -> Path | None:
-    """Ingest one settlement date.
-
-    Most sessions have no settlement. The endpoint then returns nothing and this
-    function returns None. That answer is correct. The daily run tries the recent
-    sessions again on the next run, and the endpoint has no call limit.
-    """
+    """Ingest one settlement date. Most sessions have none, so the endpoint
+    returns nothing and this returns None, which is correct."""
     return _ingest(
         SHORT_INTEREST, _INTEREST_PATH,
         {"settlement_date": d.isoformat(), "limit": _PAGE_LIMIT},

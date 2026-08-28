@@ -1,21 +1,8 @@
 """Measure what changed between two vendor pulls of a corporate action dataset.
-
-raw/ holds one table for each of splits and dividends, replaced by every pull,
-so the published lake has no record of what an earlier pull said. vendor/ does:
-ingest keeps every pull, dated, byte for byte. This module reads that archive.
-
-It is therefore a tool over vendor/ and not a read of the published lake. The
-rule that every read of raw/ goes through sdp.dal is unaffected.
-
-Read the diff on the event key and never on the vendor id. The id is not stable
-across pulls. A diff on the id reports hundreds of deletions and insertions for
-events that did not change, because the vendor regenerates the id.
-
-The event key is not unique either. Two vendor rows can share a ticker and a
-date, and they can disagree about the factor. See docs/decisions/0010. This
-module reports those rows as 'ambiguous' and keeps them out of the restatement
-count, so that a vendor contradiction inside one pull is never counted as a
-change between two pulls.
+raw/ holds one table per dataset, replaced by each pull, so it keeps no history.
+vendor/ does, and this module reads that archive, not raw/. Diff on the event
+key, never the vendor id, which is not stable across pulls. A key that is
+ambiguous within a pull is reported, not counted as a change.
 """
 from __future__ import annotations
 
@@ -79,12 +66,8 @@ def _pull_dates(ds: dal.Dataset) -> list[dt.date]:
 def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
     """Register one vendor pull as a view under the given name."""
     path = dict(ca.vendor_pulls(ds.name))[pull]
-    # DuckDB reads gzip NDJSON directly, so no file is expanded on disk.
-    #
-    # The cast is defensive. read_json infers the type of each column, and a
-    # pull whose factors are all null gives that column a type with no
-    # arithmetic. The comparison below would then fail on a binder error
-    # instead of reporting a restatement.
+    # DuckDB reads gzip NDJSON directly. The cast is defensive: an all-null
+    # factor column infers a non-arithmetic type and would fail the comparison.
     con.execute(
         f"create or replace temp view {name} as select * replace ("
         f"cast(historical_adjustment_factor as double) "
@@ -162,14 +145,9 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
 
 
 def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
-    """Measure how far the vendor moved between the oldest and newest pull.
-
-    raw/ holds the belief of the vendor now, so a rebuild of the lake changes
-    the adjusted prices whenever the vendor restates a factor. This function
-    puts a number on that movement over the event dates that a study consumes,
-    which is what a writeup needs to quote. It reads the vendor archive, so it
-    keeps working however raw/ is stored.
-    """
+    """How far the vendor moved between the oldest and newest pull, over the
+    event dates a study consumes. This is the drift a writeup quotes. Reads the
+    vendor archive."""
     key = KEYS[ds.name]
     parts = _pull_dates(ds)
     con = duckdb.connect()

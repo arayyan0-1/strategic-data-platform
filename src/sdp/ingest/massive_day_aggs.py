@@ -67,11 +67,8 @@ def download(d: dt.date, *, force: bool = False) -> Path:
 
 
 def build(d: dt.date) -> Path:
-    """Convert the vendor CSV to a staged Parquet file.
-
-    This step sets the column types and sorts the rows. It applies no
-    business logic.
-    """
+    """Convert the vendor CSV to staged Parquet: set column types and sort. No
+    business logic."""
     src = vendor_path(d)
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)

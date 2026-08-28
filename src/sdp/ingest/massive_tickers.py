@@ -37,27 +37,14 @@ def is_trading_day(d: dt.date) -> bool:
 # ---------- WRITE ----------
 
 def build(vendor_file: Path, d: dt.date) -> Path:
-    """Convert the vendor NDJSON file to a staged Parquet file.
-
-    This function adds no timestamp for the time of the pull. The partition key
-    already carries the data date. A timestamp from now() would give different
-    rows on a second run of the same date, and that breaks the rule on
-    idempotency of content. The mtime of the file in vendor/ records when the
-    fetch happened.
-    """
+    """Convert the vendor NDJSON to staged Parquet. No pull timestamp is added:
+    now() would break content idempotency, and vendor/ mtime records the fetch."""
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
-    # The cursor pagination of the vendor can return one record twice when the
-    # vendor revises that record during the pull. The two copies are identical
-    # except for last_updated_utc, which is the revision stamp of the record.
-    # Two pulls of the same date give a different set of duplicates each time,
-    # so this is a transport artifact and not a property of the data. Keep the
-    # newest copy of each ticker.
-    #
-    # This removal happens here and not in dbt, because a modelling filter is a
-    # decision about which rows matter and this is not one. It is the same
-    # record delivered twice. The count is logged, so the removal is visible.
+    # Cursor pagination can return one ticker twice, identical but for
+    # last_updated_utc, when the vendor revises it mid-pull. A transport
+    # artifact, not data, so keep the newest copy here (not in dbt) and log it.
     n_dupes = _one(f"""
         select count(*) - count(distinct ticker)
         from read_json('{vendor_file}', format = 'newline_delimited',

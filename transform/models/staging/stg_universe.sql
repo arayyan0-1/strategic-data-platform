@@ -1,14 +1,7 @@
 {#
-  The universe, for each date, from two independent filters.
-
-  Every threshold is a var. Changing one is a robustness check and not tidiness.
-  If the result holds at a $1M dollar volume floor and disappears at $10M, the
-  result is an illiquidity premium that you cannot harvest, and it is not alpha.
-
-  The liquidity window ends at D-1. A window that includes D uses the volume of
-  the day on which the position opens. A full-sample average is worse again,
-  because it selects the names that became liquid later, and that correlates with
-  survival. Both are the same family of error as survivorship bias.
+  The universe per date, from an instrument filter and a liquidity filter. Every
+  threshold is a var. The liquidity window ends at D-1, because a window that
+  includes D uses the volume of the day a position opens.
 #}
 
 with reference as (
@@ -30,15 +23,9 @@ with reference as (
 
     select
         *,
-        {#
-          The identifier. FIGI is incomplete for common stock and complete for
-          ETFs. CIK is the opposite, and CIK identifies the issuer and not the
-          security, so GOOG and GOOGL share one CIK. The order below prefers the
-          security identifier and falls back to an issuer identifier that is made
-          unique by the ticker. key_rule records which rule fired, so that the
-          fallback rate is measurable and those rows can be excluded.
-          See docs/decisions/0007.
-        #}
+        -- Prefer the security identifier (FIGI), fall back to an issuer id made
+        -- unique by ticker. key_rule records which rule fired, so the fallback
+        -- rate is measurable.
         coalesce(
             share_class_figi,
             composite_figi,

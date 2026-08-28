@@ -1,23 +1,11 @@
 # src/sdp/backfill.py
-"""Runner that loops over dates for the datasets that you can backfill.
+"""Runner that loops over dates for the backfillable datasets.
 
     python -m sdp.backfill day_aggs 2021-08-01 2026-08-08
-    python -m sdp.backfill tickers  2021-08-01 2026-08-08
 
-The runner does one session at a time and catches the exception of each date.
-One bad day must not stop the other 1,249 days. The run continues and reports
-at the end.
-
-The runner does not retry a failed date. ingest() ignores a partition that is
-already published. A second run of the same command is therefore the retry, and
-it continues from the point of failure.
-
-Run the two targets as two processes. They share no state. A stall in one must
-not block the other.
-
-The runner is sequential on purpose. Concurrency needs a rate limit for each
-host. It also mixes the log lines that make a failed date easy to find. The
-work needs one night in both designs.
+One session at a time, catching each date's exception, so one bad day does not
+stop the rest. There is no retry flag: ingest() skips a published partition, so
+a second run of the same command is the retry. Sequential on purpose.
 """
 from __future__ import annotations
 
