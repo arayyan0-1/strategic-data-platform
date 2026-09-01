@@ -1,14 +1,8 @@
-"""The diff between two vendor pulls.
+"""Diff between two vendor pulls.
 
-raw/ holds one corporate action table and every pull replaces it, so the diff
-reads vendor/, which keeps every pull. These tests write vendor files directly
-for that reason.
-
-The vendor id is not stable across pulls. A diff on the id reports hundreds of
-deletions and insertions for events that did not change. These tests hold the
-event-key diff in place, and they hold the treatment of the ambiguous key in
-place, because a vendor contradiction inside one pull must never count as a
-change between two pulls.
+The diff reads vendor/, not raw/. It uses the event key, not the vendor id
+(which is not stable across pulls). An ambiguous key within one pull is
+reported, not counted as a change.
 """
 import datetime as dt
 import json

@@ -13,10 +13,8 @@ from sdp.config import settings
 def tmp_data_root(tmp_path, monkeypatch):
     """Point settings.data_root at a temporary directory.
 
-    The fixture patches data_root and not each directory property. The
-    properties vendor_dir, raw_dir, staging_dir and warehouse_path all derive
-    from data_root. This is the same reason that config.py anchors them to the
-    repo root.
+    The properties vendor_dir, raw_dir, staging_dir and warehouse_path all
+    derive from data_root, so patching it is sufficient.
     """
     monkeypatch.setattr(settings, "data_root", tmp_path)
     return tmp_path
@@ -43,9 +41,8 @@ def lake(tmp_data_root):
 def ca_lake(tmp_data_root, tmp_path):
     """Publish a corporate action table through the real ingest path.
 
-    The rows of one call are the whole table. Each call replaces it, which is
-    what a pull does. The fixture goes through _publish, so it exercises the
-    audits and the atomic replace and not a private copy of them.
+    Each call replaces the table. The fixture goes through _publish, so it
+    exercises the audits and the atomic replace.
     """
     from sdp.ingest import massive_corporate_actions as ca
 

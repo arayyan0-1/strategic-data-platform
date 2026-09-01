@@ -1,8 +1,7 @@
 # src/sdp/dal.py
 """The only entry point for reads of the data lake. No other module opens a
-Parquet file or a DuckDB database, which is what makes the point-in-time
-guarantees enforceable. Every function returns a lazy DuckDBPyRelation, so chain
-SQL and materialise only at the edge. Price adjustment is a dbt model, not here.
+Parquet file or a DuckDB database. Every function returns a lazy
+DuckDBPyRelation. Price adjustment is a dbt model, not here.
 """
 from __future__ import annotations
 

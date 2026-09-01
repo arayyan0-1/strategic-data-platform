@@ -1,9 +1,7 @@
-"""Behaviour of the date-loop runner.
+"""The date-loop runner.
 
-The runner needs no HTTP and no mocks. `backfill.TARGETS` is a dict at module
-level, so a test replaces one entry with a plain function. The promise of the
-module is that one bad date does not stop the run, and that promise is what
-these tests check.
+Each test replaces one entry in backfill.TARGETS with a plain function. No HTTP
+or mocks needed. One bad date does not stop the run.
 """
 import datetime as dt
 import json
@@ -52,7 +50,7 @@ class TestSessions:
 
 
 class TestFailureIsolation:
-    """One bad date must not stop the run. This is the purpose of the module."""
+    """One bad date does not stop the run."""
 
     def test_a_failing_date_does_not_stop_the_run(self, tmp_data_root, fake_ingest):
         calls = fake_ingest(fail_on=(D(2024, 1, 4),))

@@ -1,11 +1,7 @@
-"""The contract of a current-state dataset.
+"""The current-state contract.
 
-Splits and dividends hold the belief of the vendor now. raw/ holds one table
-for each, with no date in the path, and every pull replaces it. These tests
-state what that guarantees and what it does not.
-
-The thing it does not guarantee is a past belief. That is deliberate, and the
-recovery path is vendor/, which keeps every pull. rebuild() reads it.
+Splits and dividends: one table each, replaced by every pull. A past belief is
+recoverable only from vendor/ via rebuild().
 """
 import datetime as dt
 
@@ -43,11 +39,7 @@ class TestTheTableIsCurrent:
         assert _rows(dal.SPLITS) == [("a", 0.4)]
 
     def test_a_restated_factor_leaves_no_trace_of_the_old_value(self, ca_lake):
-        """The cost of this storage, stated as a test.
-
-        The published lake cannot answer what the vendor said before. Only
-        vendor/ can, and TestRebuild covers that path.
-        """
+        """Only vendor/ holds the old value. TestRebuild covers that path."""
         ca_lake(dal.SPLITS, P1, [ROW_A])
         ca_lake(dal.SPLITS, P2, [("a", "AAA", D(2024, 1, 5), 0.4)])
 
@@ -91,11 +83,7 @@ class TestTheTwoKindsCannotBeConfused:
             dal.on_date(dal.SPLITS, P1)
 
     def test_the_short_datasets_are_event_streams(self):
-        """A different answer from splits and dividends. See decision 0009.
-
-        The endpoint takes the data date as a parameter, so the vendor can
-        rebuild the answer for a past date.
-        """
+        """The endpoint takes the data date, so these are event streams."""
         assert dal.SHORT_VOLUME.key == "date"
         assert dal.SHORT_INTEREST.key == "date"
         with pytest.raises(ValueError, match="event stream"):
@@ -128,7 +116,7 @@ class TestRebuild:
         assert _rows(dal.SPLITS) == [("a", 0.4)]
 
     def test_rebuild_can_name_an_older_pull(self, tmp_data_root):
-        """This is what replaces the point-in-time read of the old layout."""
+        """Build the table as an older pull stated it."""
         self._vendor(P1, 0.5)
         self._vendor(P3, 0.4)
         ca.rebuild("massive_splits", P1)
@@ -157,13 +145,7 @@ class TestRebuild:
 
 
 class TestThePartitionHelpersRefuseIt:
-    """A current-state dataset has no partition, so these have no answer.
-
-    An empty list or a list of missing dates would be the wrong answer in the
-    right shape, which is the failure mode this platform cares about most.
-    gaps() was the sharp one: it reported every session in the range as
-    missing for a table that was published and complete.
-    """
+    """A current-state dataset has no partition, so these have no answer."""
 
     @pytest.mark.parametrize("call, name", [
         (lambda: dal.partitions(dal.SPLITS), "partitions"),
