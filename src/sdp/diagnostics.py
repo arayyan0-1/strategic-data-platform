@@ -69,9 +69,8 @@ def figi_reuse() -> str:
 
 
 def figi_exposure() -> str:
-    """What share of the traded universe falls back off FIGI? The raw CS null rate
-    is ~20%, but the rate after the liquidity filter is the one that matters,
-    because those are the rows a study consumes."""
+    """What share of the traded universe falls back off FIGI? Reports the raw CS
+    null rate and the rate after the liquidity filter."""
     rows = _sql(f"""
         with liquid as ({_liquid_bars_sql()}),
         screened as (

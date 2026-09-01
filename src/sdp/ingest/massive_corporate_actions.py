@@ -2,8 +2,7 @@
 """Splits and dividends. One table for each, replaced by every pull.
 
 The endpoints give current state, so raw/ holds one table per dataset with no
-date in the path. vendor/ keeps every pull dated, which is what makes a past
-belief recoverable and where sdp.restatement reads. The flow is
+date in the path. vendor/ keeps every pull dated; sdp.restatement reads those. The flow is
 Write-Audit-Publish: fetch into vendor/, build() into _staging/, audit(),
 os.replace into raw/. The replace is atomic, and a failed audit leaves the
 previous pull in place.
@@ -216,9 +215,7 @@ def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
 
 
 def _audit_vs_previous(dataset: str, staged: Path, n_rows: int) -> None:
-    """Compare the staged table against the one published now. The sharp check
-    is the delta between two pulls, not an absolute count, which on a growing
-    dataset goes noisy. It stops a pull that loses history replacing a good one."""
+    """Compare the staged table against the published one."""
     prev = raw_path(dataset)
     if not prev.exists():
         log.info("%s: first pull. %s rows. There is no baseline.", dataset, n_rows)
@@ -306,8 +303,8 @@ def vendor_pulls(dataset: str) -> list[tuple[dt.date, Path]]:
 
 def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
     """Build the table again from a vendor pull, with no fetch. The default is
-    the newest pull. Name an older pull to rebuild the table as it stated it,
-    the one path back to a past belief of the vendor."""
+    the newest pull. Name an older pull to rebuild the table as that pull
+    stated it."""
     pulls = vendor_pulls(dataset)
     if not pulls:
         raise FileNotFoundError(

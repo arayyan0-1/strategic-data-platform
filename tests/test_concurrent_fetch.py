@@ -1,17 +1,8 @@
 """Two fetches of the same date must not destroy each other's work.
 
-This is not hypothetical. On 2026-08-23 a second copy of the backfill script ran
-beside the first. Both fetched the same dates, both wrote to one shared temporary
-name, and 288 dates failed: 247 because the loser of the rename found the file
-already moved away, 41 because a reader caught the file mid-rename, and one on a
-truncated read.
-
-Nothing corrupt was published, because a vendor file only ever appears through an
-atomic rename of a complete temporary file. The cost was a 36% failure rate on a
-run of 1,255 dates.
-
-These tests patch `paginate` and touch no network. What is under test is the file
-handling and not the HTTP.
+On 2026-08-23 two copies of the backfill script ran together, both writing to one
+shared temporary name. 288 dates failed. Nothing corrupt was published (atomic
+rename), but the failure rate was 36%. The fix is a unique temporary name per call.
 """
 import datetime as dt
 import json

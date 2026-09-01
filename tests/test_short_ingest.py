@@ -1,13 +1,8 @@
-"""The audits of the two FINRA short datasets.
+"""Audits of the two FINRA short datasets.
 
-Fatal is for a condition that gives wrong numbers. A short volume above the
-total volume gives a ratio above 100 percent, and that is a wrong number. A
-fractional aggregate volume is only unusual, and the vendor documents it.
-
-The sentinel in days_to_cover is the trap that this suite holds in place. The
-vendor writes 999.99 when avg_daily_volume is 0. A study that reads it as a
-number gets a very large value for the least liquid names, which is the exact
-set that a short signal must handle with care.
+The days_to_cover sentinel (999.99) warns but does not fail. The vendor writes
+it when avg_daily_volume is 0, so reading it as a number inflates the least
+liquid names.
 """
 import datetime as dt
 import logging

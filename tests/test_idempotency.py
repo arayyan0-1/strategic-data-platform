@@ -1,11 +1,6 @@
-"""The rule that a rerun of one date yields identical rows.
+"""Content-level idempotency: a rerun of one date yields identical rows.
 
-This is a hard rule of the platform and no test stated it before. The rule is
-about content and not about bytes. Parquet metadata and compression blocks can
-differ between two runs, so these tests compare the rows and never the file.
-
-The rule is what makes a backfill safe to run again. `--force` republishes a date
-that already exists, and a rerun must not change what a published partition says.
+Parquet metadata differs between runs, so these tests compare rows, not files.
 """
 import datetime as dt
 import gzip
@@ -64,11 +59,7 @@ def test_tickers_build_is_idempotent(tmp_data_root):
 
 
 def test_the_tickers_build_writes_no_wall_clock_column(tmp_data_root):
-    """A guard on the rule and not only on one run of it.
-
-    A column from now() breaks idempotency. The partition key already carries
-    the data date, so no such column is needed.
-    """
+    """A column from now() breaks idempotency."""
     vendor = settings.vendor_dir / tick.DATASET / "2024-01-03.ndjson"
     vendor.parent.mkdir(parents=True, exist_ok=True)
     vendor.write_text(NDJSON, encoding="utf-8")
@@ -83,16 +74,10 @@ def test_the_tickers_build_writes_no_wall_clock_column(tmp_data_root):
 
 
 class TestVendorDuplicates:
-    """The cursor pagination of the vendor can deliver one record twice.
+    """Vendor pagination can deliver one record twice.
 
-    Two pulls of the same date give a different set of duplicates each time, so
-    this is a transport artifact and not a property of the data. Measured on
-    2026-08-21: one pull returned INIO, INKM, INKT, INLF and NET twice, and a
-    second pull of the same date returned YINN and YJ twice instead.
-
-    Without the removal, a ticker appears twice in the universe of that date and
-    the audit refuses to publish the partition. Over 1,260 dates that fails
-    often and at random.
+    A transport artifact — two pulls of the same date give different duplicates.
+    Without removal, the duplicate-ticker audit fails at random.
     """
 
     DUPLICATED = (
@@ -130,7 +115,7 @@ class TestVendorDuplicates:
         assert "_copy" not in rel.columns
 
     def test_the_deduplicated_file_passes_the_duplicate_audit(self, tmp_data_root):
-        """The audit stays fatal. It is now a backstop and not the first line."""
+        """The duplicate-ticker audit is a backstop after deduplication."""
         staged = tick.build(self._vendor(), D)
         dupes = duckdb.connect().sql(
             f"select count(*) - count(distinct ticker) from read_parquet('{staged}')"

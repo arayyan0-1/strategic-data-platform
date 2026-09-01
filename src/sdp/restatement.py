@@ -145,9 +145,8 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
 
 
 def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
-    """How far the vendor moved between the oldest and newest pull, over the
-    event dates a study consumes. This is the drift a writeup quotes. Reads the
-    vendor archive."""
+    """Vendor drift between the oldest and newest pull, over a date window.
+    Reads the vendor archive."""
     key = KEYS[ds.name]
     parts = _pull_dates(ds)
     con = duckdb.connect()

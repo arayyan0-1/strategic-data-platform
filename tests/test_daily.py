@@ -1,9 +1,6 @@
-"""Behaviour of the daily driver.
+"""The daily driver.
 
-The driver is what makes a missed day recoverable for the event streams. It is
-also the only thing that keeps the current-state record unbroken, and a break
-there is permanent. These tests use a fake backfill and a fake ingest, so they
-touch no network.
+Tests use a fake backfill and a fake ingest. No network.
 """
 import datetime as dt
 

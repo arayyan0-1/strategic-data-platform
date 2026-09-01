@@ -1,8 +1,5 @@
-"""Import every module and load Settings.
-
-These tests find one class of error that occurred twice already. A path
-resolves against the working directory and not against the repo root. dbt and
-Dagster start from their own directories, so this error is not hypothetical.
+"""Import every module and verify that Settings resolves absolute paths.
+dbt and Jupyter start from their own directories, so relative paths break.
 """
 import importlib
 from pathlib import Path

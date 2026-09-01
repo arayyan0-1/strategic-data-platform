@@ -1,21 +1,15 @@
-"""Invariants of the audits.
+"""Audit invariants.
 
-An audit is SQL over a Parquet file. A test that writes a small Parquet file with
-a known defect and checks the result is therefore a real test and not a mock.
+Each test writes a small Parquet file with a known defect and checks the result.
+Two checks to note:
 
-Several of these checks exist because of a specific trap. Nothing protected them
-from a later edit until now. The two that matter most:
+- split_from <= 0 is separate because DuckDB returns NULL for division by zero,
+  and NULL > 10000 is NULL, so the ratio check alone passes silently.
+- A null adjustment factor is fatal for splits but not for dividends (the vendor
+  had no price for the ex-date).
 
-- `split_from <= 0` is checked on its own, because DuckDB returns NULL for a
-  division by zero and `NULL > 10000` is NULL. Without the separate check the
-  ratio test passes and reports nothing.
-- The meaning of a null adjustment factor is opposite in the two corporate action
-  datasets. That asymmetry is deliberate and it is counterintuitive.
-
-The splits and dividends audits divide the past from the future at the pull
-date of the snapshot under audit and never at today. rebuild() replays old
-pulls, and a comparison against `current_date` would fail a replay of a pull
-that passed when it was live. Every fixture therefore names its pull date.
+Audits divide past from future at the pull date, not at today, so rebuild() can
+replay old pulls.
 """
 import datetime as dt
 
@@ -81,7 +75,7 @@ class TestSplitAudit:
         ca._audit_splits(splits([split_row()]), PULL)
 
     def test_split_from_of_zero_is_fatal(self, splits):
-        """The check that exists because NULL > 10000 is NULL, not false."""
+        """NULL > 10000 is NULL, not false, so this needs its own check."""
         with pytest.raises(ca.AuditFailure, match="invalid split ratio"):
             ca._audit_splits(splits([split_row(split_from=0.0)]), PULL)
 
@@ -116,11 +110,11 @@ class TestSplitAudit:
             ca._audit_splits(splits([row]), PULL)
 
     def test_an_extreme_ratio_warns_and_does_not_raise(self, splits):
-        """NPWZ and DAVL are real rows. The fatal list stays narrow."""
+        """NPWZ and DAVL are real rows."""
         ca._audit_splits(splits([split_row(split_from=1.0, split_to=2_000_000.0)]), PULL)
 
     def test_a_zero_factor_warns_and_does_not_raise(self, splits):
-        """RYCEF is one bad row out of 3,722 stock dividends."""
+        """RYCEF: a Rolls-Royce ADR with factor 0.0."""
         ca._audit_splits(splits([split_row(factor=0.0)]), PULL)
 
 
@@ -137,11 +131,7 @@ class TestDividendAudit:
         ca._audit_dividends(dividends([dividend_row(factor=None)]), PULL)
 
     def test_a_null_cash_amount_is_fatal(self, dividends):
-        """Three-valued logic. The predicate must test for null on its own.
-
-        A rewrite to `cash_amount < 0` alone passes every other test here and
-        fails this one, because NULL < 0 is NULL and not true.
-        """
+        """NULL < 0 is NULL, not true, so the predicate must test for null."""
         with pytest.raises(ca.AuditFailure, match="cash_amount"):
             ca._audit_dividends(dividends([dividend_row(cash_amount=None)]), PULL)
 
@@ -181,7 +171,7 @@ class TestCommonAudit:
 
 
 class TestDeltaAudit:
-    """The sharp check. An absolute threshold on a growing dataset goes blunt."""
+    """Delta check: compares against the previously published table."""
 
     def _publish_prior(self, tmp_data_root, rows):
         """Put a table in raw/. The delta audit compares against it."""
@@ -210,7 +200,7 @@ class TestDeltaAudit:
                               len(bad) + 1)
 
     def test_a_ticker_that_was_already_defective_is_not_new(self, tmp_data_root, splits):
-        """This is why the delta check stays sharp. FSFF is static."""
+        """A known-bad ticker does not count as a new defect."""
         known_bad = [split_row(id=f"s{i}", ticker=f"BAD{i}", factor=0.0)
                      for i in range(10)]
         self._publish_prior(tmp_data_root, known_bad)

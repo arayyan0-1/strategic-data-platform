@@ -1,10 +1,7 @@
-"""Point-in-time semantics of the read layer.
+"""Partition selection and the read layer.
 
-These tests are the ones that Python must do. The audits are data tests. They
-check the output of the vendor. They say nothing about the code.
-
-Partition selection is the step that can give wrong numbers in a correct shape.
-A read of one pull too many adds lookahead, and no error occurs.
+Partition selection can give wrong numbers in a correct shape — a read of one
+extra partition adds lookahead with no error.
 """
 import datetime as dt
 
@@ -84,7 +81,7 @@ class TestSchemaDrift:
         )
 
     def test_a_new_vendor_field_does_not_break_a_range_read(self, tmp_data_root):
-        """This is the reason that union_by_name is on for the REST datasets."""
+        """union_by_name handles this for the REST datasets."""
         self._write_wide(dal.TICKERS, D(2024, 1, 3), extra_column=False)
         self._write_wide(dal.TICKERS, D(2024, 1, 4), extra_column=True)
 
