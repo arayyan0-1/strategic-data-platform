@@ -1,7 +1,8 @@
 # src/sdp/dal.py
 """The only entry point for reads of the data lake. No other module opens a
-Parquet file or a DuckDB database. Every function returns a lazy
-DuckDBPyRelation. Price adjustment is a dbt model, not here.
+Parquet file or a DuckDB database. Every lake accessor returns a lazy
+DuckDBPyRelation. warehouse() returns a read-only connection to the dbt
+warehouse. Price adjustment is a dbt model, not here.
 """
 from __future__ import annotations
 
@@ -249,6 +250,17 @@ def short_interest(start: dt.date | None = None, end: dt.date | None = None):
     A study must apply the ~8-session publication lag itself (the staging model
     does), or it reads a number before the market had it."""
     return series(SHORT_INTEREST, start, end)
+
+
+def warehouse() -> duckdb.DuckDBPyConnection:
+    """Return a read-only connection to the dbt warehouse. A build publishes a new file,
+    so connect again to read a newer build."""
+    path = settings.warehouse_path
+    if not path.exists():
+        raise MissingPartition(
+            f"The warehouse is absent: {path}. Run python -m sdp.transform build."
+        )
+    return duckdb.connect(str(path), read_only=True)
 
 
 def status() -> str:
