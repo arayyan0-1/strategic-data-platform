@@ -29,8 +29,14 @@ vars:
   min_days_in_window: 15
   min_days_since_first_bar: 60
 
+  # A session with fewer in_universe names than this is dropped from the IC.
+  ic_min_names: 100
+
 models:
   sdp:
     staging:
       +materialized: table
       +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
