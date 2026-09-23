@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: mart_signals
+    description: The factor battery, one row per security and session, keyed on security_key.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: date
+        tests: [not_null]
+
+  - name: mart_forward_returns
+    description: Forward return over 1, 5 and 21 sessions. Kept apart from the signals.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: date
+        tests: [not_null]
+
+  - name: mart_signal_ic
+    description: Daily cross-sectional Spearman IC per signal and horizon.
+    columns:
+      - name: signal
+        tests: [not_null]
+      - name: ic
+        tests: [not_null]
+
+  - name: mart_signal_ic_summary
+    description: Mean IC, t and lag-one IC autocorrelation, per signal and horizon.
+    columns:
+      - name: signal
+        tests: [not_null]
+
+  - name: mart_signal_snapshot
+    description: The latest cross-section, with z-score, decile and rank per signal.
+    columns:
+      - name: signal
+        tests: [not_null]
+      - name: ticker
+        tests: [not_null]

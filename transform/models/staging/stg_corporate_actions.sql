@@ -33,7 +33,8 @@ with splits_src as (
         count(*)                                      as n_events,
         count(distinct factor)                        as n_distinct_factors,
         max(factor) / min(factor)                     as factor_spread,
-        false                                         as factor_is_null
+        false                                         as factor_is_null,
+        cast(null as double)                          as cash_amount
     from splits_src
     group by 1, 2
 
@@ -65,7 +66,9 @@ with splits_src as (
         count(*)                                      as n_events,
         count(distinct factor)                        as n_distinct_factors,
         max(factor) / nullif(min(factor), 0)          as factor_spread,
-        bool_or(factor is null)                       as factor_is_null
+        bool_or(factor is null)                       as factor_is_null,
+        -- Per-share cash dividend on the ex-date. Feeds the dividend-yield factor.
+        max(cash_amount)                              as cash_amount
     from dividends_src
     group by 1, 2
 
@@ -87,6 +90,7 @@ select
     n_distinct_factors,
     factor_spread,
     factor_is_null,
+    cash_amount,
     n_events > 1 as is_collapsed,
     -- True when this event, or any later one on the same ticker, was collapsed.
     -- The factor is cumulative, so an ambiguity travels back through earlier dates.
