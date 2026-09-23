@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     massive_s3_access_key_id: str
     massive_s3_secret_access_key: str
-    massive_api_key: str = ""
+    massive_api_key: str
 
     massive_s3_endpoint: str = "https://files.polygon.io"
     massive_s3_bucket: str = "flatfiles"
