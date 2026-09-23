@@ -33,7 +33,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     settings.warehouse_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["dbt", *argv,
+    # Prefer the dbt next to the running interpreter, so a launchd agent or the
+    # dashboard finds it without dbt on PATH. Fall back to PATH.
+    dbt_exe = Path(sys.executable).parent / "dbt"
+    cmd = [str(dbt_exe) if dbt_exe.exists() else "dbt", *argv,
            "--project-dir", str(PROJECT_DIR),
            "--profiles-dir", str(PROJECT_DIR)]
     try:

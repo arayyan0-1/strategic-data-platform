@@ -68,8 +68,10 @@ def backfill(
     force: bool = False,
     dry_run: bool = False,
     limit: int | None = None,
+    on_session: Callable[[dt.date, str], None] | None = None,
 ) -> list[tuple[dt.date, str]]:
-    """Ingest every XNYS session in the range. Return the list of failures."""
+    """Ingest every XNYS session in the range. Return the list of failures.
+    on_session(date, status) fires after each session, for a progress meter."""
     if target in _NOT_BACKFILLABLE and target not in TARGETS:
         raise SystemExit(
             f"You cannot backfill {target} ({_NOT_BACKFILLABLE[target]}). This "
@@ -129,6 +131,8 @@ def backfill(
             record["seconds"] = round(time.monotonic() - started, 2)
             fh.write(json.dumps(record) + "\n")
             fh.flush()  # A run that stops must still leave a log that you can read.
+            if on_session:
+                on_session(d, record["status"])
 
             if i % 25 == 0 or i == len(days):
                 rate = i / max(time.monotonic() - t0, 1e-9)
