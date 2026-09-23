@@ -84,9 +84,13 @@ with reference as (
         t.days_in_window,
         t.bars_seen,
 
-        k.type in ({{ "'" ~ var('universe_types') | join("','") ~ "'" }})
-            and k.primary_exchange in ({{ "'" ~ var('universe_exchanges') | join("','") ~ "'" }})
-            and k.active                                    as passes_instrument,
+        -- A null type, exchange or active flag fails the filter.
+        coalesce(
+            k.type in ({{ "'" ~ var('universe_types') | join("','") ~ "'" }})
+                and k.primary_exchange in ({{ "'" ~ var('universe_exchanges') | join("','") ~ "'" }})
+                and k.active,
+            false
+        )                                                   as passes_instrument,
 
         t.close        >= {{ var('min_price') }}             as passes_price,
         t.adv          >= {{ var('min_dollar_volume') }}     as passes_adv,

@@ -39,6 +39,12 @@ models:
         tests:
           - accepted_values:
               values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
+      - name: passes_instrument
+        tests: [not_null]
+      - name: passes_liquidity
+        tests: [not_null]
+      - name: in_universe
+        tests: [not_null]
 
   - name: stg_short_interest
     description: Short interest with the publication lag applied and the 999.99 cap removed.

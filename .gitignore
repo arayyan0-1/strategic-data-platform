@@ -30,3 +30,4 @@ docs/
 transform/target/
 transform/logs/
 transform/dbt_packages/
+transform/.user.yml
