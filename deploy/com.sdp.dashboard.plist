@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The local status page. It serves http://127.0.0.1:8787 and stays up, so the
+  bookmark is live whenever you open the laptop. KeepAlive restarts it if it
+  stops. The page is local only and needs no network, except when it pulls.
+
+  Install:  cp deploy/com.sdp.dashboard.plist ~/Library/LaunchAgents/
+            launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sdp.dashboard.plist
+  Open:     http://127.0.0.1:8787
+  Restart:  launchctl kickstart -k gui/$(id -u)/com.sdp.dashboard
+  Remove:   launchctl bootout gui/$(id -u)/com.sdp.dashboard
+
+  Runs the venv interpreter, not `uv run`, for the same reason as the daily
+  agent. A pull started from the page runs in this process and takes the same
+  lock as the daily agent, so the two cannot collide.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sdp.dashboard</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/aray/strategic-data-platform/.venv/bin/python</string>
+        <string>-m</string>
+        <string>sdp.dashboard</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/aray/strategic-data-platform</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/aray/strategic-data-platform/data/_logs/dashboard.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/aray/strategic-data-platform/data/_logs/dashboard.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

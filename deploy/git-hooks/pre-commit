@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Strip notebook outputs before a commit, then lint staged Python. Licensed
+# vendor data must not enter git, so a notebook with outputs is cleared and
+# re-staged, not rejected. Ruff blocks the commit on a lint problem.
+#
+# Active for this clone with:
+#     git config core.hooksPath deploy/git-hooks
+#
+set -u
+
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+cd "$ROOT" || exit 1
+
+PY="$ROOT/.venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+RUFF="$ROOT/.venv/bin/ruff"
+
+# 1. Notebooks: clear code-cell outputs, then re-stage the cleared file. Read the
+#    list into an array without mapfile, because stock macOS bash is 3.2.
+nbs=()
+while IFS= read -r line; do
+    [ -n "$line" ] && nbs+=("$line")
+done < <(git diff --cached --name-only --diff-filter=ACM -- '*.ipynb')
+
+if [ "${#nbs[@]}" -gt 0 ]; then
+    cleared="$("$PY" - "${nbs[@]}" <<'PY'
+import json
+import sys
+
+out = []
+for path in sys.argv[1:]:
+    try:
+        with open(path, encoding="utf-8") as f:
+            nb = json.load(f)
+    except (OSError, ValueError):
+        continue
+    dirty = False
+    for cell in nb.get("cells", []):
+        if cell.get("cell_type") != "code":
+            continue
+        if cell.get("outputs"):
+            cell["outputs"] = []
+            dirty = True
+        if cell.get("execution_count") is not None:
+            cell["execution_count"] = None
+            dirty = True
+    if dirty:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(nb, f, indent=1, ensure_ascii=False)
+            f.write("\n")
+        out.append(path)
+print("\n".join(out))
+PY
+)"
+    if [ -n "$cleared" ]; then
+        while IFS= read -r nb; do
+            [ -n "$nb" ] || continue
+            git add "$nb"
+            echo "pre-commit: cleared outputs in $nb"
+        done <<< "$cleared"
+    fi
+fi
+
+# 2. Lint staged Python. Skip when ruff is absent, so a bare checkout can commit.
+pys=()
+while IFS= read -r line; do
+    [ -n "$line" ] && pys+=("$line")
+done < <(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+
+if [ "${#pys[@]}" -gt 0 ] && [ -x "$RUFF" ]; then
+    if ! "$RUFF" check "${pys[@]}"; then
+        echo "pre-commit: ruff found problems. Fix them, or run '$RUFF check --fix'." >&2
+        exit 1
+    fi
+fi
+
+exit 0

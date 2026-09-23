@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  The daily pull of the data lake.
+  The daily update of the data lake: pull, then build the dbt models when a new
+  session landed, then write data/_logs/status.json for the dashboard.
 
   Install:  cp deploy/com.sdp.daily.plist ~/Library/LaunchAgents/
             launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sdp.daily.plist
@@ -10,11 +11,14 @@
   Remove:   launchctl bootout gui/$(id -u)/com.sdp.daily
 
   launchd, not cron: cron skips a job the machine slept through, launchd runs it
-  on wake. Hourly ticks 17:00-00:00 local, because the network is not always up
-  and each tick is another chance. A repeat tick is cheap: event streams skip a
-  published session, and the corporate action rebuild takes ~3s and re-runs its
-  audits. The pull date is the UTC date, so on BST every tick writes the same one.
-  To capture a date for certain, run it by hand: uv run python -m sdp.daily
+  on wake. Three attempts a day in Europe/London: 08:00 (after session D-1's S3
+  flat file lands ~06:00 UTC), and 13:00 and 20:00 as fallbacks for a machine
+  that was asleep at 08:00. A repeat is cheap: sdp.daily skips a published
+  session and rebuilds the dbt models only when raw changed. Times are local, so
+  change them if the machine changes timezone.
+
+  It runs the venv interpreter, not `uv run`, because two `uv run` calls race on
+  the venv (the same reason run_backfill.sh does this).
 -->
 <plist version="1.0">
 <dict>
@@ -23,9 +27,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/uv</string>
-        <string>run</string>
-        <string>python</string>
+        <string>/Users/aray/strategic-data-platform/.venv/bin/python</string>
         <string>-m</string>
         <string>sdp.daily</string>
     </array>
@@ -35,14 +37,9 @@
 
     <key>StartCalendarInterval</key>
     <array>
-        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
         <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>0</integer></dict>
     </array>
 
     <key>StandardOutPath</key>
