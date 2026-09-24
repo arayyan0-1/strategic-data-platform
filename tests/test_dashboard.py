@@ -92,7 +92,15 @@ class TestSingleFlight:
         _wait_idle()
         assert dashboard._job["running"] is False
         assert dashboard._job["result"] == {"ok": True, "exit_code": 0,
-                                            "dbt": "skipped"}
+                                            "dbt": "skipped", "offline": False}
+
+    def test_an_offline_update_is_not_reported_as_finished(self, monkeypatch):
+        monkeypatch.setattr(dashboard.daily, "update", lambda *a, **k: {
+            "last_pull": {"exit_code": 0, "dbt": "skipped", "offline": True}})
+        assert dashboard._start_job() is True
+        _wait_idle()
+        assert dashboard._job["result"]["ok"] is False
+        assert dashboard._job["result"]["offline"] is True
 
 
 class TestSnapshotCache:

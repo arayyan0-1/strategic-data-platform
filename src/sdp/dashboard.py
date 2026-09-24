@@ -55,8 +55,9 @@ def _run_job(force_dbt: bool) -> None:
         snap = daily.update(force_dbt=force_dbt, progress=_progress)
         code = snap["last_pull"]["exit_code"]
         dbt = snap["last_pull"]["dbt"]
-        result = {"ok": code == 0 and dbt != "failed",
-                  "exit_code": code, "dbt": dbt}
+        offline = bool(snap["last_pull"].get("offline"))
+        result = {"ok": code == 0 and dbt != "failed" and not offline,
+                  "exit_code": code, "dbt": dbt, "offline": offline}
     except daily.UpdateInProgress as exc:
         result = {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001 -- the page must show any failure
@@ -334,6 +335,9 @@ function render(s) {
       const note = dbt === "built" ? "dbt models rebuilt."
                  : dbt === "skipped" ? "dbt already current." : "";
       banners.push(banner("ok", "Update finished. " + note));
+    } else if (j.result.offline) {
+      banners.push(banner("note", "The vendor hosts did not resolve, so nothing was "
+                                  + "pulled. Check the network and try again."));
     } else if (dbt === "failed") {
       let msg = "The dbt build failed. See dashboard.out.log and dashboard.err.log "
               + "in data/_logs.";
