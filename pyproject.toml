@@ -4,12 +4,10 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "duckdb",
-  "pyarrow",
   "boto3",
   "pydantic-settings",
   "exchange-calendars>=4.13.2",
   "httpx>=0.28.1",
-  "polars>=1.43.2",
   # DuckDB needs pytz to convert a TIMESTAMP WITH TIME ZONE value into a
   # Python datetime. Without it, fetchall() on any relation that holds
   # window_start_utc raises. The polars path does not need it.
@@ -22,18 +20,17 @@ dev = [
     "pytest",
     "ipykernel",
     "jupyterlab",
-    "matplotlib",
     "scipy",
     "statsmodels",
-    "altair",
     "plotly",
     "arch",
     "joblib>=1.6.0",
     "scikit-learn>=1.9.1",
+    # The notebooks convert relations with .pl(), which needs polars and pyarrow.
+    "polars>=1.43.2",
+    "pyarrow",
 ]
 # dbt is a separate group, because the ingest and the DAL do not import it.
-# A check on 2026-08-22 shows that dbt-core 1.12.3, dbt-duckdb 1.11.0 and
-# duckdb 1.5.5 resolve in one environment. A second venv is not necessary.
 transform = ["dbt-core", "dbt-duckdb"]
 
 [build-system]
