@@ -150,15 +150,17 @@ def _audit_common(staged: Path, dataset: str) -> int:
 
 def _audit_splits(staged: Path, pull_date: dt.date) -> None:
     """The past and future divide at the pull date, not today. A null factor is
-    fatal only on an event already executed at the pull. Comparing against
-    current_date would fail a later rebuild of a pull that passed when live."""
+    fatal only on an event dated before the pull date. The vendor fills the factor
+    of an event on the pull date later that day, so that event is still pending.
+    Comparing against current_date would fail a later rebuild of a pull that
+    passed when live."""
     (null_past, null_future, zero_f, neg_f, null_date,
      bad_fwd, bad_rev, bad_stk, bad_from, bad_to, extreme) = _one(f"""
         select
             count(*) filter (historical_adjustment_factor is null
-                             and execution_date <= date '{pull_date:%Y-%m-%d}'),
+                             and execution_date <  date '{pull_date:%Y-%m-%d}'),
             count(*) filter (historical_adjustment_factor is null
-                             and execution_date  > date '{pull_date:%Y-%m-%d}'),
+                             and execution_date >= date '{pull_date:%Y-%m-%d}'),
             count(*) filter (historical_adjustment_factor = 0),
             count(*) filter (historical_adjustment_factor < 0),
             count(*) filter (execution_date is null),
@@ -378,10 +380,25 @@ def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
 
 # ---------- THIN ----------
 
+def pinned_pulls(dataset: str) -> set[dt.date]:
+    """Return the pull dates that thinning must keep, one ISO date per line of
+    pinned.txt in the vendor directory. A line that starts with # is a comment."""
+    path = settings.vendor_dir / dataset / "pinned.txt"
+    if not path.exists():
+        return set()
+    pins = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        text = line.split("#", 1)[0].strip()
+        if text:
+            pins.add(dt.date.fromisoformat(text))
+    return pins
+
+
 def thin_vendor_pulls(dataset: str, *, keep_days: int = 30,
                       dry_run: bool = False) -> list[Path]:
     """Delete old vendor pulls and keep one pull per ISO week. Keep the first pull,
-    each pull in the last keep_days days, and the pull of the published table.
+    each pull in the last keep_days days, the pull of the published table, and each
+    date in pinned.txt beside the pulls.
 
     Return the deleted files. With dry_run, return the files to delete and delete
     nothing.
@@ -391,7 +408,7 @@ def thin_vendor_pulls(dataset: str, *, keep_days: int = 30,
         return []
     # A vendor file with a future date must not move the window.
     newest = min(pulls[-1][0], _today())
-    keep = {pulls[0][0], _published_pull(dataset)}
+    keep = {pulls[0][0], _published_pull(dataset), *pinned_pulls(dataset)}
     week_newest: dict[tuple[int, int], dt.date] = {}
     for d, _ in pulls:
         if (newest - d).days <= keep_days:

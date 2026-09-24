@@ -242,6 +242,18 @@ class TestThinVendorPulls:
     def test_it_returns_nothing_without_vendor_pulls(self, tmp_data_root):
         assert ca.thin_vendor_pulls(DIVIDENDS) == []
 
+    def test_a_pinned_pull_survives(self, tmp_data_root):
+        """A finding or a study can depend on one pull, so a pin keeps it."""
+        _touch(DIVIDENDS, DATES)
+        (settings.vendor_dir / DIVIDENDS / "pinned.txt").write_text(
+            "# the evidence pull of a finding\n2026-06-10\n\n", encoding="utf-8")
+
+        ca.thin_vendor_pulls(DIVIDENDS)
+        assert _kept(DIVIDENDS) == sorted({FIRST, D(2026, 6, 10), *SUNDAYS, *RECENT})
+
+    def test_no_pin_file_means_no_pins(self, tmp_data_root):
+        assert ca.pinned_pulls(DIVIDENDS) == set()
+
 
 class TestIngestThinsDividends:
     def test_an_ingest_of_dividends_thins_the_archive(self, fetch):

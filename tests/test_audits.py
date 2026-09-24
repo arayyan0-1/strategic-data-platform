@@ -97,6 +97,16 @@ class TestSplitAudit:
         """The vendor gives no factor before the event executes."""
         ca._audit_splits(splits([split_row(execution_date=FUTURE, factor=None)]), PULL)
 
+    def test_a_null_factor_on_the_pull_date_is_not_fatal(self, splits):
+        """The vendor fills the factor of an event on the pull date later that day."""
+        ca._audit_splits(splits([split_row(execution_date=PULL, factor=None)]), PULL)
+
+    def test_a_null_factor_the_day_before_the_pull_is_fatal(self, splits):
+        day_before = PULL - dt.timedelta(days=1)
+        with pytest.raises(ca.AuditFailure, match="null factors"):
+            ca._audit_splits(splits([split_row(execution_date=day_before, factor=None)]),
+                             PULL)
+
     @pytest.mark.parametrize(
         "adjustment_type,split_from,split_to",
         [("forward_split", 2.0, 1.0), ("reverse_split", 1.0, 2.0),
