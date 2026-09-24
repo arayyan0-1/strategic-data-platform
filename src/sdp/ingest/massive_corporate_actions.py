@@ -2,13 +2,15 @@
 """Splits and dividends. One table for each, replaced by every pull.
 
 The endpoints give current state, so raw/ holds one table per dataset with no
-date in the path. vendor/ keeps every pull dated; sdp.restatement reads those. The flow is
-Write-Audit-Publish: fetch into vendor/, build() into _staging/, audit(),
+date in the path. vendor/ keeps the pulls by date, and sdp.restatement reads
+them. For dividends, vendor/ keeps one pull per ISO week after 30 days. The flow
+is Write-Audit-Publish: fetch into vendor/, build() into _staging/, audit(),
 os.replace into raw/. The replace is atomic, and a failed audit leaves the
 previous pull in place.
 """
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import logging
 import os
@@ -17,6 +19,7 @@ from pathlib import Path
 
 import duckdb
 
+from sdp import dal
 from sdp.config import settings
 from sdp.ingest.rest import dump_ndjson
 
@@ -33,6 +36,9 @@ SPECS = {
     },
 }
 
+# A dividend pull is about 42 MB, so ingest() deletes old pulls of these datasets.
+THINNED = ("massive_dividends",)
+
 
 def raw_path(dataset: str) -> Path:
     """Return the single published table of a current-state dataset."""
@@ -44,6 +50,42 @@ def _one(sql: str, con: duckdb.DuckDBPyConnection | None = None) -> tuple:
     if row is None:
         raise RuntimeError(f"The query returned no rows: {sql[:120]}")
     return row
+
+
+def _vendor_files(dataset: str, pull_date: dt.date) -> list[Path]:
+    """Return the vendor files of one pull date that exist, gzip or plain."""
+    vdir = settings.vendor_dir / dataset
+    names = (f"{pull_date:%Y-%m-%d}.ndjson.gz", f"{pull_date:%Y-%m-%d}.ndjson")
+    return [vdir / n for n in names if (vdir / n).exists()]
+
+
+def _today() -> dt.date:
+    return dt.datetime.now(dt.UTC).date()
+
+
+def _published_pull(dataset: str) -> dt.date | None:
+    """Return the vendor_pull_date of the published table, or None if no table exists."""
+    ds = dal.DATASETS[dataset]
+    if not ds.table_file.exists():
+        return None
+    row = dal.current(ds).aggregate("max(vendor_pull_date)").fetchone()
+    return row[0] if row else None
+
+
+def _unchanged(dataset: str, pull_date: dt.date) -> bool:
+    """Return True if the vendor file of pull_date built the published table and
+    did not change after the publish."""
+    files = _vendor_files(dataset, pull_date)
+    if not files:
+        return False
+    try:
+        if _published_pull(dataset) != pull_date:
+            return False
+    except duckdb.Error:
+        # The query cannot read the table, so a new publish replaces it.
+        return False
+    newest_write = max(f.stat().st_mtime_ns for f in files)
+    return raw_path(dataset).stat().st_mtime_ns >= newest_write
 
 
 class AuditFailure(RuntimeError):
@@ -274,14 +316,27 @@ def _publish(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
 
 def ingest(dataset: str, pull_date: dt.date | None = None, *,
            force: bool = False) -> Path | None:
-    """Fetch the day's pull and replace the published table. An existing vendor
-    file is not refetched unless force is set, but it is still built and
-    published; there is no partition to skip."""
-    pull_date = pull_date or dt.datetime.now(dt.UTC).date()
+    """Fetch the pull of the day and replace the published table. If the vendor
+    file of that date built the published table and did not change after it, the
+    table and its mtime do not change. Force fetches the pull again and publishes it."""
+    pull_date = pull_date or _today()
     spec = SPECS[dataset]
+    if not force and _unchanged(dataset, pull_date):
+        log.info("%s: the published table is from the pull of %s. The table does "
+                 "not change.", dataset, pull_date)
+        return raw_path(dataset)
+
     vendor_file = dump_ndjson(dataset, spec["path"], spec["params"], pull_date,
                               force=force, compress=True)
-    return _publish(dataset, vendor_file, pull_date)
+    dest = _publish(dataset, vendor_file, pull_date)
+    if dataset in THINNED:
+        # The table is published. A failure here must not fail the pull.
+        try:
+            thin_vendor_pulls(dataset)
+        except Exception as exc:
+            log.error("%s: thin_vendor_pulls failed. The table is published. %s: %s",
+                      dataset, type(exc).__name__, exc)
+    return dest
 
 # ---------- REBUILD ----------
 
@@ -321,14 +376,87 @@ def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
         )
     return _publish(dataset, available[pull_date], pull_date)
 
+# ---------- THIN ----------
 
-if __name__ == "__main__":
-    import sys
+def thin_vendor_pulls(dataset: str, *, keep_days: int = 30,
+                      dry_run: bool = False) -> list[Path]:
+    """Delete old vendor pulls and keep one pull per ISO week. Keep the first pull,
+    each pull in the last keep_days days, and the pull of the published table.
+
+    Return the deleted files. With dry_run, return the files to delete and delete
+    nothing.
+    """
+    pulls = vendor_pulls(dataset)
+    if not pulls:
+        return []
+    # A vendor file with a future date must not move the window.
+    newest = min(pulls[-1][0], _today())
+    keep = {pulls[0][0], _published_pull(dataset)}
+    week_newest: dict[tuple[int, int], dt.date] = {}
+    for d, _ in pulls:
+        if (newest - d).days <= keep_days:
+            keep.add(d)
+        else:
+            # The pulls are in date order, so the newest pull of a week wins.
+            iso = d.isocalendar()
+            week_newest[(iso.year, iso.week)] = d
+    keep.update(week_newest.values())
+
+    doomed = [p for d, _ in pulls if d not in keep for p in _vendor_files(dataset, d)]
+    for path in doomed:
+        if dry_run:
+            log.info("%s: dry run. The file to delete is %s.", dataset, path)
+        else:
+            path.unlink(missing_ok=True)
+            log.info("%s: deleted %s.", dataset, path)
+    return doomed
+
+
+def main(argv: list[str] | None = None) -> None:
+    p = argparse.ArgumentParser(
+        prog="python -m sdp.ingest.massive_corporate_actions",
+        description="Pull, rebuild or thin the corporate action datasets.",
+    )
+    p.add_argument("datasets", nargs="*",
+                   help=f"Zero or more of: {', '.join(SPECS)}. The default is all.")
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--force", action="store_true",
+                      help="Fetch the pull again when the vendor file exists.")
+    mode.add_argument("--rebuild", action="store_true",
+                      help="Build the table from the newest vendor pull. Do not fetch.")
+    mode.add_argument("--thin", action="store_true",
+                      help="Delete old vendor pulls. Keep one per ISO week after 30 days. "
+                           f"Use only with {', '.join(THINNED)}, the default.")
+    p.add_argument("--dry-run", action="store_true",
+                   help="With --thin, show the files to delete and delete nothing.")
+    args = p.parse_intermixed_args(argv)
+    unknown = [n for n in args.datasets if n not in SPECS]
+    if unknown:
+        p.error(f"The dataset {', '.join(unknown)} is unknown. "
+                f"Use one of: {', '.join(SPECS)}.")
+    if args.thin and any(n not in THINNED for n in args.datasets):
+        p.error(f"Use --thin only with {', '.join(THINNED)}.")
+    if args.dry_run and not args.thin:
+        p.error("Use --dry-run only with --thin.")
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    names = [t for t in sys.argv[1:] if not t.startswith("-")] or list(SPECS)
-    for name in names:
-        if "--rebuild" in sys.argv:
+    if args.thin:
+        for name in args.datasets or list(THINNED):
+            doomed = thin_vendor_pulls(name, dry_run=args.dry_run)
+            for path in doomed:
+                print(path)
+            if args.dry_run:
+                print(f"{name}: {len(doomed)} files to delete. Dry run. No file deleted.")
+            else:
+                print(f"{name}: {len(doomed)} files deleted.")
+        return
+    for name in args.datasets or list(SPECS):
+        if args.rebuild:
             rebuild(name)
         else:
-            ingest(name, force="--force" in sys.argv)
+            ingest(name, force=args.force)
+
+
+if __name__ == "__main__":
+    main()
