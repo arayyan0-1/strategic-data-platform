@@ -36,17 +36,18 @@ class Diff:
     ambiguous_older: int
     ambiguous_newer: int
     max_relative_change: float | None
+    ids_churned: int = 0
+    """Ids that are gone while their event is still in the newer pull."""
     restated_examples: list[tuple] = field(default_factory=list)
 
     def __str__(self) -> str:
-        churn = self.ids_gone - self.events_gone
         return "\n".join([
             f"{self.dataset}: {self.older} -> {self.newer}",
             f"  rows                 {self.rows_older} -> {self.rows_newer}",
             f"  id diff              {self.ids_gone} gone, {self.ids_new} new",
             f"  event diff           {self.events_gone} gone, {self.events_new} new",
             f"  restated factors     {self.events_restated}",
-            f"  id churn only        {churn} events under a new id, unchanged",
+            f"  id churn only        {self.ids_churned} ids gone, event still present",
             f"  ambiguous keys       {self.ambiguous_older} -> {self.ambiguous_newer}",
             f"  largest change       {self.max_relative_change}",
         ])
@@ -137,7 +138,11 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
                 (select max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
                     from ok join nk using (ticker, ev)
                     where ok.n_rows = 1 and nk.n_rows = 1
-                      and ok.f is distinct from nk.f)
+                      and ok.f is distinct from nk.f),
+                (select count(*) from _ca_older g
+                    where not exists (select 1 from _ca_newer n where n.id = g.id)
+                      and exists (select 1 from _ca_newer n
+                                  where n.ticker = g.ticker and n.{key} = g.{key}))
         """).fetchone()
         if row is None:
             raise RuntimeError(f"The diff query for {ds.name} did not return a row.")
@@ -155,16 +160,22 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
     return Diff(ds.name, older, newer, *row, restated_examples=sample)
 
 
-def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
-    """Vendor drift between the oldest and newest pull, over a date window.
-    Reads the vendor archive."""
+def drift(ds: dal.Dataset, start: dt.date, end: dt.date, *,
+          older: dt.date | None = None, newer: dt.date | None = None) -> str:
+    """Vendor drift between two pulls, over a date window. The default pulls are
+    the oldest and the newest. A study names the pull it used as older. Reads the
+    vendor archive."""
     key = _key(ds)
     parts = _pull_dates(ds)
+    older = older or parts[0]
+    newer = newer or parts[-1]
+    if older >= newer:
+        raise ValueError(f"The older pull {older} is not before the newer {newer}.")
     window = (start, end)
     con = duckdb.connect()
     try:
-        _register(con, "_ca_older", ds, parts[0])
-        _register(con, "_ca_newer", ds, parts[-1])
+        _register(con, "_ca_older", ds, older)
+        _register(con, "_ca_newer", ds, newer)
         row = con.execute(f"""
             with ok as ({_keyed('_ca_older', key, window)}),
                  nk as ({_keyed('_ca_newer', key, window)})
@@ -184,7 +195,7 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
     n, changed, tickers, med, worst = row
     pct = (100.0 * changed / n) if n else 0.0
     return (
-        f"{ds.name} drift, vendor pull {parts[0]} against {parts[-1]}, "
+        f"{ds.name} drift, vendor pull {older} against {newer}, "
         f"events from {start} to {end}\n"
         f"  matched events       {n}\n"
         f"  restated             {changed} ({pct:.3f} percent), "
