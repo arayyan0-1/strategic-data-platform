@@ -9,6 +9,10 @@ macro-paths: ["macros"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+flags:
+  # dbt does not send usage events to dbt Labs.
+  send_anonymous_usage_stats: false
+
 vars:
   # The lake. dbt starts from its own directory, so this must be absolute.
   # profiles.yml and this value both come from the SDP_DATA_ROOT variable.
@@ -17,7 +21,7 @@ vars:
   # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
   # A study must not read a short interest number before this many sessions have
   # passed. It is a var and not a constant, because the schedule changed in the
-  # past and a robustness check on it is cheap. See docs/decisions/0009.
+  # past and a robustness check on it is cheap.
   short_interest_publication_sessions: 8
 
   # Universe. Each value is a modelling choice. Change one and run the study again.

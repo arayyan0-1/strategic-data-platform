@@ -136,3 +136,41 @@ class TestMaterialisation:
     def test_the_connection_renders_in_utc(self, tmp_data_root):
         """dal.con() sets TimeZone=UTC. A bare connection uses the system zone."""
         assert dal.con().sql("select current_setting('TimeZone')").fetchone() == ("UTC",)
+
+
+class TestWarehouse:
+    """The notebooks read the dbt warehouse through dal.warehouse() only."""
+
+    def _build(self):
+        import duckdb
+
+        from sdp.config import settings
+
+        path = settings.warehouse_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with duckdb.connect(str(path)) as build:
+            build.execute("create schema main_marts")
+            build.execute("create table main_marts.t as select 1 as x")
+
+    def test_an_absent_warehouse_raises_missing_partition(self, tmp_data_root):
+        with pytest.raises(dal.MissingPartition, match="sdp.transform build"):
+            dal.warehouse()
+
+    def test_the_connection_reads_a_table(self, tmp_data_root):
+        self._build()
+        wh = dal.warehouse()
+        try:
+            assert wh.sql("select x from main_marts.t").fetchall() == [(1,)]
+        finally:
+            wh.close()
+
+    def test_the_connection_refuses_a_write(self, tmp_data_root):
+        import duckdb
+
+        self._build()
+        wh = dal.warehouse()
+        try:
+            with pytest.raises(duckdb.Error, match="read-only"):
+                wh.execute("create table main_marts.u as select 2 as y")
+        finally:
+            wh.close()

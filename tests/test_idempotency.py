@@ -1,11 +1,16 @@
 """Content-level idempotency: a rerun of one date yields identical rows.
 
 Parquet metadata differs between runs, so these tests compare rows, not files.
+The rebuild tests also check that a rebuild reads vendor/ only.
 """
 import datetime as dt
 import gzip
+import json
+import os
+import re
 
 import duckdb
+import pytest
 
 from sdp.config import settings
 from sdp.ingest import massive_day_aggs as day
@@ -121,3 +126,172 @@ class TestVendorDuplicates:
             f"select count(*) - count(distinct ticker) from read_parquet('{staged}')"
         ).fetchone()
         assert dupes == (0,)
+
+
+# ---------- the two modes that publish a date again ----------
+
+def _day_aggs_vendor(n=6000):
+    """Write a vendor CSV that passes the day-aggregate audit."""
+    path = day.vendor_path(D)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["ticker,volume,open,close,high,low,window_start,transactions"]
+    lines += [f"T{i:05d},1000,10.0,10.5,11.0,9.0,1704301200000000000,5" for i in range(n)]
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return path
+
+
+def _tickers_vendor(n=6000, n_cs=4000, suffix=".ndjson.gz"):
+    """Write a vendor NDJSON file that passes the tickers audit."""
+    path = settings.vendor_dir / tick.DATASET / f"{D:%Y-%m-%d}{suffix}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = "".join(json.dumps({
+        "ticker": f"T{i:05d}", "name": f"Name {i}",
+        "type": "CS" if i < n_cs else "ETF", "active": True,
+        "primary_exchange": "XNYS", "composite_figi": f"BBG{i}",
+        "last_updated_utc": "2026-08-21T20:04:17Z",
+    }) + "\n" for i in range(n))
+    if suffix.endswith(".gz"):
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            fh.write(text)
+    else:
+        path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _damage(dest):
+    """Replace a published partition with one row of itself."""
+    tmp = dest.with_suffix(".tmp")
+    duckdb.execute(f"copy (select * from read_parquet('{dest}') limit 1) "
+                   f"to '{tmp}' (format parquet)")
+    os.replace(tmp, dest)
+
+
+@pytest.fixture
+def offline(monkeypatch):
+    """Make every download fail, so a test proves that a rebuild uses vendor/ only."""
+
+    def fail(*args, **kwargs):
+        raise AssertionError("a rebuild must not download")
+
+    monkeypatch.setattr(day, "download", fail)
+    monkeypatch.setattr(tick, "dump_ndjson", fail)
+
+
+class TestRebuild:
+    def test_day_aggs_with_no_vendor_file_raises_and_names_it(self, tmp_data_root, offline):
+        with pytest.raises(FileNotFoundError, match=re.escape(str(day.vendor_path(D)))):
+            day.ingest(D, rebuild=True)
+
+    def test_tickers_with_no_vendor_file_raises_and_names_it(self, tmp_data_root, offline):
+        expected = settings.vendor_dir / tick.DATASET / "2024-01-03.ndjson.gz"
+        with pytest.raises(FileNotFoundError, match=re.escape(str(expected))):
+            tick.ingest(D, rebuild=True)
+
+    def test_day_aggs_republishes_a_published_partition(self, tmp_data_root, offline):
+        _day_aggs_vendor()
+        dest = day.ingest(D, rebuild=True)
+        good = _rows(dest)
+        assert len(good) == 6000
+
+        _damage(dest)
+        assert day.ingest(D) == dest, "the default must skip a published partition"
+        assert len(_rows(dest)) == 1
+
+        assert day.ingest(D, rebuild=True) == dest
+        assert _rows(dest) == good
+
+    @pytest.mark.parametrize("suffix", [".ndjson.gz", ".ndjson"])
+    def test_tickers_republishes_a_published_partition(
+        self, tmp_data_root, offline, suffix
+    ):
+        _tickers_vendor(suffix=suffix)
+        dest = tick.ingest(D, rebuild=True)
+        good = _rows(dest)
+        assert len(good) == 6000
+
+        _damage(dest)
+        assert tick.ingest(D) == dest, "the default must skip a published partition"
+        assert tick.ingest(D, rebuild=True) == dest
+        assert _rows(dest) == good
+
+    def test_a_rebuild_does_not_change_the_vendor_file(self, tmp_data_root, offline):
+        vendor = _day_aggs_vendor()
+        before = vendor.read_bytes()
+        day.ingest(D, rebuild=True)
+        day.ingest(D, rebuild=True)
+        assert vendor.read_bytes() == before
+
+    def test_both_modes_raise(self, tmp_data_root, offline):
+        with pytest.raises(ValueError, match="not set both"):
+            day.ingest(D, refetch=True, rebuild=True)
+        with pytest.raises(ValueError, match="not set both"):
+            tick.ingest(D, refetch=True, rebuild=True)
+
+
+class TestRefetch:
+    """refetch downloads again even when the partition is published."""
+
+    def test_day_aggs_downloads_again_and_republishes(self, tmp_data_root, monkeypatch):
+        _day_aggs_vendor()
+        seen = []
+
+        def download(d, *, force=False):
+            seen.append(force)
+            return day.vendor_path(d)
+
+        monkeypatch.setattr(day, "download", download)
+        dest = day.ingest(D)
+        _damage(dest)
+        assert day.ingest(D, refetch=True) == dest
+        assert seen == [False, True]
+        assert len(_rows(dest)) == 6000
+
+    def test_a_day_aggs_refetch_that_fails_its_audit_keeps_the_earlier_bytes(
+        self, tmp_data_root, monkeypatch
+    ):
+        """The earlier vendor file is the only copy of what the vendor sent."""
+        vendor = _day_aggs_vendor()
+        before = vendor.read_bytes()
+
+        def download(d, *, force=False):
+            with gzip.open(vendor, "wt", encoding="utf-8") as fh:
+                fh.write(CSV)
+            return vendor
+
+        monkeypatch.setattr(day, "download", download)
+        with pytest.raises(day.AuditFailure, match="full session"):
+            day.ingest(D, refetch=True)
+        assert vendor.read_bytes() == before
+        assert not list(vendor.parent.glob("*.part")), "the backup copy must not stay"
+
+    def test_a_tickers_refetch_that_fails_its_audit_keeps_the_earlier_bytes(
+        self, tmp_data_root, monkeypatch
+    ):
+        vendor = _tickers_vendor()
+        before = vendor.read_bytes()
+
+        def dump_ndjson(dataset, path, params, pull_date, *, force=False, **kwargs):
+            with gzip.open(vendor, "wt", encoding="utf-8") as fh:
+                fh.write(NDJSON)
+            return vendor
+
+        monkeypatch.setattr(tick, "dump_ndjson", dump_ndjson)
+        with pytest.raises(tick.AuditFailure, match="outside the limits"):
+            tick.ingest(D, refetch=True)
+        assert vendor.read_bytes() == before
+
+    def test_tickers_downloads_again_and_republishes(self, tmp_data_root, monkeypatch):
+        vendor = _tickers_vendor()
+        seen = []
+
+        def dump_ndjson(dataset, path, params, pull_date, *, force=False, **kwargs):
+            seen.append(force)
+            return vendor
+
+        monkeypatch.setattr(tick, "dump_ndjson", dump_ndjson)
+        dest = tick.ingest(D)
+        _damage(dest)
+        assert tick.ingest(D, refetch=True) == dest
+        assert seen == [False, True]
+        assert len(_rows(dest)) == 6000

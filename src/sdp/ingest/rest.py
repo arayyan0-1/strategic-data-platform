@@ -18,7 +18,10 @@ from sdp.config import settings
 
 log = logging.getLogger(__name__)
 
-_RETRY_STATUS = {429, 500, 502, 503, 504}
+_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+_RETRY_AFTER_STATUS = frozenset({429, 503})
+_MAX_BACKOFF_S = 30
+_MAX_RETRY_AFTER_S = 120
 
 
 def _client() -> httpx.Client:
@@ -30,20 +33,50 @@ def _client() -> httpx.Client:
     )
 
 
+def _retry_after(resp: httpx.Response) -> int | None:
+    """Return the Retry-After delay in seconds, capped at 120 s.
+    Return None when the header is absent or is not an integer."""
+    if resp.status_code not in _RETRY_AFTER_STATUS:
+        return None
+    value = resp.headers.get("Retry-After", "").strip()
+    if not (value.isascii() and value.isdigit()):
+        return None
+    return min(int(value), _MAX_RETRY_AFTER_S)
+
+
 def _get(client: httpx.Client, url: str, params: dict | None = None, *, attempts: int = 5):
+    """Return the JSON body of one GET request.
+
+    A transport error, HTTP 429 and HTTP 5xx cause a retry with exponential backoff.
+    Any other error status causes an error immediately.
+    """
+    if attempts < 1:
+        raise ValueError(f"attempts must be 1 or more. The value was {attempts}.")
+    target = client.build_request("GET", url, params=params).url
+    last = ""
     for i in range(attempts):
-        resp = client.get(url, params=params)
-        if resp.status_code in _RETRY_STATUS:
-            wait = min(2**i, 30)
-            log.warning("HTTP %s from %s. Retry in %s s.", resp.status_code, url, wait)
+        wait = min(2**i, _MAX_BACKOFF_S)
+        try:
+            resp = client.get(url, params=params)
+        except httpx.TransportError as exc:
+            last = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        else:
+            if resp.status_code in _RETRY_STATUS:
+                last = f"HTTP {resp.status_code}"
+                retry_after = _retry_after(resp)
+                if retry_after is not None:
+                    wait = retry_after
+            elif resp.is_error:
+                raise RuntimeError(
+                    f"HTTP {resp.status_code} on {resp.request.url}\n{resp.text[:800]}"
+                )
+            else:
+                return resp.json()
+        if i + 1 < attempts:
+            log.warning("Attempt %s of %s on %s failed with %s. Retry in %s s.",
+                        i + 1, attempts, target, last, wait)
             time.sleep(wait)
-            continue
-        if resp.is_error:
-            raise RuntimeError(
-                f"HTTP {resp.status_code} on {resp.request.url}\n{resp.text[:800]}"
-            )
-        return resp.json()
-    raise RuntimeError(f"All {attempts} attempts on {url} failed.")
+    raise RuntimeError(f"All {attempts} attempts on {target} failed. The last error was {last}.")
 
 
 def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:

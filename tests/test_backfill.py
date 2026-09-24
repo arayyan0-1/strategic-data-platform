@@ -26,7 +26,7 @@ def fake_ingest(monkeypatch):
     def install(fail_on: tuple = (), skip_on: tuple = ()):
         calls: list[dt.date] = []
 
-        def ingest(d: dt.date, *, force: bool = False):
+        def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False):
             calls.append(d)
             if d in fail_on:
                 raise RuntimeError(f"vendor error on {d}")
@@ -115,16 +115,88 @@ class TestFlags:
         assert backfill.backfill("day_aggs", START, END, dry_run=True) == []
         assert calls == []
 
-    def test_force_reaches_the_ingest_function(self, tmp_data_root, monkeypatch):
-        seen = []
+    def test_a_limit_of_zero_ingests_nothing(self, tmp_data_root, fake_ingest):
+        calls = fake_ingest()
+        assert backfill.backfill("day_aggs", START, END, limit=0) == []
+        assert calls == []
 
-        def ingest(d, *, force=False):
-            seen.append(force)
+    @pytest.mark.parametrize("dry_run", [False, True])
+    def test_a_range_with_no_session_is_not_an_error(
+        self, tmp_data_root, fake_ingest, dry_run
+    ):
+        """2024-01-01 is a holiday."""
+        calls = fake_ingest()
+        assert backfill.backfill("day_aggs", START, START, dry_run=dry_run) == []
+        assert calls == []
+
+
+class TestModes:
+    """refetch downloads again. rebuild reads vendor/ only. They exclude each other."""
+
+    @pytest.fixture
+    def seen(self, monkeypatch):
+        seen: list[tuple[bool, bool]] = []
+
+        def ingest(d, *, refetch=False, rebuild=False):
+            seen.append((refetch, rebuild))
             return Path("/fake")
 
         monkeypatch.setitem(backfill.TARGETS, "day_aggs", ingest)
-        backfill.backfill("day_aggs", START, END, force=True, limit=1)
-        assert seen == [True]
+        return seen
+
+    def test_the_default_sets_neither_mode(self, tmp_data_root, seen):
+        backfill.backfill("day_aggs", START, END, limit=1)
+        assert seen == [(False, False)]
+
+    def test_refetch_reaches_the_ingest_function(self, tmp_data_root, seen):
+        backfill.backfill("day_aggs", START, END, refetch=True, limit=1)
+        assert seen == [(True, False)]
+
+    def test_rebuild_reaches_the_ingest_function(self, tmp_data_root, seen):
+        backfill.backfill("day_aggs", START, END, rebuild=True, limit=1)
+        assert seen == [(False, True)]
+
+    def test_both_modes_raise_before_any_ingest(self, tmp_data_root, seen):
+        with pytest.raises(ValueError, match="not set both"):
+            backfill.backfill("day_aggs", START, END, refetch=True, rebuild=True)
+        assert seen == []
+
+    @pytest.mark.parametrize("flag,expected", [("--refetch", (True, False)),
+                                               ("--rebuild", (False, True))])
+    def test_the_cli_flag_reaches_the_ingest_function(
+        self, tmp_data_root, seen, flag, expected
+    ):
+        assert backfill.main(["day_aggs", "2024-01-02", "2024-01-02", flag]) == 0
+        assert seen == [expected]
+
+    def test_the_cli_refuses_both_flags(self, tmp_data_root, seen):
+        with pytest.raises(SystemExit):
+            backfill.main(["day_aggs", "2024-01-02", "2024-01-02", "--refetch", "--rebuild"])
+        assert seen == []
+
+    def test_the_cli_refuses_force(self, tmp_data_root, seen):
+        with pytest.raises(SystemExit):
+            backfill.main(["day_aggs", "2024-01-02", "2024-01-02", "--force"])
+        assert seen == []
+
+    @pytest.mark.parametrize("target", sorted(backfill.TARGETS))
+    def test_every_real_target_refuses_both_modes(self, tmp_data_root, target):
+        with pytest.raises(ValueError, match="not set both"):
+            backfill.TARGETS[target](SESSIONS[0], refetch=True, rebuild=True)
+
+    def test_a_failure_in_a_mode_does_not_advise_a_plain_rerun(
+        self, tmp_data_root, monkeypatch, capsys
+    ):
+        """A rerun with a mode processes every date again, not only the gaps."""
+
+        def ingest(d, *, refetch=False, rebuild=False):
+            raise FileNotFoundError(f"no vendor file for {d}")
+
+        monkeypatch.setitem(backfill.TARGETS, "day_aggs", ingest)
+        backfill.backfill("day_aggs", START, END, rebuild=True)
+        out = capsys.readouterr().out
+        assert "retry only these dates" not in out
+        assert "each failed date as the range" in out
 
 
 class TestRunLog:

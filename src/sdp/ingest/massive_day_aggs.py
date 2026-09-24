@@ -8,17 +8,26 @@ from pathlib import Path
 
 import boto3
 import duckdb
-import exchange_calendars as xcals
 from botocore.config import Config
 
+from sdp import dal
 from sdp.config import settings
+from sdp.ingest.common import (
+    AuditFailure,
+    add_mode_flags,
+    check_mode,
+    is_session,
+    keep_on_failure,
+    one,
+    publish,
+    require_file,
+)
 from sdp.ingest.rest import _temp_beside
 
 log = logging.getLogger(__name__)
 
-DATASET = "us_stocks_day_aggs"
+DATASET = dal.DAY_AGGS.name
 S3_PREFIX = "us_stocks_sip/day_aggs_v1"
-_CAL = xcals.get_calendar("XNYS")
 
 
 def _s3():
@@ -37,14 +46,6 @@ def _s3_key(d: dt.date) -> str:
 
 def vendor_path(d: dt.date) -> Path:
     return settings.vendor_dir / DATASET / f"{d:%Y-%m-%d}.csv.gz"
-
-
-def raw_path(d: dt.date) -> Path:
-    return settings.raw_dir / DATASET / f"date={d:%Y-%m-%d}" / "data.parquet"
-
-
-def is_trading_day(d: dt.date) -> bool:
-    return _CAL.is_session(d.isoformat())
 
 
 # ---------- WRITE ----------
@@ -91,12 +92,9 @@ def build(d: dt.date) -> Path:
 
 # ---------- AUDIT ----------
 
-class AuditFailure(RuntimeError):
-    pass
-
-
 def audit(staged: Path) -> None:
-    row = duckdb.execute(f"""
+    (n_rows, n_tickers, null_tickers, bad_hl,
+     bad_high, bad_low, bad_volume, bad_price) = one(f"""
         select
             count(*)                                          as n_rows,
             count(distinct ticker)                            as n_tickers,
@@ -107,13 +105,7 @@ def audit(staged: Path) -> None:
             count(*) filter (volume < 0)                      as bad_volume,
             count(*) filter (open <= 0 or close <= 0)         as bad_price
         from read_parquet('{staged}')
-    """).fetchone()
-
-    if row is None:
-        raise AuditFailure(f"{staged.name}: the audit query returned no row.")
-
-    (n_rows, n_tickers, null_tickers, bad_hl,
-     bad_high, bad_low, bad_volume, bad_price) = row
+    """)
 
     problems = []
     if n_rows < 5_000:
@@ -135,30 +127,34 @@ def audit(staged: Path) -> None:
 
 # ---------- PUBLISH ----------
 
-def publish(d: dt.date, staged: Path) -> Path:
-    dest = raw_path(d)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    # This move is atomic, because both paths are on one filesystem.
-    os.replace(staged, dest)
-    log.info("Published %s", dest)
-    return dest
-
-
-def ingest(d: dt.date, *, force: bool = False) -> Path | None:
-    if not is_trading_day(d):
+def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False) -> Path | None:
+    """Publish one session. The default skips a published partition. refetch
+    downloads the vendor file again. rebuild reads the vendor file on disk only."""
+    check_mode(refetch, rebuild)
+    if not is_session(d):
         log.info("%s is not an XNYS session. Skipped.", d)
         return None
-    if raw_path(d).exists() and not force:
-        log.info("The partition is already published: %s", raw_path(d))
-        return raw_path(d)
+    dest = dal.DAY_AGGS.partition_file(d)
+    if dest.exists() and not (refetch or rebuild):
+        log.info("The partition is already published: %s", dest)
+        return dest
 
-    download(d, force=force)
-    staged = build(d)
-    audit(staged)
-    return publish(d, staged)
+    with keep_on_failure(vendor_path(d) if refetch else None):
+        if rebuild:
+            require_file(vendor_path(d))
+        else:
+            download(d, force=refetch)
+        staged = build(d)
+        audit(staged)
+    return publish(staged, dest)
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
+    p = argparse.ArgumentParser(prog="python -m sdp.ingest.massive_day_aggs",
+                                description="Publish the day aggregates of one session.")
+    p.add_argument("date", type=dt.date.fromisoformat, help="The session, as YYYY-MM-DD.")
+    add_mode_flags(p)
+    args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    ingest(dt.date.fromisoformat(sys.argv[1]), force="--force" in sys.argv)
+    ingest(args.date, refetch=args.refetch, rebuild=args.rebuild)

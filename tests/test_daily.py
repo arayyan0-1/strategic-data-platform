@@ -56,6 +56,16 @@ def fake_pull(monkeypatch):
     return install
 
 
+@pytest.fixture(autouse=True)
+def notifications(monkeypatch):
+    """Stub the DNS probe and record the desktop notifications, so no test does a
+    DNS lookup or shows an alert."""
+    monkeypatch.setattr(daily, "_online", lambda: True)
+    sent = []
+    monkeypatch.setattr(daily, "_notify", sent.append)
+    return sent
+
+
 class TestEventStreamFill:
     def test_the_fill_starts_the_day_after_the_last_partition(self, lake, fake_backfill):
         lake(dal.DAY_AGGS, D(2024, 1, 4), [("AAA", 1.0)])
@@ -271,3 +281,370 @@ class TestStatusSnapshot:
 
 def _named(snap: dict, name: str) -> dict:
     return next(d for d in snap["datasets"] if d["name"] == name)
+
+
+class TestOffline:
+    @pytest.fixture
+    def runs(self, monkeypatch):
+        """Record the calls to run(), and make the vendor hosts not resolve."""
+        calls = []
+        monkeypatch.setattr(daily, "run", lambda *a, **k: calls.append(1) or 0)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: False)
+        monkeypatch.setattr(daily, "_online", lambda: False)
+        return calls
+
+    def test_an_offline_run_skips_the_pulls(self, tmp_data_root, runs):
+        snap = daily.update()
+        assert runs == []
+        assert snap["last_pull"]["offline"] is True
+        assert snap["last_pull"]["exit_code"] == 0
+
+    def test_an_offline_run_still_builds_a_stale_warehouse(self, tmp_data_root, runs,
+                                                            monkeypatch):
+        built = []
+        monkeypatch.setattr(daily, "dbt_stale", lambda: True)
+        monkeypatch.setattr(daily, "_build_dbt", lambda: built.append(1) or 0)
+        assert daily.update()["last_pull"]["dbt"] == "built"
+        assert built == [1]
+
+    def test_main_exits_zero_when_offline(self, tmp_data_root, runs):
+        assert daily.main([]) == 0
+        status = json.loads((tmp_data_root / "_logs" / "status.json").read_text())
+        assert status["last_pull"]["offline"] is True
+
+    def test_an_online_run_records_offline_false(self, tmp_data_root, runs, monkeypatch):
+        monkeypatch.setattr(daily, "_online", lambda: True)
+        assert daily.update()["last_pull"]["offline"] is False
+        assert runs == [1]
+
+    def test_no_probe_when_both_pulls_are_skipped(self, tmp_data_root, runs, monkeypatch):
+        monkeypatch.setattr(daily, "_online", lambda: pytest.fail("the probe ran"))
+        snap = daily.update(skip_current_state=True, skip_event_streams=True)
+        assert snap["last_pull"]["offline"] is False
+
+
+class TestOnlineProbe:
+    real = staticmethod(daily._online)  # Kept before the autouse stub replaces it.
+
+    @pytest.fixture
+    def resolver(self, monkeypatch):
+        """Resolve only the hosts in a set, and record each lookup."""
+        monkeypatch.setattr(settings, "massive_api_base", "https://api.example.test")
+        monkeypatch.setattr(settings, "massive_s3_endpoint",
+                            "https://files.example.test:8443")
+        seen = []
+
+        def install(resolves: set):
+            def getaddrinfo(host, port):
+                seen.append((host, port))
+                if host not in resolves:
+                    raise daily.socket.gaierror(
+                        8, "nodename nor servname provided, or not known")
+                return []
+
+            monkeypatch.setattr(daily.socket, "getaddrinfo", getaddrinfo)
+            return seen
+
+        return install
+
+    def test_no_host_resolves_is_offline(self, resolver):
+        seen = resolver(set())
+        assert self.real() is False
+        assert seen == [("api.example.test", 443), ("files.example.test", 443)]
+
+    def test_one_host_that_resolves_is_online(self, resolver):
+        """A single bad host must fail its own pulls, not skip every pull."""
+        resolver({"files.example.test"})
+        assert self.real() is True
+
+
+class TestFailureSignal:
+    @pytest.fixture
+    def codes(self, monkeypatch):
+        """Make each run() return the next exit code of a list."""
+        queue = []
+        monkeypatch.setattr(daily, "run", lambda *a, **k: queue.pop(0))
+        monkeypatch.setattr(daily, "dbt_stale", lambda: False)
+        return queue
+
+    def test_failures_in_a_row_counts_and_resets(self, tmp_data_root, codes):
+        codes += [1, 1, 0]
+        seen = [daily.update()["last_pull"]["failures_in_a_row"] for _ in range(3)]
+        assert seen == [1, 2, 0]
+
+    def test_an_offline_run_keeps_the_count(self, tmp_data_root, codes, monkeypatch):
+        codes += [1, 1]
+        daily.update()
+        daily.update()
+        monkeypatch.setattr(daily, "_online", lambda: False)
+        assert daily.update()["last_pull"]["failures_in_a_row"] == 2
+
+    def test_two_failures_send_one_notification_a_day(self, tmp_data_root, codes,
+                                                       notifications):
+        codes += [1, 1, 1]
+        daily.update()
+        assert notifications == [], "one failure must not alert"
+        daily.update()
+        daily.update()
+        assert len(notifications) == 1
+        today = dt.datetime.now(dt.UTC).date().isoformat()
+        status = json.loads((tmp_data_root / "_logs" / "status.json").read_text())
+        assert status["last_pull"]["last_alert"] == today
+
+    def test_a_new_day_sends_a_new_notification(self, tmp_data_root, codes,
+                                                notifications):
+        codes += [1, 1, 1]
+        daily.update()
+        daily.update()
+        p = tmp_data_root / "_logs" / "status.json"
+        status = json.loads(p.read_text())
+        status["last_pull"]["last_alert"] = "2000-01-01"
+        p.write_text(json.dumps(status))
+        daily.update()
+        assert len(notifications) == 2
+
+    def test_the_problems_are_recorded_up_to_20(self, tmp_data_root, monkeypatch):
+        def failing_run(*a, problems=None, **k):
+            problems.extend(f"day_aggs 2024-01-{i:02d}: boom" for i in range(1, 26))
+            return 1
+
+        monkeypatch.setattr(daily, "run", failing_run)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: False)
+        problems = daily.update()["last_pull"]["problems"]
+        assert len(problems) == 20
+        assert problems[0] == "day_aggs 2024-01-01: boom"
+
+    def test_run_exposes_its_problems(self, lake, fake_backfill, fake_pull):
+        fake_pull(fail=("massive_splits",))
+        problems = []
+        assert daily.run(TODAY, problems=problems) == 1
+        assert problems == ["massive_splits pull failed"]
+
+    def test_a_failed_dbt_build_counts_as_a_failure(self, tmp_data_root, codes,
+                                                    monkeypatch):
+        codes += [0, 0]
+        monkeypatch.setattr(daily, "dbt_stale", lambda: True)
+        monkeypatch.setattr(daily, "_build_dbt", lambda: 1)
+        daily.update()
+        assert daily.update()["last_pull"]["failures_in_a_row"] == 2
+
+    def test_the_dbt_failure_is_kept_under_the_problem_cap(self, tmp_data_root,
+                                                           monkeypatch):
+        def failing_run(*a, problems=None, **k):
+            problems.extend(f"tickers 2024-01-{i:02d}: boom" for i in range(1, 26))
+            return 1
+
+        monkeypatch.setattr(daily, "run", failing_run)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: True)
+        monkeypatch.setattr(daily, "_build_dbt", lambda: 1)
+        assert "dbt build failed" in daily.update()["last_pull"]["problems"]
+
+    def test_a_crash_in_the_run_counts_as_a_failure(self, tmp_data_root, monkeypatch):
+        def crash(*a, **k):
+            raise RuntimeError("corrupt partition")
+
+        monkeypatch.setattr(daily, "run", crash)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: False)
+        last_pull = daily.update()["last_pull"]
+        assert last_pull["exit_code"] == 1
+        assert last_pull["failures_in_a_row"] == 1
+        assert "corrupt partition" in last_pull["problems"][0]
+
+    def test_a_failed_snapshot_still_records_the_run(self, tmp_data_root, codes,
+                                                     monkeypatch):
+        codes += [1]
+
+        def broken(*a, **k):
+            raise OSError("unreadable partition")
+
+        monkeypatch.setattr(daily, "status_snapshot", broken)
+        daily.update()
+        status = json.loads((tmp_data_root / "_logs" / "status.json").read_text())
+        assert status["last_pull"]["failures_in_a_row"] == 1
+        assert "unreadable partition" in status["error"]
+
+    def test_a_run_that_pulls_nothing_keeps_the_count(self, tmp_data_root, codes):
+        codes += [1, 1, 0]
+        daily.update()
+        daily.update()
+        snap = daily.update(skip_current_state=True, skip_event_streams=True)
+        assert snap["last_pull"]["failures_in_a_row"] == 2
+
+    def test_an_offline_run_sends_no_failure_alert(self, tmp_data_root, codes,
+                                                   notifications, monkeypatch):
+        codes += [1, 1]
+        daily.update()
+        daily.update()
+        p = tmp_data_root / "_logs" / "status.json"
+        status = json.loads(p.read_text())
+        status["last_pull"]["last_alert"] = "2000-01-01"
+        p.write_text(json.dumps(status))
+        monkeypatch.setattr(daily, "_online", lambda: False)
+        daily.update()
+        assert len(notifications) == 1, "only the second failure alerts"
+
+    def test_offline_for_a_day_sends_one_alert(self, tmp_data_root, codes,
+                                               notifications, monkeypatch):
+        monkeypatch.setattr(daily, "_online", lambda: False)
+        daily.update()
+        assert notifications == []
+        p = tmp_data_root / "_logs" / "status.json"
+        status = json.loads(p.read_text())
+        since = dt.datetime.now(dt.UTC) - dt.timedelta(hours=daily.OFFLINE_ALERT_HOURS + 1)
+        status["last_pull"]["offline_since"] = since.isoformat()
+        p.write_text(json.dumps(status))
+        daily.update()
+        daily.update()
+        assert len(notifications) == 1
+        assert "did not resolve" in notifications[0]
+
+    def test_an_online_run_clears_offline_since(self, tmp_data_root, codes,
+                                                monkeypatch):
+        codes += [0]
+        monkeypatch.setattr(daily, "_online", lambda: False)
+        first = daily.update()["last_pull"]["offline_since"]
+        assert first
+        assert daily.update()["last_pull"]["offline_since"] == first
+        monkeypatch.setattr(daily, "_online", lambda: True)
+        assert daily.update()["last_pull"]["offline_since"] is None
+
+    def test_the_status_file_rates_short_interest_on_this_run(self, tmp_data_root,
+                                                              codes):
+        codes += [0]
+        daily.update()
+        status = json.loads((tmp_data_root / "_logs" / "status.json").read_text())
+        assert _named(status, "short_interest")["level"] == "ok"
+
+    def test_a_failed_dbt_build_points_to_the_log(self, tmp_data_root, monkeypatch):
+        monkeypatch.setattr(daily, "run", lambda *a, **k: 0)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: True)
+        monkeypatch.setattr(daily, "_build_dbt", lambda: 1)
+        events = []
+        snap = daily.update(progress=events.append)
+        assert "uv sync" not in events[-1]["message"]
+        assert "daily.out.log" in events[-1]["message"]
+        assert "dbt build failed" in snap["last_pull"]["problems"]
+
+
+class TestNotify:
+    real = staticmethod(daily._notify)  # Kept before the autouse stub replaces it.
+
+    def test_an_osascript_error_is_swallowed(self, monkeypatch):
+        def boom(*a, **k):
+            raise FileNotFoundError("osascript")
+
+        monkeypatch.setattr(daily.subprocess, "run", boom)
+        self.real("The daily update failed.")
+
+    def test_a_quote_in_the_message_is_escaped(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(daily.subprocess, "run", lambda cmd, **k: calls.append(cmd))
+        self.real('a "b" c')
+        (cmd,) = calls
+        assert cmd[:2] == ["osascript", "-e"]
+        assert cmd[2] == 'display notification "a \\"b\\" c" with title "sdp"'
+
+
+class TestShortInterestLevel:
+    @pytest.fixture
+    def level(self, lake, tmp_data_root):
+        """Write a last_pull block, then read the short interest level at NOON."""
+        lake(dal.SHORT_INTEREST, D(2024, 1, 4), [("AAA", 1.0)])
+
+        def read(**fields) -> str:
+            p = tmp_data_root / "_logs" / "status.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({"last_pull": fields}), encoding="utf-8")
+            return _named(daily.status_snapshot(NOON), "short_interest")["level"]
+
+        return read
+
+    def test_a_clean_pull_today_is_ok(self, level):
+        assert level(time=NOON.isoformat(), exit_code=0) == "ok"
+
+    def test_a_failed_pull_today_warns(self, level):
+        assert level(time=NOON.isoformat(), exit_code=1) == "warn"
+
+    def test_an_offline_run_today_warns(self, level):
+        assert level(time=NOON.isoformat(), exit_code=0, offline=True) == "warn"
+
+    def test_a_clean_pull_yesterday_warns(self, level):
+        yesterday = NOON - dt.timedelta(days=1)
+        assert level(time=yesterday.isoformat(), exit_code=0) == "warn"
+
+    def test_no_pull_warns(self, level):
+        assert level() == "warn"
+
+
+class TestLogPruning:
+    def test_an_old_backfill_log_is_deleted(self, tmp_data_root):
+        logs = tmp_data_root / "_logs"
+        now = dt.datetime.now().timestamp()
+        old = logs / "backfill_day_aggs_20240101T000000.jsonl"
+        new = logs / "backfill_day_aggs_20240201T000000.jsonl"
+        _touch(old, now - (daily.LOG_KEEP_DAYS + 1) * 86400)
+        _touch(new, now - 86400)
+        daily._prune_logs()
+        assert not old.exists()
+        assert new.exists()
+
+    def test_a_large_log_is_rotated(self, tmp_data_root, monkeypatch):
+        monkeypatch.setattr(daily, "LOG_ROTATE_BYTES", 10)
+        logs = tmp_data_root / "_logs"
+        logs.mkdir(parents=True)
+        (logs / "daily.out.log").write_text("x" * 11)
+        (logs / "daily.out.log.1").write_text("older")
+        (logs / "daily.err.log").write_text("small")
+        daily._prune_logs()
+        assert not (logs / "daily.out.log").exists()
+        assert (logs / "daily.out.log.1").read_text() == "x" * 11
+        assert (logs / "daily.err.log").read_text() == "small"
+        assert not (logs / "daily.err.log.1").exists()
+
+    def test_update_prunes_the_logs(self, tmp_data_root, monkeypatch):
+        monkeypatch.setattr(daily, "run", lambda *a, **k: 0)
+        monkeypatch.setattr(daily, "dbt_stale", lambda: False)
+        old = tmp_data_root / "_logs" / "backfill_tickers_20240101T000000.jsonl"
+        _touch(old, 1000)
+        daily.update()
+        assert not old.exists()
+
+    def test_a_pruning_error_does_not_raise(self, tmp_data_root, monkeypatch):
+        old = tmp_data_root / "_logs" / "backfill_tickers_20240101T000000.jsonl"
+        _touch(old, 1000)
+
+        def deny(p, cutoff):
+            raise PermissionError(p)
+
+        monkeypatch.setattr(daily, "_prune_one", deny)
+        daily._prune_logs()
+        assert old.exists()
+
+
+class TestFillEnd:
+    def test_day_aggs_stops_at_the_last_published_session(self):
+        # At noon on Wednesday 2024-01-10, Tuesday's file exists and today's does not.
+        assert daily._fill_end("day_aggs", TODAY, NOON) == D(2024, 1, 9)
+
+    def test_day_aggs_waits_for_the_morning_file(self):
+        early = dt.datetime(2024, 1, 10, 5, 0, tzinfo=dt.UTC)
+        assert daily._fill_end("day_aggs", TODAY, early) == D(2024, 1, 8)
+
+    def test_the_rest_streams_fill_through_today(self):
+        for name in ("tickers", "short_volume", "short_interest"):
+            assert daily._fill_end(name, TODAY, NOON) == TODAY
+
+    def test_a_past_date_is_not_moved(self):
+        later = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.UTC)
+        assert daily._fill_end("day_aggs", TODAY, later) == TODAY
+
+    def test_run_asks_for_no_unpublished_day_aggs_session(self, lake, fake_backfill,
+                                                          fake_pull, monkeypatch):
+        lake(dal.DAY_AGGS, D(2024, 1, 4), [("AAA", 1.0)])
+        lake(dal.TICKERS, D(2024, 1, 4), [("AAA", 1.0)])
+        fake_pull()
+        monkeypatch.setattr(daily, "_expected_last_session", lambda now: D(2024, 1, 9))
+        daily.run(TODAY)
+        ends = {c["target"]: c["end"] for c in fake_backfill}
+        assert ends["day_aggs"] == D(2024, 1, 9)
+        assert ends["tickers"] == TODAY

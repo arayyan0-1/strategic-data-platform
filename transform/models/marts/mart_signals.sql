@@ -13,8 +13,7 @@ with base as (
         u.in_universe,
         p.open,
         p.close,
-        p.adj_open_split,
-        p.adj_close_split,
+        p.total_factor,
         p.adj_close_total,
         p.dollar_volume
     from {{ ref('stg_prices_adjusted') }} p
@@ -30,18 +29,20 @@ with base as (
 
 ), returns as (
 
+    -- The overnight return uses the total-adjusted open, so the drop on an
+    -- ex-dividend date is not an overnight loss.
     select
         *,
-        adj_close_total / nullif(lag(adj_close_total) over w, 0) - 1 as ret_1,
-        adj_open_split  / nullif(lag(adj_close_split) over w, 0) - 1 as overnight_ret,
-        close           / nullif(open, 0) - 1                        as intraday_ret
+        adj_close_total     / nullif(lag(adj_close_total) over w, 0) - 1 as ret_1,
+        open * total_factor / nullif(lag(adj_close_total) over w, 0) - 1 as overnight_ret,
+        close               / nullif(open, 0) - 1                        as intraday_ret
     from base
     window w as (partition by security_key order by date)
 
 ), mkt as (
 
     -- Equal-weight market proxy over the in-universe names each session. A
-    -- cap-weight proxy waits on market_cap from the ticker-details ingest (0013).
+    -- cap-weight proxy waits on market_cap from the ticker-details ingest.
     select date, avg(ret_1) as mkt_ret
     from returns
     where in_universe and ret_1 is not null
