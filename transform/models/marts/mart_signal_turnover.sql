@@ -1,29 +1,15 @@
 {#
   The fraction of the top signal quintile replaced each session, averaged over
   sessions. A strong IC with a high turnover can still be uninvestable, because
-  cost erodes it. Read it beside mart_signal_ls_returns.
+  cost erodes it. Read it beside mart_signal_ls_returns. The top is the highest
+  panel quintile that has names in the session. Tied values share one bin.
 #}
 
-with sig as (
-
-    select security_key, date, signal, value
-    from (
-        unpivot {{ ref('mart_signals') }}
-        on {{ signal_columns() }}
-        into name signal value value
-    )
-    where in_universe and value is not null
-
-), top as (
+with top as (
 
     select signal, date, security_key
-    from (
-        select
-            signal, date, security_key,
-            ntile(5) over (partition by date, signal order by value) as quintile
-        from sig
-    )
-    where quintile = 5
+    from {{ ref('mart_signal_panel') }}
+    qualify quintile = max(quintile) over (partition by date, signal)
 
 ), seq as (
 
@@ -43,12 +29,20 @@ with sig as (
        and p.security_key = c.security_key
     where c.rn > 1
 
+), daily as (
+
+    -- One fraction per session, so a session with a large tied top bin does not
+    -- get more weight in the average.
+    select signal, date, avg(1.0 - held) as turnover
+    from retained
+    group by signal, date
+
 )
 
 select
     signal,
-    avg(1.0 - held)   as avg_turnover,
-    count(distinct date) as n_days
-from retained
+    avg(turnover) as avg_turnover,
+    count(*)      as n_days
+from daily
 group by signal
 order by signal

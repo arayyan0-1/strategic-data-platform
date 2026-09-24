@@ -17,6 +17,20 @@ models:
       - name: date
         tests: [not_null]
 
+  - name: mart_signal_panel
+    description: One row per in_universe name, session and signal, with the average rank, the quintile and the forward returns.
+    columns:
+      - name: date
+        tests: [not_null]
+      - name: security_key
+        tests: [not_null]
+      - name: signal
+        tests: [not_null]
+      - name: avg_rank
+        tests: [not_null]
+      - name: quintile
+        tests: [not_null]
+
   - name: mart_signal_ic
     description: Daily cross-sectional Spearman IC per signal and horizon.
     columns:

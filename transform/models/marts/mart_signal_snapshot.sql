@@ -1,25 +1,19 @@
 {#
   The latest session. Each signal value, its z-score, decile and rank, for each
   in_universe name. A description of the present tilt, not a recommendation.
+  The decile comes from the panel avg_rank, so tied values share one decile.
 #}
 
 with latest as (
 
     select max(date) as d
-    from {{ ref('mart_signals') }}
-    where in_universe
+    from {{ ref('mart_signal_panel') }}
 
 ), sig as (
 
-    select security_key, ticker, date, signal, value
-    from (
-        unpivot {{ ref('mart_signals') }}
-        on {{ signal_columns() }}
-        into name signal value value
-    )
-    where in_universe
-      and date = (select d from latest)
-      and value is not null
+    select security_key, ticker, date, signal, value, n, avg_rank
+    from {{ ref('mart_signal_panel') }}
+    where date = (select d from latest)
 
 )
 
@@ -31,8 +25,8 @@ select
     value,
     (value - avg(value) over p)
         / nullif(stddev_samp(value) over p, 0)          as z,
-    ntile(10) over (partition by signal order by value)  as decile,
+    cast(ceil(avg_rank * 10.0 / n) as integer)           as decile,
     rank() over (partition by signal order by value desc) as rank_high,
-    count(*) over p                                       as n
+    n
 from sig
 window p as (partition by signal)

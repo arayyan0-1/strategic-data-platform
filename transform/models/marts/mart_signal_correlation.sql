@@ -1,19 +1,14 @@
 {#
   The average cross-sectional rank correlation between each pair of signals. A
   pair near one is one bet under two names. Upper triangle and diagonal only.
+  The rank is the panel avg_rank. Tied values get the average of the ranks that
+  they occupy.
 #}
 
 with r as (
 
-    select
-        date, security_key, signal,
-        rank() over (partition by date, signal order by value) as rk
-    from (
-        unpivot {{ ref('mart_signals') }}
-        on {{ signal_columns() }}
-        into name signal value value
-    )
-    where in_universe and value is not null
+    select date, security_key, signal, avg_rank as rk
+    from {{ ref('mart_signal_panel') }}
 
 ), per_day as (
 
