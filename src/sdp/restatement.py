@@ -63,83 +63,94 @@ def _pull_dates(ds: dal.Dataset) -> list[dt.date]:
     return pulls
 
 
+def _key(ds: dal.Dataset) -> str:
+    """Return the event key column. Raise for a dataset that is not current state."""
+    if ds.name not in KEYS:
+        raise ValueError(f"{ds.name} is not a current-state dataset.")
+    return KEYS[ds.name]
+
+
 def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
-    """Register one vendor pull as a view under the given name."""
-    path = dict(ca.vendor_pulls(ds.name))[pull]
+    """Load one vendor pull into a temp table under the given name. The queries
+    read each pull more than once, so the file is parsed one time only."""
+    path = dict(ca.vendor_pulls(ds.name)).get(pull)
+    if path is None:
+        raise FileNotFoundError(f"{ds.name} has no vendor file for the pull date {pull}.")
     # DuckDB reads gzip NDJSON directly. The cast is defensive: an all-null
     # factor column infers a non-arithmetic type and would fail the comparison.
     con.execute(
-        f"create or replace temp view {name} as select * replace ("
+        f"create or replace temp table {name} as select * replace ("
         f"cast(historical_adjustment_factor as double) "
         f"as historical_adjustment_factor) from "
         f"read_json('{path}', format='newline_delimited', sample_size=-1)")
 
 
+def _keyed(table: str, key: str, window: tuple[dt.date, dt.date] | None = None) -> str:
+    """Return SQL with one row for each event key of a loaded pull: ticker, ev,
+    n_rows, n_f and f. A window keeps only the event dates in that closed range."""
+    where = ""
+    if window is not None:
+        start, end = window
+        where = f"where {key} between date '{start}' and date '{end}'"
+    return f"""
+        select ticker, {key} as ev,
+               count(*) as n_rows,
+               count(distinct historical_adjustment_factor) as n_f,
+               min(historical_adjustment_factor) as f
+        from {table} {where}
+        group by 1, 2
+    """
+
+
 def diff(ds: dal.Dataset, older: dt.date | None = None,
          newer: dt.date | None = None, *, examples: int = 5) -> Diff:
     """Compare two pulls on the event key."""
-    if ds.name not in KEYS:
-        raise ValueError(f"{ds.name} is not a current-state dataset.")
-    key = KEYS[ds.name]
+    key = _key(ds)
     parts = _pull_dates(ds)
     older = older or parts[0]
     newer = newer or parts[-1]
     if older >= newer:
         raise ValueError(f"The older pull {older} is not before the newer {newer}.")
 
+    keyed = (f"ok as ({_keyed('_ca_older', key)}), "
+             f"nk as ({_keyed('_ca_newer', key)})")
     con = duckdb.connect()
-    _register(con, "_ca_older", ds, older)
-    _register(con, "_ca_newer", ds, newer)
-
-    sql = f"""
-        with o as (select * from _ca_older),
-             n as (select * from _ca_newer),
-             ok as (select ticker, {key} as ev,
-                           count(*) as n_rows,
-                           count(distinct historical_adjustment_factor) as n_f,
-                           min(historical_adjustment_factor) as f
-                    from o group by 1, 2),
-             nk as (select ticker, {key} as ev,
-                           count(*) as n_rows,
-                           count(distinct historical_adjustment_factor) as n_f,
-                           min(historical_adjustment_factor) as f
-                    from n group by 1, 2)
-        select
-            (select count(*) from o),
-            (select count(*) from n),
-            (select count(*) from o where id not in (select id from n)),
-            (select count(*) from n where id not in (select id from o)),
-            (select count(*) from nk where (ticker, ev) not in
-                (select ticker, ev from ok)),
-            (select count(*) from ok where (ticker, ev) not in
-                (select ticker, ev from nk)),
-            (select count(*) from ok join nk using (ticker, ev)
-                where ok.n_rows = 1 and nk.n_rows = 1
-                  and ok.f is distinct from nk.f),
-            (select count(*) from ok where n_rows > 1),
-            (select count(*) from nk where n_rows > 1),
-            (select max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
-                from ok join nk using (ticker, ev)
-                where ok.n_rows = 1 and nk.n_rows = 1
-                  and ok.f is distinct from nk.f)
-    """
-    row = con.execute(sql).fetchone()
-    assert row is not None
-
-    sample = con.execute(f"""
-        with o as (select * from _ca_older),
-             n as (select * from _ca_newer),
-             ok as (select ticker, {key} as ev, count(*) n_rows,
-                           min(historical_adjustment_factor) f from o group by 1, 2),
-             nk as (select ticker, {key} as ev, count(*) n_rows,
-                           min(historical_adjustment_factor) f from n group by 1, 2)
-        select ok.ticker, ok.ev, ok.f as was, nk.f as now
-        from ok join nk using (ticker, ev)
-        where ok.n_rows = 1 and nk.n_rows = 1 and ok.f is distinct from nk.f
-        order by abs(nk.f - ok.f) / nullif(abs(ok.f), 0) desc
-        limit {examples}
-    """).fetchall()
-    con.close()
+    try:
+        _register(con, "_ca_older", ds, older)
+        _register(con, "_ca_newer", ds, newer)
+        # An anti join does not match a null, and one null cannot hide the other
+        # rows as it does with NOT IN.
+        row = con.execute(f"""
+            with {keyed}
+            select
+                (select count(*) from _ca_older),
+                (select count(*) from _ca_newer),
+                (select count(*) from _ca_older anti join _ca_newer using (id)),
+                (select count(*) from _ca_newer anti join _ca_older using (id)),
+                (select count(*) from nk anti join ok using (ticker, ev)),
+                (select count(*) from ok anti join nk using (ticker, ev)),
+                (select count(*) from ok join nk using (ticker, ev)
+                    where ok.n_rows = 1 and nk.n_rows = 1
+                      and ok.f is distinct from nk.f),
+                (select count(*) from ok where n_rows > 1),
+                (select count(*) from nk where n_rows > 1),
+                (select max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
+                    from ok join nk using (ticker, ev)
+                    where ok.n_rows = 1 and nk.n_rows = 1
+                      and ok.f is distinct from nk.f)
+        """).fetchone()
+        if row is None:
+            raise RuntimeError(f"The diff query for {ds.name} did not return a row.")
+        sample = con.execute(f"""
+            with {keyed}
+            select ok.ticker, ok.ev, ok.f as was, nk.f as now
+            from ok join nk using (ticker, ev)
+            where ok.n_rows = 1 and nk.n_rows = 1 and ok.f is distinct from nk.f
+            order by abs(nk.f - ok.f) / nullif(abs(ok.f), 0) desc, ok.ticker, ok.ev
+            limit {examples}
+        """).fetchall()
+    finally:
+        con.close()
 
     return Diff(ds.name, older, newer, *row, restated_examples=sample)
 
@@ -147,33 +158,29 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
 def drift(ds: dal.Dataset, start: dt.date, end: dt.date) -> str:
     """Vendor drift between the oldest and newest pull, over a date window.
     Reads the vendor archive."""
-    key = KEYS[ds.name]
+    key = _key(ds)
     parts = _pull_dates(ds)
+    window = (start, end)
     con = duckdb.connect()
-    _register(con, "_ca_older", ds, parts[0])
-    _register(con, "_ca_newer", ds, parts[-1])
-    row = con.execute(f"""
-        with o as (select ticker, {key} as ev, count(*) n_rows,
-                          min(historical_adjustment_factor) f
-                   from _ca_older
-                   where {key} between date '{start}' and date '{end}'
-                   group by 1, 2),
-             n as (select ticker, {key} as ev, count(*) n_rows,
-                          min(historical_adjustment_factor) f
-                   from _ca_newer
-                   where {key} between date '{start}' and date '{end}'
-                   group by 1, 2)
-        select count(*),
-               count(*) filter (o.f is distinct from n.f),
-               count(distinct o.ticker) filter (o.f is distinct from n.f),
-               median(abs(n.f - o.f) / nullif(abs(o.f), 0))
-                   filter (o.f is distinct from n.f),
-               max(abs(n.f - o.f) / nullif(abs(o.f), 0))
-        from o join n using (ticker, ev)
-        where o.n_rows = 1 and n.n_rows = 1
-    """).fetchone()
-    con.close()
-    assert row is not None
+    try:
+        _register(con, "_ca_older", ds, parts[0])
+        _register(con, "_ca_newer", ds, parts[-1])
+        row = con.execute(f"""
+            with ok as ({_keyed('_ca_older', key, window)}),
+                 nk as ({_keyed('_ca_newer', key, window)})
+            select count(*),
+                   count(*) filter (ok.f is distinct from nk.f),
+                   count(distinct ok.ticker) filter (ok.f is distinct from nk.f),
+                   median(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
+                       filter (ok.f is distinct from nk.f),
+                   max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
+            from ok join nk using (ticker, ev)
+            where ok.n_rows = 1 and nk.n_rows = 1
+        """).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        raise RuntimeError(f"The drift query for {ds.name} did not return a row.")
     n, changed, tickers, med, worst = row
     pct = (100.0 * changed / n) if n else 0.0
     return (
