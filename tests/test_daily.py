@@ -28,8 +28,8 @@ def fake_backfill(monkeypatch):
     """Record the calls that the driver makes into sdp.backfill."""
     calls = []
 
-    def fake(target, start, end, *, force=False, dry_run=False, limit=None,
-             on_session=None):
+    def fake(target, start, end, *, refetch=False, rebuild=False, dry_run=False,
+             limit=None, on_session=None):
         calls.append({"target": target, "start": start, "end": end, "limit": limit})
         return []
 
@@ -233,8 +233,8 @@ class TestUpdate:
         lake(dal.DAY_AGGS, D(2024, 1, 4), [("AAA", 1.0)])
         fake_pull()
 
-        def fake_backfill(target, start, end, *, force=False, dry_run=False,
-                          limit=None, on_session=None):
+        def fake_backfill(target, start, end, *, refetch=False, rebuild=False,
+                          dry_run=False, limit=None, on_session=None):
             for d in backfill.sessions(start, end)[:limit]:
                 if on_session:
                     on_session(d, "ok")
@@ -600,6 +600,20 @@ class TestLogPruning:
         assert (logs / "daily.out.log.1").read_text() == "x" * 11
         assert (logs / "daily.err.log").read_text() == "small"
         assert not (logs / "daily.err.log.1").exists()
+
+    def test_a_large_dashboard_log_is_copied_and_truncated(self, tmp_data_root,
+                                                           monkeypatch):
+        """The dashboard keeps its log open, so the file must stay in place."""
+        monkeypatch.setattr(daily, "LOG_ROTATE_BYTES", 10)
+        logs = tmp_data_root / "_logs"
+        logs.mkdir(parents=True)
+        log_file = logs / "dashboard.err.log"
+        log_file.write_text("y" * 11)
+        with log_file.open("a") as held:
+            daily._prune_logs()
+            held.write("next")
+        assert (logs / "dashboard.err.log.1").read_text() == "y" * 11
+        assert log_file.read_text() == "next"
 
     def test_update_prunes_the_logs(self, tmp_data_root, monkeypatch):
         monkeypatch.setattr(daily, "run", lambda *a, **k: 0)

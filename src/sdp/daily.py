@@ -72,6 +72,10 @@ LOG_ROTATE_BYTES = 5 * 1024 * 1024
 ROTATED_LOGS = ("daily.out.log", "daily.err.log")
 """The launchd logs of this job, which the pruning rotates."""
 
+COPIED_LOGS = ("dashboard.out.log", "dashboard.err.log")
+"""The logs of the dashboard. Its process keeps them open, so the pruning copies
+and truncates them in place instead of a rename."""
+
 
 def _fill_start(ds: dal.Dataset, today: dt.date) -> dt.date:
     """The date the fill of an event stream starts from. A cold stream starts
@@ -497,13 +501,17 @@ def _alert(message: str | None, prev: dict, today: str) -> str | None:
 # ---------- log pruning ----------
 
 def _prune_one(p: Path, cutoff: float) -> None:
-    """Delete an old backfill run log, or rename a large launchd log to *.log.1."""
+    """Delete an old backfill run log, or move a large launchd log to *.log.1."""
     st = p.stat()
     if p.suffix == ".jsonl":
         if st.st_mtime < cutoff:
             p.unlink(missing_ok=True)
     elif st.st_size > LOG_ROTATE_BYTES:
-        os.replace(p, p.with_name(f"{p.name}.1"))
+        if p.name in COPIED_LOGS:
+            shutil.copyfile(p, p.with_name(f"{p.name}.1"))
+            os.truncate(p, 0)
+        else:
+            os.replace(p, p.with_name(f"{p.name}.1"))
 
 
 def _prune_logs() -> None:
@@ -513,7 +521,7 @@ def _prune_logs() -> None:
     cutoff = time.time() - LOG_KEEP_DAYS * 86400
     try:
         paths = [*d.glob("backfill_*.jsonl"),
-                 *(d / n for n in ROTATED_LOGS if (d / n).exists())]
+                 *(d / n for n in (*ROTATED_LOGS, *COPIED_LOGS) if (d / n).exists())]
     except Exception as exc:  # noqa: BLE001 -- pruning must not fail the run
         log.warning("The log pruning failed. %s: %s", type(exc).__name__, exc)
         return
