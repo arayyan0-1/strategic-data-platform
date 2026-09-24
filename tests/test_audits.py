@@ -16,6 +16,7 @@ import datetime as dt
 import duckdb
 import pytest
 
+from sdp import dal
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_day_aggs as day
 from sdp.ingest import massive_tickers as tick
@@ -291,3 +292,52 @@ class TestTickersAudit:
         extra = "union all select 'T1', 'CS', 'XNYS', 'BBG1', true"
         with pytest.raises(tick.AuditFailure, match="duplicate tickers"):
             tick.audit(_write_tickers(tmp_path / "t.parquet", extra=extra), PULL)
+
+
+class TestTickersDeltaAudit:
+    """The universe size must stay stable against the newest earlier partition.
+
+    The limit is max(200, 5 percent of the earlier count), so it is 300 rows
+    against a baseline of 6000.
+    """
+
+    EARLIER, LATER = dt.date(2024, 1, 2), dt.date(2024, 1, 4)
+
+    def _publish(self, d, n):
+        path = dal.TICKERS.partition_file(d)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return _write_tickers(path, n=n)
+
+    def test_no_earlier_partition_passes(self, tmp_data_root, tmp_path):
+        tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 100)
+
+    def test_a_small_change_passes(self, tmp_data_root, tmp_path):
+        self._publish(self.EARLIER, 6000)
+        tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 6250)
+
+    def test_a_large_change_is_fatal(self, tmp_data_root, tmp_path):
+        self._publish(self.EARLIER, 6000)
+        with pytest.raises(tick.AuditFailure, match="changed too much"):
+            tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 6400)
+
+    def test_a_large_drop_is_fatal(self, tmp_data_root, tmp_path):
+        self._publish(self.EARLIER, 6000)
+        with pytest.raises(tick.AuditFailure, match="2024-01-02"):
+            tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 5000)
+
+    def test_the_newest_earlier_partition_is_the_baseline(self, tmp_data_root, tmp_path):
+        self._publish(dt.date(2023, 12, 29), 9000)
+        self._publish(self.EARLIER, 6000)
+        tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 6000)
+
+    def test_a_later_partition_is_not_the_baseline(self, tmp_data_root, tmp_path):
+        """A rebuild of an old date must not compare against a newer date."""
+        self._publish(self.LATER, 9000)
+        tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 6000)
+
+    def test_the_partition_of_the_same_date_is_not_the_baseline(
+        self, tmp_data_root, tmp_path
+    ):
+        """A rebuild replaces this partition, so it cannot be its own baseline."""
+        self._publish(PULL, 9000)
+        tick._audit_vs_previous(tmp_path / "t.parquet", PULL, 6000)

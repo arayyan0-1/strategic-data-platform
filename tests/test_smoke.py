@@ -2,23 +2,21 @@
 dbt and Jupyter start from their own directories, so relative paths break.
 """
 import importlib
+import pkgutil
 from pathlib import Path
 
 import pytest
 
-MODULES = [
-    "sdp.config",
-    "sdp.dal",
-    "sdp.restatement",
-    "sdp.diagnostics",
-    "sdp.transform",
-    "sdp.backfill",
-    "sdp.ingest.rest",
-    "sdp.ingest.massive_day_aggs",
-    "sdp.ingest.massive_corporate_actions",
-    "sdp.ingest.massive_tickers",
-    "sdp.ingest.massive_short",
-]
+import sdp
+
+# Discovered, not listed, so this test also imports each module added later.
+MODULES = sorted(m.name for m in pkgutil.walk_packages(sdp.__path__, "sdp."))
+
+
+def test_discovery_finds_the_known_modules():
+    """walk_packages returns nothing silently when the path is wrong."""
+    assert {"sdp.dal", "sdp.backfill", "sdp.daily", "sdp.dashboard",
+            "sdp.ingest.common", "sdp.ingest.massive_tickers"} <= set(MODULES)
 
 
 @pytest.mark.parametrize("name", MODULES)

@@ -2,10 +2,15 @@
 """Runner that loops over dates for the backfillable datasets.
 
     python -m sdp.backfill day_aggs 2021-08-01 2026-08-08
+    python -m sdp.backfill tickers 2026-09-01 2026-09-22 --rebuild
 
 One session at a time, catching each date's exception, so one bad day does not
 stop the rest. There is no retry flag: ingest() skips a published partition, so
 a second run of the same command is the retry. Sequential on purpose.
+
+Two flags publish a date again. --rebuild builds it from its vendor file and
+does not download. --refetch downloads it again and replaces the vendor file,
+so the vendor bytes of the earlier pull are lost.
 """
 from __future__ import annotations
 
@@ -18,10 +23,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-import exchange_calendars as xcals
-
 from sdp.config import settings
 from sdp.ingest import massive_day_aggs, massive_short, massive_tickers
+from sdp.ingest.common import XNYS, add_mode_flags, check_mode
 
 log = logging.getLogger("sdp.backfill")
 
@@ -42,14 +46,11 @@ _NOT_BACKFILLABLE = {
     "massive_dividends": "massive_dividends",
 }
 
-_CAL = xcals.get_calendar("XNYS")
-
-
 def sessions(start: dt.date, end: dt.date) -> list[dt.date]:
     """Return the XNYS sessions from start to end. Both limits are inclusive."""
     if start > end:
         raise SystemExit(f"The start date {start} is after the end date {end}.")
-    return [s.date() for s in _CAL.sessions_in_range(start.isoformat(), end.isoformat())]
+    return [s.date() for s in XNYS.sessions_in_range(start.isoformat(), end.isoformat())]
 
 
 def _run_log(target: str) -> Path:
@@ -65,13 +66,16 @@ def backfill(
     start: dt.date,
     end: dt.date,
     *,
-    force: bool = False,
+    refetch: bool = False,
+    rebuild: bool = False,
     dry_run: bool = False,
     limit: int | None = None,
     on_session: Callable[[dt.date, str], None] | None = None,
 ) -> list[tuple[dt.date, str]]:
     """Ingest every XNYS session in the range. Return the list of failures.
-    on_session(date, status) fires after each session, for a progress meter."""
+    refetch and rebuild pass to each ingest. on_session(date, status) fires
+    after each session, for a progress meter."""
+    check_mode(refetch, rebuild)
     if target in _NOT_BACKFILLABLE and target not in TARGETS:
         raise SystemExit(
             f"You cannot backfill {target} ({_NOT_BACKFILLABLE[target]}). This "
@@ -87,8 +91,11 @@ def backfill(
 
     ingest = TARGETS[target]
     days = sessions(start, end)
-    if limit:
+    if limit is not None:
         days = days[:limit]
+    if not days:
+        print(f"{target}: no XNYS session from {start} to {end}")
+        return []
 
     if dry_run:
         print(f"{target}: {len(days)} sessions, from {days[0]} to {days[-1]}")
@@ -107,7 +114,7 @@ def backfill(
             record: dict = {"date": d.isoformat(), "target": target}
             started = time.monotonic()
             try:
-                result = ingest(d, force=force)
+                result = ingest(d, refetch=refetch, rebuild=rebuild)
                 # ingest() returns None for a date that is not a session. The
                 # calendar already removed those dates. None here therefore
                 # means that the module refused the date.
@@ -145,7 +152,14 @@ def backfill(
           f"in {elapsed / 60:.1f} min")
     print(f"Run log: {run_log}")
     if failures:
-        print("\nThese dates failed. Run the same command again to retry only these dates:")
+        if refetch or rebuild:
+            # The two modes do not skip a published partition, so a rerun of
+            # the same command processes every date again.
+            print("\nThese dates failed. To retry them, run the command again with "
+                  "each failed date as the range:")
+        else:
+            print("\nThese dates failed. Run the same command again to retry only "
+                  "these dates:")
         for d, msg in failures[:20]:
             print(f"  {d}  {msg}")
         if len(failures) > 20:
@@ -162,8 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("target", help=f"One of: {', '.join(TARGETS)}.")
     p.add_argument("start", type=dt.date.fromisoformat, help="First date, as YYYY-MM-DD.")
     p.add_argument("end", type=dt.date.fromisoformat, help="Last date, as YYYY-MM-DD.")
-    p.add_argument("--force", action="store_true",
-                   help="Download and publish the dates that already exist.")
+    add_mode_flags(p)
     p.add_argument("--dry-run", action="store_true",
                    help="Count the sessions and then stop.")
     p.add_argument("--limit", type=int,
@@ -177,7 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     failures = backfill(args.target, args.start, args.end,
-                        force=args.force, dry_run=args.dry_run, limit=args.limit)
+                        refetch=args.refetch, rebuild=args.rebuild,
+                        dry_run=args.dry_run, limit=args.limit)
     return 1 if failures else 0
 
 

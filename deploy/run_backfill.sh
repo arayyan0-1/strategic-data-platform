@@ -4,9 +4,10 @@
 #
 #     caffeinate -is bash deploy/run_backfill.sh
 #
-# Any sdp.backfill flag passes through (--dry-run, --limit 5, --force). A rerun
-# retries only the gaps, because ingest() skips published partitions. Stop the
-# launchd agent first, or two runs race on the same vendor files:
+# Any sdp.backfill flag passes through (--dry-run, --limit 5, --refetch,
+# --rebuild). A rerun retries only the gaps, because ingest() skips published
+# partitions. A rerun with --refetch or --rebuild processes every date again.
+# Stop the launchd agent first, or two runs race on the same vendor files:
 #
 #     launchctl bootout gui/$(id -u)/com.sdp.daily
 #     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sdp.daily.plist
@@ -32,7 +33,7 @@ BARS_START="${BARS_START:-$(date -v-5y +%Y-%m-%d)}"
 # Short volume has a real coverage floor at 2024-02-06, not the rolling window.
 SHORT_VOLUME_START="${SHORT_VOLUME_START:-2024-02-06}"
 
-# Yesterday. Session D's flat file lands ~05:00 UTC on D+1, so a failure on the
+# Yesterday. Session D's flat file lands ~06:00 UTC on D+1, so a failure on the
 # newest date only means the vendor has not published it yet.
 END="${END:-$(date -v-1d +%Y-%m-%d)}"
 
@@ -97,7 +98,13 @@ echo
 
 if [ "$failed" -ne 0 ]; then
     echo "$failed of ${#NAMES[@]} targets reported a failed date."
-    echo "Run this script again. It retries only the gaps."
+    case " $* " in
+        *" --refetch "*|*" --rebuild "*)
+            echo "A rerun with $* processes every date again."
+            echo "Find the failed dates in the logs and give each one as the range." ;;
+        *)
+            echo "Run this script again. It retries only the gaps." ;;
+    esac
     exit 1
 fi
 echo "All four targets finished with no failed date."

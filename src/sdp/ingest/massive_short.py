@@ -12,19 +12,29 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import os
 from pathlib import Path
 
 import duckdb
-import exchange_calendars as xcals
 
+from sdp import dal
 from sdp.config import settings
+from sdp.ingest.common import (
+    AuditFailure,
+    add_mode_flags,
+    check_mode,
+    is_session,
+    keep_on_failure,
+    one,
+    publish,
+    require_vendor_ndjson,
+    vendor_ndjson,
+)
 from sdp.ingest.rest import dump_ndjson
 
 log = logging.getLogger(__name__)
 
-SHORT_VOLUME = "massive_short_volume"
-SHORT_INTEREST = "massive_short_interest"
+SHORT_VOLUME = dal.SHORT_VOLUME.name
+SHORT_INTEREST = dal.SHORT_INTEREST.name
 
 _VOLUME_PATH = "/stocks/v1/short-volume"
 _INTEREST_PATH = "/stocks/v1/short-interest"
@@ -33,40 +43,19 @@ _INTEREST_PATH = "/stocks/v1/short-interest"
 VOLUME_FLOOR = dt.date(2024, 2, 6)
 INTEREST_FLOOR = dt.date(2017, 12, 29)
 
-# The vendor writes this into days_to_cover when avg_daily_volume is 0. A
-# sentinel, not 1000 days, so reading it as a number inflates the least liquid names.
+# The vendor caps days_to_cover at 999.99. A row at the cap means "at or above
+# 999.99", not always a zero avg_daily_volume, so the cap is not a measurement.
 DAYS_TO_COVER_SENTINEL = 999.99
 
-_CAL = xcals.get_calendar("XNYS")
-
 _PAGE_LIMIT = 50_000
-
-
-class AuditFailure(RuntimeError):
-    pass
-
-
-def _one(sql: str) -> tuple:
-    row = duckdb.execute(sql).fetchone()
-    if row is None:
-        raise RuntimeError(f"The query returned no rows: {sql[:120]}")
-    return row
-
-
-def raw_path(dataset: str, d: dt.date) -> Path:
-    return settings.raw_dir / dataset / f"date={d:%Y-%m-%d}" / "data.parquet"
-
-
-def is_trading_day(d: dt.date) -> bool:
-    return _CAL.is_session(d.isoformat())
 
 
 # ---------- WRITE ----------
 
 def build(dataset: str, vendor_file: Path, d: dt.date) -> Path:
     """Convert the vendor NDJSON to staged Parquet. The 'date' column is the
-    partition; for short interest it is the settlement date, and the vendor
-    'settlement_date' column stays, because raw/ records what was sent."""
+    partition, and for short interest it is the settlement date. The vendor
+    'settlement_date' column stays, because raw/ records what the vendor sent."""
     staged = settings.staging_dir / dataset / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
@@ -94,7 +83,7 @@ _INTEREST_MIN_ROWS, _INTEREST_MAX_ROWS = 3_000, 30_000
 
 def audit_short_volume(staged: Path, d: dt.date) -> int:
     (n_rows, null_ticker, dupes, negative, short_gt_total,
-     null_ratio, fractional) = _one(f"""
+     null_ratio, fractional) = one(f"""
         with s as (select * from read_parquet('{staged}'))
         select
             (select count(*) from s),
@@ -138,7 +127,7 @@ def audit_short_volume(staged: Path, d: dt.date) -> int:
 
 def audit_short_interest(staged: Path, d: dt.date) -> int:
     (n_rows, null_ticker, null_date, dupes, negative,
-     sentinel, zero_adv, wrong_date) = _one(f"""
+     sentinel, zero_adv, wrong_date) = one(f"""
         with s as (select * from read_parquet('{staged}'))
         select
             (select count(*) from s),
@@ -188,8 +177,10 @@ def audit_short_interest(staged: Path, d: dt.date) -> int:
 # ---------- PUBLISH ----------
 
 def _ingest(dataset: str, path: str, params: dict, d: dt.date, audit,
-            floor: dt.date, *, force: bool = False) -> Path | None:
-    if not is_trading_day(d):
+            floor: dt.date, *, refetch: bool = False,
+            rebuild: bool = False) -> Path | None:
+    check_mode(refetch, rebuild)
+    if not is_session(d):
         log.debug("%s is not an XNYS session. Skipped.", d)
         return None
     if d < floor:
@@ -197,50 +188,62 @@ def _ingest(dataset: str, path: str, params: dict, d: dt.date, audit,
                  dataset, floor, d)
         return None
 
-    dest = raw_path(dataset, d)
-    if dest.exists() and not force:
+    dest = dal.DATASETS[dataset].partition_file(d)
+    if dest.exists() and not (refetch or rebuild):
         return dest
 
-    vendor_file = dump_ndjson(dataset, path, params, d,
-                              force=force, allow_empty=True, compress=True)
-    if vendor_file is None:
-        return None
+    earlier = vendor_ndjson(dataset, d)
+    with keep_on_failure(earlier if refetch else None):
+        if rebuild:
+            if earlier is None and not dest.exists():
+                # Most dates with no vendor file had no records at the endpoint.
+                log.info("%s %s: there is no vendor file, so there is nothing to "
+                         "rebuild.", dataset, d)
+                return None
+            # A published partition had records, so its vendor file must exist.
+            vendor_file = require_vendor_ndjson(dataset, d)
+        else:
+            vendor_file = dump_ndjson(dataset, path, params, d,
+                                      force=refetch, allow_empty=True, compress=True)
+            if vendor_file is None:
+                if earlier is not None or dest.exists():
+                    log.warning("%s %s: the endpoint returned no records. The earlier "
+                                "vendor file and partition stay.", dataset, d)
+                return None
+        staged = build(dataset, vendor_file, d)
+        audit(staged, d)
+    return publish(staged, dest)
 
-    staged = build(dataset, vendor_file, d)
-    audit(staged, d)
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(staged, dest)
-    return dest
-
-
-def ingest_short_volume(d: dt.date, *, force: bool = False) -> Path | None:
+def ingest_short_volume(d: dt.date, *, refetch: bool = False,
+                        rebuild: bool = False) -> Path | None:
     return _ingest(
         SHORT_VOLUME, _VOLUME_PATH,
         {"date": d.isoformat(), "limit": _PAGE_LIMIT},
-        d, audit_short_volume, VOLUME_FLOOR, force=force,
+        d, audit_short_volume, VOLUME_FLOOR, refetch=refetch, rebuild=rebuild,
     )
 
 
-def ingest_short_interest(d: dt.date, *, force: bool = False) -> Path | None:
+def ingest_short_interest(d: dt.date, *, refetch: bool = False,
+                          rebuild: bool = False) -> Path | None:
     """Ingest one settlement date. Most sessions have none, so the endpoint
     returns nothing and this returns None, which is correct."""
     return _ingest(
         SHORT_INTEREST, _INTEREST_PATH,
         {"settlement_date": d.isoformat(), "limit": _PAGE_LIMIT},
-        d, audit_short_interest, INTEREST_FLOOR, force=force,
+        d, audit_short_interest, INTEREST_FLOOR, refetch=refetch, rebuild=rebuild,
     )
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
+    p = argparse.ArgumentParser(prog="python -m sdp.ingest.massive_short",
+                                description="Publish one date of a FINRA short dataset.")
+    p.add_argument("dataset", choices=["short_volume", "short_interest"],
+                   help="The dataset to publish.")
+    p.add_argument("date", type=dt.date.fromisoformat, help="The date, as YYYY-MM-DD.")
+    add_mode_flags(p)
+    args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    which = sys.argv[1]
-    day = dt.date.fromisoformat(sys.argv[2])
-    forced = "--force" in sys.argv
-    if which == "short_volume":
-        ingest_short_volume(day, force=forced)
-    elif which == "short_interest":
-        ingest_short_interest(day, force=forced)
-    else:
-        raise SystemExit("Use short_volume or short_interest.")
+    run = ingest_short_volume if args.dataset == "short_volume" else ingest_short_interest
+    run(args.date, refetch=args.refetch, rebuild=args.rebuild)

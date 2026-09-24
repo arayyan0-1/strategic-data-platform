@@ -3,35 +3,29 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import os
 from pathlib import Path
 
 import duckdb
-import exchange_calendars as xcals
 
+from sdp import dal
 from sdp.config import settings
+from sdp.ingest.common import (
+    AuditFailure,
+    add_mode_flags,
+    check_mode,
+    is_session,
+    keep_on_failure,
+    one,
+    publish,
+    require_vendor_ndjson,
+    vendor_ndjson,
+)
 from sdp.ingest.rest import dump_ndjson
 
 log = logging.getLogger(__name__)
 
-DATASET = "massive_tickers"
+DATASET = dal.TICKERS.name
 PATH = "/v3/reference/tickers"
-_CAL = xcals.get_calendar("XNYS")
-
-
-def _one(sql: str) -> tuple:
-    row = duckdb.execute(sql).fetchone()
-    if row is None:
-        raise RuntimeError(f"The query returned no rows: {sql[:120]}")
-    return row
-
-
-def raw_path(d: dt.date) -> Path:
-    return settings.raw_dir / DATASET / f"date={d:%Y-%m-%d}" / "data.parquet"
-
-
-def is_trading_day(d: dt.date) -> bool:
-    return _CAL.is_session(d.isoformat())
 
 
 # ---------- WRITE ----------
@@ -45,7 +39,7 @@ def build(vendor_file: Path, d: dt.date) -> Path:
     # Cursor pagination can return one ticker twice, identical but for
     # last_updated_utc, when the vendor revises it mid-pull. A transport
     # artifact, not data, so keep the newest copy here (not in dbt) and log it.
-    n_dupes = _one(f"""
+    n_dupes = one(f"""
         select count(*) - count(distinct ticker)
         from read_json('{vendor_file}', format = 'newline_delimited',
                        sample_size = -1)
@@ -81,12 +75,10 @@ def build(vendor_file: Path, d: dt.date) -> Path:
 MIN_ROWS, MAX_ROWS = 5_000, 40_000
 MIN_CS = 3_000
 
-class AuditFailure(RuntimeError):
-    pass
 
 def audit(staged: Path, d: dt.date) -> int:
     (n_rows, null_ticker, null_type, null_exch, null_figi,
-     n_cs, n_inactive) = _one(f"""
+     n_cs, n_inactive) = one(f"""
         select count(*),
                count(*) filter (ticker is null),
                count(*) filter (type is null),
@@ -97,7 +89,7 @@ def audit(staged: Path, d: dt.date) -> int:
         from read_parquet('{staged}')
     """)
 
-    dupes = _one(f"""
+    dupes = one(f"""
         select count(*) from (
             select ticker from read_parquet('{staged}')
             group by ticker having count(*) > 1
@@ -129,48 +121,56 @@ def audit(staged: Path, d: dt.date) -> int:
 
 
 def _audit_vs_previous(staged: Path, d: dt.date, n_rows: int) -> None:
-    """Check that the universe size is stable between two adjacent sessions."""
-    root = settings.raw_dir / DATASET
-    current = f"date={d:%Y-%m-%d}"
-    priors = sorted(p for p in root.glob("date=*") if p.name < current) if root.exists() else []
+    """Check that the universe size is stable against the newest published
+    partition before d."""
+    priors = [p for p in dal.partitions(dal.TICKERS) if p < d]
     if not priors:
         return
-    prev = priors[-1] / "data.parquet"
-    prev_n = _one(f"select count(*) from read_parquet('{prev}')")[0]
+    prev_d = priors[-1]
+    (prev_n,) = dal.on_date(dal.TICKERS, prev_d).aggregate("count(*)").fetchone() or (0,)
 
     if abs(n_rows - prev_n) > max(200, prev_n * 0.05):
         raise AuditFailure(
-            f"{DATASET} {d}: {n_rows} rows against {prev_n} in {priors[-1].name}. "
+            f"{DATASET} {d}: {n_rows} rows against {prev_n} on {prev_d}. "
             f"The universe changed too much."
         )
 
 
 # ---------- PUBLISH ----------
 
-def ingest(d: dt.date, *, force: bool = False) -> Path | None:
-    if not is_trading_day(d):
+def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False) -> Path | None:
+    """Publish the universe of one session. The default skips a published
+    partition. refetch downloads the vendor file again. rebuild reads the vendor
+    file on disk only."""
+    check_mode(refetch, rebuild)
+    if not is_session(d):
         log.debug("%s is not an XNYS session. Skipped.", d)
         return None
-    dest = raw_path(d)
-    if dest.exists() and not force:
+    dest = dal.TICKERS.partition_file(d)
+    if dest.exists() and not (refetch or rebuild):
         return dest
 
-    vendor_file = dump_ndjson(
-        DATASET, PATH,
-        {"date": d.isoformat(), "active": "true", "market": "stocks", "limit": 1000},
-        d, force=force, compress=True,
-    )
-
-    staged = build(vendor_file, d)
-    n_rows = audit(staged, d)
-    _audit_vs_previous(staged, d, n_rows)
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(staged, dest)
-    return dest
+    with keep_on_failure(vendor_ndjson(DATASET, d) if refetch else None):
+        if rebuild:
+            vendor_file = require_vendor_ndjson(DATASET, d)
+        else:
+            vendor_file = dump_ndjson(
+                DATASET, PATH,
+                {"date": d.isoformat(), "active": "true", "market": "stocks", "limit": 1000},
+                d, force=refetch, compress=True,
+            )
+        staged = build(vendor_file, d)
+        n_rows = audit(staged, d)
+        _audit_vs_previous(staged, d, n_rows)
+    return publish(staged, dest)
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
+    p = argparse.ArgumentParser(prog="python -m sdp.ingest.massive_tickers",
+                                description="Publish the ticker universe of one session.")
+    p.add_argument("date", type=dt.date.fromisoformat, help="The session, as YYYY-MM-DD.")
+    add_mode_flags(p)
+    args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    ingest(dt.date.fromisoformat(sys.argv[1]), force="--force" in sys.argv)
+    ingest(args.date, refetch=args.refetch, rebuild=args.rebuild)
