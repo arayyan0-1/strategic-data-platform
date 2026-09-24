@@ -12,7 +12,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["split", "dividend"]
+              arguments:
+                values: ["split", "dividend"]
 
   - name: stg_prices_adjusted
     description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins.
@@ -38,7 +39,8 @@ models:
       - name: key_rule
         tests:
           - accepted_values:
-              values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
+              arguments:
+                values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
       - name: passes_instrument
         tests: [not_null]
       - name: passes_liquidity

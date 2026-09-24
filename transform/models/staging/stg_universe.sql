@@ -92,27 +92,27 @@ with reference as (
             false
         )                                                   as passes_instrument,
 
-        t.close        >= {{ var('min_price') }}             as passes_price,
-        t.adv          >= {{ var('min_dollar_volume') }}     as passes_adv,
-        t.days_in_window >= {{ var('min_days_in_window') }}  as passes_history,
-        t.bars_seen    >= {{ var('min_days_since_first_bar') }} as passes_seasoning
+        -- A null input fails the check, so no flag is ever null.
+        coalesce(t.close >= {{ var('min_price') }}, false)                  as passes_price,
+        coalesce(t.adv >= {{ var('min_dollar_volume') }}, false)            as passes_adv,
+        coalesce(t.days_in_window >= {{ var('min_days_in_window') }}, false) as passes_history,
+        coalesce(t.bars_seen >= {{ var('min_days_since_first_bar') }}, false) as passes_seasoning
 
     from keyed k
     inner join liquidity t
         on k.ticker = t.ticker
        and k.date   = t.date
 
+), flagged as (
+
+    select
+        *,
+        passes_price and passes_adv and passes_history and passes_seasoning as passes_liquidity
+    from joined
+
 )
 
 select
     *,
-    coalesce(passes_price, false)
-        and coalesce(passes_adv, false)
-        and coalesce(passes_history, false)
-        and coalesce(passes_seasoning, false)   as passes_liquidity,
-    passes_instrument
-        and coalesce(passes_price, false)
-        and coalesce(passes_adv, false)
-        and coalesce(passes_history, false)
-        and coalesce(passes_seasoning, false)   as in_universe
-from joined
+    passes_instrument and passes_liquidity as in_universe
+from flagged
