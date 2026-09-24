@@ -3,13 +3,15 @@
 
     python -m sdp.daily
 
-Three steps. (1) Pull the current-state datasets (splits, dividends); each pull
-replaces the whole table, so a missed day costs nothing. (2) Fill the event
-streams (day_aggs, tickers) from the day after the last partition, so a machine
-that slept self-heals. Step 2 is capped so a long gap does not become a
-backfill. (3) Build the dbt models, but only when a new session landed, so raw
-data becomes usable without a second command. `update()` runs all three under a
-lock. `run()` is steps 1 and 2 alone. Exits 1 on any failure.
+Three steps. (1) Pull the current-state datasets (splits, dividends). Each pull
+replaces the whole table, so a missed day costs nothing. (2) Fill the four event
+streams (day_aggs, tickers, short_volume, short_interest) from the day after the
+last partition, so a machine that slept self-heals. Step 2 is capped so a long
+gap does not become a backfill. (3) Build the dbt models, but only when a new
+session landed, so raw data becomes usable without a second command. `update()`
+runs all three under a lock. `run()` is steps 1 and 2 alone. When the vendor
+hosts do not resolve, `update()` skips steps 1 and 2 and exits 0. Otherwise it
+exits 1 when a pull fails.
 """
 from __future__ import annotations
 
@@ -19,10 +21,14 @@ import json
 import logging
 import os
 import shutil
+import socket
+import subprocess
 import sys
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sdp import backfill, dal
 from sdp.config import settings
@@ -51,6 +57,21 @@ A cold start must not begin a five-year backfill by accident. Run
 `python -m sdp.backfill` for that.
 """
 
+ALERT_AFTER = 2
+"""The count of failed runs in a row that sends a desktop notification."""
+
+OFFLINE_ALERT_HOURS = 24
+"""The hours of offline runs in a row that send a desktop notification."""
+
+LOG_KEEP_DAYS = 30
+"""Backfill run logs older than this many days are deleted."""
+
+LOG_ROTATE_BYTES = 5 * 1024 * 1024
+"""A launchd log larger than this is renamed to *.log.1."""
+
+ROTATED_LOGS = ("daily.out.log", "daily.err.log")
+"""The launchd logs of this job, which the pruning rotates."""
+
 
 def _fill_start(ds: dal.Dataset, today: dt.date) -> dt.date:
     """The date the fill of an event stream starts from. A cold stream starts
@@ -67,6 +88,16 @@ def _pending_count(ds: dal.Dataset, today: dt.date, max_sessions: int) -> int:
     if start > today:
         return 0
     return min(len(backfill.sessions(start, today)), max_sessions)
+
+
+def _fill_end(name: str, today: dt.date, now_utc: dt.datetime | None = None) -> dt.date:
+    """The last date that the fill of an event stream asks for. The S3 flat file
+    of a session lands on the next day, so day_aggs stops at the newest session
+    whose file must exist."""
+    if name != "day_aggs":
+        return today
+    expected = _expected_last_session(now_utc or dt.datetime.now(dt.UTC))
+    return min(today, expected) if expected else today
 
 
 def _pull_current_state(today: dt.date, *, force: bool = False,
@@ -139,27 +170,32 @@ def run(
     skip_event_streams: bool = False,
     force: bool = False,
     on_event: Callable[[dict], None] | None = None,
+    problems: list[str] | None = None,
 ) -> int:
     """Run the daily job. Return the exit code. on_event reports each step for a
-    progress meter."""
+    progress meter. When problems is a list, the run adds each problem to it."""
     today = today or dt.datetime.now(dt.UTC).date()
     log.info("Daily run for %s.", today)
 
-    problems: list[str] = []
+    found: list[str] = []
 
     if not skip_current_state:
         failed = _pull_current_state(today, force=force, on_event=on_event)
-        problems += [f"{name} pull failed" for name in failed]
+        found += [f"{name} pull failed" for name in failed]
 
     if not skip_event_streams:
         for name, ds in EVENT_STREAMS.items():
-            failures = _fill_event_stream(name, ds, today, max_sessions, on_event)
-            problems += [f"{name} {d}: {msg}" for d, msg in failures]
+            failures = _fill_event_stream(name, ds, _fill_end(name, today),
+                                          max_sessions, on_event)
+            found += [f"{name} {d}: {msg}" for d, msg in failures]
+
+    if problems is not None:
+        problems.extend(found)
 
     print("\n" + dal.status())
-    if problems:
-        print(f"\n{len(problems)} problems:")
-        for p in problems[:20]:
+    if found:
+        print(f"\n{len(found)} problems:")
+        for p in found[:20]:
             print(f"  {p}")
         return 1
     print("\nThe daily run finished with no problem.")
@@ -304,13 +340,14 @@ def _mtime_iso(path: Path) -> str | None:
         return None
 
 
-def status_snapshot(now_utc: dt.datetime | None = None) -> dict:
+def status_snapshot(now_utc: dt.datetime | None = None,
+                    last_pull: dict | None = None) -> dict:
     """Describe what each dataset holds and what is missing. The dashboard reads
     this. Each dataset kind has its own idea of "behind", so a sparse dataset
-    does not raise a false alarm."""
+    does not raise a false alarm. last_pull defaults to the one in status.json."""
     now_utc = now_utc or dt.datetime.now(dt.UTC)
     expected = _expected_last_session(now_utc)
-    last_pull = _read_last_pull()
+    last_pull = _read_last_pull() if last_pull is None else last_pull
     datasets = []
 
     # Daily event streams. "Behind" is the count of sessions not yet published.
@@ -327,11 +364,14 @@ def status_snapshot(now_utc: dt.datetime | None = None) -> dict:
                          "detail": f"through {last}" if last else "no partitions"})
 
     # Short interest is sparse and lagged, so it never reports "behind". It is
-    # healthy when a pull checked it today.
+    # healthy when a clean pull that was not offline checked it today.
     cov = dal.coverage(dal.SHORT_INTEREST)
     last = cov[1] if cov else None
     checked_today = bool(
-        last_pull and last_pull.get("time", "")[:10] == now_utc.date().isoformat()
+        last_pull
+        and str(last_pull.get("time") or "")[:10] == now_utc.date().isoformat()
+        and last_pull.get("exit_code") == 0
+        and not last_pull.get("offline")
     )
     updated = _mtime_iso(dal.SHORT_INTEREST.partition_file(last)) if last else None
     datasets.append({"name": "short_interest", "kind": "sparse", "last": _iso(last),
@@ -378,6 +418,115 @@ def _write_status(snap: dict) -> None:
     os.replace(tmp, p)
 
 
+# ---------- the offline probe ----------
+
+def _online() -> bool:
+    """True when one or more vendor hosts resolve. launchd runs a missed tick on
+    wake, often before the network is up. When only one host fails, its pulls
+    run and fail, so the failure count shows the problem."""
+    for url in (settings.massive_api_base, settings.massive_s3_endpoint):
+        host = urlsplit(url).hostname or url
+        try:
+            socket.getaddrinfo(host, 443)
+            return True
+        except (OSError, UnicodeError):
+            continue
+    return False
+
+
+# ---------- the failure signal ----------
+
+def _failures_in_a_row(prev: dict, *, failed: bool, pulled: bool) -> int:
+    """Count the failed runs in a row. A clean run that pulled sets the count to
+    0. A run that did not pull, for example an offline run, keeps it."""
+    n = prev.get("failures_in_a_row")
+    n = n if isinstance(n, int) else 0
+    if failed:
+        return n + 1
+    return 0 if pulled else n
+
+
+def _offline_since(prev: dict, offline: bool, now: dt.datetime) -> str | None:
+    """The time of the first offline run in the current series, or None."""
+    if not offline:
+        return None
+    since = prev.get("offline_since")
+    return since if isinstance(since, str) else now.isoformat()
+
+
+def _alert_message(*, failures: int, failed: bool, offline_since: str | None,
+                   now: dt.datetime) -> str | None:
+    """The text of the alert that this run must send, or None."""
+    if failed and failures >= ALERT_AFTER:
+        return (f"The daily update failed {failures} times in a row. "
+                f"See data/_logs/daily.err.log.")
+    if offline_since:
+        try:
+            hours = (now - dt.datetime.fromisoformat(offline_since)).total_seconds() / 3600
+        except (TypeError, ValueError):
+            return None
+        if hours >= OFFLINE_ALERT_HOURS:
+            return (f"The vendor hosts did not resolve for {int(hours)} hours. "
+                    f"The daily update did not pull.")
+    return None
+
+
+def _notify(message: str) -> None:
+    """Show a macOS notification. An error only logs, because the alert must
+    not stop the update."""
+    text = message.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        subprocess.run(
+            ["osascript", "-e", f'display notification "{text}" with title "sdp"'],
+            check=False, capture_output=True, timeout=10,
+        )
+    except Exception as exc:  # noqa: BLE001 -- a failed alert must not fail the run
+        log.warning("The notification failed. %s: %s", type(exc).__name__, exc)
+
+
+def _alert(message: str | None, prev: dict, today: str) -> str | None:
+    """Send the message as a notification, one each day at most. Return the ISO
+    date of the last alert."""
+    last = prev.get("last_alert")
+    if message is None or last == today:
+        return last
+    _notify(message)
+    return today
+
+
+# ---------- log pruning ----------
+
+def _prune_one(p: Path, cutoff: float) -> None:
+    """Delete an old backfill run log, or rename a large launchd log to *.log.1."""
+    st = p.stat()
+    if p.suffix == ".jsonl":
+        if st.st_mtime < cutoff:
+            p.unlink(missing_ok=True)
+    elif st.st_size > LOG_ROTATE_BYTES:
+        os.replace(p, p.with_name(f"{p.name}.1"))
+
+
+def _prune_logs() -> None:
+    """Delete the backfill run logs older than LOG_KEEP_DAYS and rotate a large
+    launchd log. An error only logs, because pruning must not fail the run."""
+    d = _logs_dir()
+    cutoff = time.time() - LOG_KEEP_DAYS * 86400
+    try:
+        paths = [*d.glob("backfill_*.jsonl"),
+                 *(d / n for n in ROTATED_LOGS if (d / n).exists())]
+    except Exception as exc:  # noqa: BLE001 -- pruning must not fail the run
+        log.warning("The log pruning failed. %s: %s", type(exc).__name__, exc)
+        return
+    for p in paths:
+        try:
+            _prune_one(p, cutoff)
+        except FileNotFoundError:
+            pass  # Another process removed it.
+        except Exception as exc:  # noqa: BLE001 -- pruning must not fail the run
+            log.warning("The log pruning failed for %s. %s: %s",
+                        p.name, type(exc).__name__, exc)
+
+
 # ---------- the shared update job ----------
 
 def _plan_total(today: dt.date, max_sessions: int, *,
@@ -386,8 +535,8 @@ def _plan_total(today: dt.date, max_sessions: int, *,
     One unit is a current-state pull or one session, plus one for the dbt step."""
     total = 0 if skip_current_state else len(CURRENT_STATE)
     if not skip_event_streams:
-        for ds in EVENT_STREAMS.values():
-            total += _pending_count(ds, today, max_sessions)
+        for name, ds in EVENT_STREAMS.items():
+            total += _pending_count(ds, _fill_end(name, today), max_sessions)
     return total + 1  # The dbt step is always one unit, built or skipped.
 
 
@@ -404,14 +553,16 @@ def update(
     """Pull the datasets, build the dbt models when a new session landed, and
     write the status file. One writer at a time. The scheduler and the dashboard
     button both call this. progress reports each step as a dict with a message
-    and a done/total count. Raises UpdateInProgress when the lock is held."""
+    and a done/total count. When the vendor hosts do not resolve, the pulls are
+    skipped and the exit code is 0. Raises UpdateInProgress when the lock is
+    held."""
     today = today or dt.datetime.now(dt.UTC).date()
-    total = _plan_total(today, max_sessions, skip_current_state=skip_current_state,
-                        skip_event_streams=skip_event_streams)
     done = 0
+    total = 1  # The dbt step. The plan adds the pulls when the machine is online.
 
-    def emit(message: str, *, dataset: str | None = None) -> None:
-        log.info(message)
+    def emit(message: str, *, dataset: str | None = None,
+             level: int = logging.INFO) -> None:
+        log.log(level, message)
         if progress:
             progress({"message": message, "dataset": dataset,
                       "done": done, "total": total})
@@ -433,25 +584,67 @@ def update(
             emit(f"{ev['dataset']} {ev['date']} {ev['status']}", dataset=ev["dataset"])
 
     with _update_lock():
-        code = run(today, max_sessions=max_sessions,
-                   skip_current_state=skip_current_state,
-                   skip_event_streams=skip_event_streams, force=force,
-                   on_event=on_event)
+        wants_pull = not (skip_current_state and skip_event_streams)
+        offline = wants_pull and not _online()
+        problems: list[str] = []
+        if offline:
+            code = 0
+            emit("The vendor hosts do not resolve. The machine is offline, so "
+                 "this run does not pull.", level=logging.WARNING)
+        else:
+            try:
+                total = _plan_total(today, max_sessions,
+                                    skip_current_state=skip_current_state,
+                                    skip_event_streams=skip_event_streams)
+                code = run(today, max_sessions=max_sessions,
+                           skip_current_state=skip_current_state,
+                           skip_event_streams=skip_event_streams, force=force,
+                           on_event=on_event, problems=problems)
+            except Exception as exc:  # noqa: BLE001 -- a crash must count as a failure
+                log.exception("The daily run stopped with an error.")
+                code = 1
+                problems.append(f"run stopped: {type(exc).__name__}: {exc}")
 
         if force_dbt or dbt_stale():
             emit("Building the dbt models", dataset="dbt")
-            dbt = "built" if _build_dbt() == 0 else "failed"
+            try:
+                dbt = "built" if _build_dbt() == 0 else "failed"
+            except Exception:  # noqa: BLE001 -- a crash must count as a failure
+                log.exception("The dbt build stopped with an error.")
+                dbt = "failed"
         else:
             dbt = "skipped"
             emit("The dbt models are current", dataset="dbt")
         done += 1
+        if dbt == "failed":
+            problems.insert(0, "dbt build failed")
 
-        snap = status_snapshot()
-        snap["last_pull"] = {"time": dt.datetime.now(dt.UTC).isoformat(),
-                             "exit_code": code, "dbt": dbt}
+        now = dt.datetime.now(dt.UTC)
+        prev = _read_last_pull()
+        prev = prev if isinstance(prev, dict) else {}
+        pulled = wants_pull and not offline
+        failed = (pulled and code != 0) or dbt == "failed"
+        failures = _failures_in_a_row(prev, failed=failed, pulled=pulled)
+        offline_since = _offline_since(prev, offline, now)
+        message = _alert_message(failures=failures, failed=failed,
+                                 offline_since=offline_since, now=now)
+        last_pull = {
+            "time": now.isoformat(), "exit_code": code, "dbt": dbt,
+            "offline": offline, "offline_since": offline_since,
+            "failures_in_a_row": failures, "problems": problems[:20],
+            "last_alert": _alert(message, prev, now.date().isoformat()),
+        }
+        try:
+            snap = status_snapshot(now, last_pull)
+        except Exception as exc:  # noqa: BLE001 -- the status file must still record the run
+            log.exception("The status snapshot stopped with an error.")
+            snap = {"generated": now.isoformat(), "datasets": [], "dbt": {},
+                    "error": f"{type(exc).__name__}: {exc}"}
+        snap["last_pull"] = last_pull
         _write_status(snap)
-        emit("The dbt build failed. Run: uv sync --group transform"
-             if dbt == "failed" else "Done")
+        _prune_logs()
+        emit("The dbt build failed. See data/_logs/daily.out.log or "
+             "transform/logs/dbt.log." if dbt == "failed" else "Done")
         return snap
 
 
@@ -468,7 +661,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip-current-state", action="store_true",
                    help="Do not pull the splits and the dividends.")
     p.add_argument("--skip-event-streams", action="store_true",
-                   help="Do not fill the day aggregates and the tickers.")
+                   help="Do not fill the four event streams: day_aggs, tickers, "
+                        "short_volume and short_interest.")
     p.add_argument("--force", action="store_true",
                    help="Pull the current-state datasets again for today.")
     p.add_argument("--force-dbt", action="store_true",

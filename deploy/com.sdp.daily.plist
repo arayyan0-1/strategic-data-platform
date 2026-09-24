@@ -11,11 +11,10 @@
   Remove:   launchctl bootout gui/$(id -u)/com.sdp.daily
 
   launchd, not cron: cron skips a job the machine slept through, launchd runs it
-  on wake. Three attempts a day in Europe/London: 08:00 (after session D-1's S3
-  flat file lands ~06:00 UTC), and 13:00 and 20:00 as fallbacks for a machine
-  that was asleep at 08:00. A repeat is cheap: sdp.daily skips a published
-  session and rebuilds the dbt models only when raw changed. Times are local, so
-  change them if the machine changes timezone.
+  on wake. The job runs every hour at :05. An offline run and an up-to-date run
+  are cheap: sdp.daily skips the pulls when the vendor hosts do not resolve,
+  skips a published session, and builds the dbt models only when raw changed.
+  Thus each hour that the machine is awake is one more chance to fill a gap.
 
   It runs the venv interpreter, not `uv run`, because two `uv run` calls race on
   the venv (the same reason run_backfill.sh does this).
@@ -36,11 +35,10 @@
     <string>/Users/aray/strategic-data-platform</string>
 
     <key>StartCalendarInterval</key>
-    <array>
-        <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
-    </array>
+    <dict>
+        <key>Minute</key>
+        <integer>5</integer>
+    </dict>
 
     <key>StandardOutPath</key>
     <string>/Users/aray/strategic-data-platform/data/_logs/daily.out.log</string>
