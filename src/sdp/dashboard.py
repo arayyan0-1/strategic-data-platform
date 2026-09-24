@@ -3,18 +3,22 @@
 
     python -m sdp.dashboard
 
-Serves http://127.0.0.1:8787. The page shows what each dataset holds, what is
-missing, and how old the dbt build is. One button pulls the missing sessions and
-builds the dbt models. The page is local only and does not need the network,
-except when it pulls. The pull runs in a background thread, so the page stays
-live while it works.
+Serves http://127.0.0.1:8787. Use --port to select a different port. The page
+shows what each dataset holds, what is missing, and how old the dbt build is.
+One button pulls the missing sessions and builds the dbt models. The page is
+local only and does not need the network, except when it pulls. The pull runs in
+a background thread, so the page stays live while it works.
 """
 from __future__ import annotations
 
+import argparse
 import datetime as dt
+import errno
 import json
 import logging
 import threading
+import time
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from sdp import daily
@@ -23,10 +27,14 @@ log = logging.getLogger("sdp.dashboard")
 
 HOST = "127.0.0.1"
 PORT = 8787
+SNAPSHOT_TTL = 10.0  # Seconds. One snapshot reads the whole lake.
 
 _job_lock = threading.Lock()
 _job: dict = {"running": False, "phase": "idle", "started": None,
               "log": [], "result": None, "done": 0, "total": 0}
+
+_snap_lock = threading.Lock()
+_snap_cache: dict = {"at": 0.0, "snap": None}
 
 
 # ---------- the background pull ----------
@@ -54,6 +62,7 @@ def _run_job(force_dbt: bool) -> None:
     except Exception as exc:  # noqa: BLE001 -- the page must show any failure
         log.exception("The update failed.")
         result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    _clear_snapshot()  # Before the job ends, so a poll that sees the end reads the lake.
     with _job_lock:
         _job["result"] = result
         _job["running"] = False
@@ -72,20 +81,56 @@ def _start_job(force_dbt: bool = False) -> bool:
     return True
 
 
+def _snapshot() -> dict:
+    """Return the status snapshot, cached for SNAPSHOT_TTL seconds. The lock
+    lets one thread read the lake while the other threads wait for its result."""
+    with _snap_lock:
+        now = time.monotonic()
+        if _snap_cache["snap"] is None or now - _snap_cache["at"] >= SNAPSHOT_TTL:
+            _snap_cache["snap"] = daily.status_snapshot()
+            _snap_cache["at"] = now
+        return dict(_snap_cache["snap"])
+
+
+def _clear_snapshot() -> None:
+    """Remove the cached snapshot, so the next poll reads the lake again."""
+    with _snap_lock:
+        _snap_cache["snap"] = None
+
+
 def _state() -> dict:
+    """Return the snapshot and the job. Read the job first, so a finished job
+    always comes with a snapshot from after the job."""
+    with _job_lock:
+        job = {"running": _job["running"], "phase": _job["phase"],
+               "started": _job["started"], "log": list(_job["log"]),
+               "result": _job["result"],
+               "done": _job.get("done", 0), "total": _job.get("total", 0)}
     try:
-        snap = daily.status_snapshot()
+        snap = _snapshot()
     except Exception as exc:  # noqa: BLE001 -- a read error must not blank the page
         snap = {"error": f"{type(exc).__name__}: {exc}", "datasets": [], "dbt": {}}
-    with _job_lock:
-        snap["job"] = {"running": _job["running"], "phase": _job["phase"],
-                       "started": _job["started"], "log": list(_job["log"]),
-                       "result": _job["result"],
-                       "done": _job.get("done", 0), "total": _job.get("total", 0)}
+    snap["job"] = job
     return snap
 
 
 # ---------- the server ----------
+
+def _host_allowed(headers: Mapping[str, str], port: int) -> bool:
+    """Return True when the Host header names this server. This stops DNS rebinding."""
+    host = (headers.get("Host") or "").lower()
+    return host in {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+
+def _request_allowed(headers: Mapping[str, str], port: int) -> bool:
+    """Return True when a POST comes from this page. The Origin check stops a POST
+    from a different web page."""
+    if not _host_allowed(headers, port):
+        return False
+    origin = headers.get("Origin")
+    return origin is None or origin.lower() in {
+        f"http://127.0.0.1:{port}", f"http://localhost:{port}"}
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args) -> None:  # noqa: D102 -- silence the access log
@@ -93,14 +138,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, code: int, body: str, ctype: str = "application/json") -> None:
         data = body.encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except ConnectionError:
+            return  # The client closed the connection. No one reads the reply.
+        except OSError as exc:
+            if exc.errno != errno.EPROTOTYPE:  # macOS gives this for a closing socket.
+                raise
+
+    def _refuse(self) -> None:
+        self._send(403, json.dumps({"error": "the request is not from this page"}))
 
     def do_GET(self) -> None:  # noqa: N802 -- the base class names it
-        if self.path in ("/", "/index.html") or self.path.startswith("/?"):
+        if not _host_allowed(self.headers, self.server.server_address[1]):
+            self._refuse()
+        elif self.path in ("/", "/index.html") or self.path.startswith("/?"):
             self._send(200, PAGE, "text/html; charset=utf-8")
         elif self.path == "/state":
             self._send(200, json.dumps(_state()))
@@ -108,7 +164,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path == "/pull":
+        if not _request_allowed(self.headers, self.server.server_address[1]):
+            self._refuse()
+        elif self.path == "/pull":
             if _start_job():
                 self._send(202, json.dumps({"started": True}))
             else:
@@ -119,11 +177,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="python -m sdp.dashboard",
+                                description="Serve the local status page.")
+    p.add_argument("--port", type=int, default=PORT,
+                   help=f"The port of the server. The default is {PORT}.")
+    args = p.parse_args(argv)
+
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%H:%M:%S")
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"sdp dashboard on http://{HOST}:{PORT}")
+    server = ThreadingHTTPServer((HOST, args.port), Handler)
+    print(f"sdp dashboard on http://{HOST}:{server.server_address[1]}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -180,6 +244,8 @@ PAGE = """<!doctype html>
   .banner { border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:14px; }
   .banner.bad { background:#ffebe9; color:var(--bad); }
   .banner.ok { background:#dafbe1; color:var(--ok); }
+  .banner.note { background:#eaeef2; color:var(--dim); }
+  .banner ul { margin:6px 0 0; padding-left:20px; }
   pre { background:#0d1117; color:#c9d1d9; border-radius:8px; padding:12px 14px;
         font-size:12px; overflow:auto; max-height:160px; margin:10px 0 0; }
 </style>
@@ -221,13 +287,25 @@ function eta(j) {
   const elapsed = (Date.now() - Date.parse(j.started)) / 1000;
   return "~" + fmtDur(elapsed * (j.total - j.done) / j.done) + " left";
 }
+function esc(t) {
+  const map = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+  return String(t).replace(/[&<>"']/g, c => map[c]);
+}
+// Escape the text, because it can hold vendor or exception text.
+function banner(cls, text, items) {
+  let h = `<div class="banner ${cls}">${esc(text)}`;
+  if (items && items.length) {
+    h += "<ul>" + items.map(i => `<li>${esc(i)}</li>`).join("") + "</ul>";
+  }
+  return h + "</div>";
+}
 function row(d) {
   const behind = d.behind == null ? "" :
       (d.behind === 0 ? "up to date" : d.behind + " behind");
   const updated = d.updated ? rel(d.updated) : "";
-  return `<tr class="${d.level}">
-    <td class="name"><span class="dot"></span>${d.name}</td>
-    <td class="detail">${d.detail || ""}</td>
+  return `<tr class="${esc(d.level)}">
+    <td class="name"><span class="dot"></span>${esc(d.name)}</td>
+    <td class="detail">${esc(d.detail || "")}</td>
     <td class="updated">${updated}</td>
     <td class="behind">${behind}</td></tr>`;
 }
@@ -237,24 +315,38 @@ function render(s) {
   if (s.expected_last_session) head += " · newest session " + s.expected_last_session;
   document.getElementById("generated").textContent = head;
 
-  let banner = "";
+  const banners = [];
   const j = s.job || {};
+  const lp = s.last_pull || null;
+  if (s.error) banners.push(banner("bad", "Read error: " + s.error));
+  if (lp && lp.failures_in_a_row >= 2) {
+    const probs = Array.isArray(lp.problems) ? lp.problems : [];
+    banners.push(banner("bad", "The last " + lp.failures_in_a_row + " runs failed.",
+                        probs.map(p => typeof p === "string" ? p : JSON.stringify(p))));
+  }
+  if (lp && lp.offline) {
+    const at = lp.time ? new Date(lp.time).toLocaleString() : "the last run";
+    banners.push(banner("note", "Offline at " + at + ". The next run tries again."));
+  }
   if (j.result && !j.running) {
     const dbt = j.result.dbt;
     if (j.result.ok) {
       const note = dbt === "built" ? "dbt models rebuilt."
                  : dbt === "skipped" ? "dbt already current." : "";
-      banner = `<div class="banner ok">Update finished. ${note}</div>`;
+      banners.push(banner("ok", "Update finished. " + note));
     } else if (dbt === "failed") {
-      banner = `<div class="banner bad">Pull done, but the dbt build failed. `
-             + `Run: uv sync --group transform</div>`;
+      let msg = "The dbt build failed. See dashboard.out.log and dashboard.err.log "
+              + "in data/_logs.";
+      if (j.result.exit_code) {
+        msg += " The pull also failed, exit code " + j.result.exit_code + ".";
+      }
+      banners.push(banner("bad", msg));
     } else {
       const why = j.result.error || ("exit code " + j.result.exit_code);
-      banner = `<div class="banner bad">Update problem: ${why}</div>`;
+      banners.push(banner("bad", "Update problem: " + why));
     }
   }
-  if (s.error) banner = `<div class="banner bad">Read error: ${s.error}</div>`;
-  document.getElementById("banner").innerHTML = banner;
+  document.getElementById("banner").innerHTML = banners.join("");
 
   const ds = s.datasets || [];
   const events = ds.filter(d => d.kind === "event" || d.kind === "sparse");
@@ -306,6 +398,7 @@ async function pull() {
   try {
     const r = await fetch("/pull", {method:"POST"});
     if (r.status === 409) alert("An update is already running.");
+    if (r.status === 403) alert("The server refused the request.");
   } catch (e) { alert("Could not start the update: " + e); }
   clearTimeout(timer);
   timer = setTimeout(poll, 150);  // Start polling at once, so the bar appears.
