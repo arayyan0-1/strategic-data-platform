@@ -1,8 +1,8 @@
 """Measure what changed between two vendor pulls of a corporate action dataset.
 raw/ holds one table per dataset, replaced by each pull, so it keeps no history.
 vendor/ does, and this module reads that archive, not raw/. Diff on the event
-key, never the vendor id, which is not stable across pulls. A key that is
-ambiguous within a pull is reported, not counted as a change.
+key, never the vendor id, which is not stable across pulls. A key whose rows
+disagree within a pull is ambiguous. It is reported, not counted as a change.
 """
 from __future__ import annotations
 
@@ -38,6 +38,8 @@ class Diff:
     max_relative_change: float | None
     ids_churned: int = 0
     """Ids that are gone while their event is still in the newer pull."""
+    events_null_changed: int = 0
+    """Restated events where one pull has no factor. A change has no size then."""
     restated_examples: list[tuple] = field(default_factory=list)
 
     def __str__(self) -> str:
@@ -46,7 +48,8 @@ class Diff:
             f"  rows                 {self.rows_older} -> {self.rows_newer}",
             f"  id diff              {self.ids_gone} gone, {self.ids_new} new",
             f"  event diff           {self.events_gone} gone, {self.events_new} new",
-            f"  restated factors     {self.events_restated}",
+            f"  restated factors     {self.events_restated}, "
+            f"{self.events_null_changed} to or from null",
             f"  id churn only        {self.ids_churned} ids gone, event still present",
             f"  ambiguous keys       {self.ambiguous_older} -> {self.ambiguous_newer}",
             f"  largest change       {self.max_relative_change}",
@@ -88,15 +91,16 @@ def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
 
 def _keyed(table: str, key: str, window: tuple[dt.date, dt.date] | None = None) -> str:
     """Return SQL with one row for each event key of a loaded pull: ticker, ev,
-    n_rows, n_f and f. A window keeps only the event dates in that closed range."""
+    agree and f. agree is true when the rows of the key state one factor, or all have
+    no factor. A window keeps only the event dates in that closed range."""
     where = ""
     if window is not None:
         start, end = window
         where = f"where {key} between date '{start}' and date '{end}'"
     return f"""
         select ticker, {key} as ev,
-               count(*) as n_rows,
-               count(distinct historical_adjustment_factor) as n_f,
+               count(distinct historical_adjustment_factor) <= 1
+                   and count(historical_adjustment_factor) in (0, count(*)) as agree,
                min(historical_adjustment_factor) as f
         from {table} {where}
         group by 1, 2
@@ -131,18 +135,21 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
                 (select count(*) from nk anti join ok using (ticker, ev)),
                 (select count(*) from ok anti join nk using (ticker, ev)),
                 (select count(*) from ok join nk using (ticker, ev)
-                    where ok.n_rows = 1 and nk.n_rows = 1
+                    where ok.agree and nk.agree
                       and ok.f is distinct from nk.f),
-                (select count(*) from ok where n_rows > 1),
-                (select count(*) from nk where n_rows > 1),
+                (select count(*) from ok where not agree),
+                (select count(*) from nk where not agree),
                 (select max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
                     from ok join nk using (ticker, ev)
-                    where ok.n_rows = 1 and nk.n_rows = 1
+                    where ok.agree and nk.agree
                       and ok.f is distinct from nk.f),
                 (select count(*) from _ca_older g
                     where not exists (select 1 from _ca_newer n where n.id = g.id)
                       and exists (select 1 from _ca_newer n
-                                  where n.ticker = g.ticker and n.{key} = g.{key}))
+                                  where n.ticker = g.ticker and n.{key} = g.{key})),
+                (select count(*) from ok join nk using (ticker, ev)
+                    where ok.agree and nk.agree
+                      and (ok.f is null) <> (nk.f is null))
         """).fetchone()
         if row is None:
             raise RuntimeError(f"The diff query for {ds.name} did not return a row.")
@@ -150,7 +157,7 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
             with {keyed}
             select ok.ticker, ok.ev, ok.f as was, nk.f as now
             from ok join nk using (ticker, ev)
-            where ok.n_rows = 1 and nk.n_rows = 1 and ok.f is distinct from nk.f
+            where ok.agree and nk.agree and ok.f is distinct from nk.f
             order by abs(nk.f - ok.f) / nullif(abs(ok.f), 0) desc, ok.ticker, ok.ev
             limit {examples}
         """).fetchall()
@@ -182,17 +189,18 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date, *,
             select count(*),
                    count(*) filter (ok.f is distinct from nk.f),
                    count(distinct ok.ticker) filter (ok.f is distinct from nk.f),
+                   count(*) filter ((ok.f is null) <> (nk.f is null)),
                    median(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
                        filter (ok.f is distinct from nk.f),
                    max(abs(nk.f - ok.f) / nullif(abs(ok.f), 0))
             from ok join nk using (ticker, ev)
-            where ok.n_rows = 1 and nk.n_rows = 1
+            where ok.agree and nk.agree
         """).fetchone()
     finally:
         con.close()
     if row is None:
         raise RuntimeError(f"The drift query for {ds.name} did not return a row.")
-    n, changed, tickers, med, worst = row
+    n, changed, tickers, null_changed, med, worst = row
     pct = (100.0 * changed / n) if n else 0.0
     return (
         f"{ds.name} drift, vendor pull {older} against {newer}, "
@@ -200,6 +208,7 @@ def drift(ds: dal.Dataset, start: dt.date, end: dt.date, *,
         f"  matched events       {n}\n"
         f"  restated             {changed} ({pct:.3f} percent), "
         f"{tickers} tickers\n"
+        f"  to or from null      {null_changed}, not in the sizes below\n"
         f"  median change        {med}\n"
         f"  largest change       {worst}"
     )

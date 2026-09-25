@@ -13,11 +13,8 @@ with base as (
     inner join {{ ref('stg_universe') }} u
         on u.ticker = p.ticker and u.date = p.date
 
-    -- One row per security and session, by the same rule as mart_signals.
-    qualify row_number() over (
-        partition by u.security_key, p.date
-        order by p.dollar_volume desc nulls last, p.ticker
-    ) = 1
+    -- One row per security and session: its primary line (stg_security_lines).
+    where u.is_primary_line
 
 )
 

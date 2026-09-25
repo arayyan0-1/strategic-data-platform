@@ -20,12 +20,8 @@ with base as (
     inner join {{ ref('stg_universe') }} u
         on u.ticker = p.ticker and u.date = p.date
 
-    -- Collapse a when-issued line (KVUEw, JNJ.WD) that shares a share_class_figi
-    -- with the regular line. Keep the more liquid line.
-    qualify row_number() over (
-        partition by u.security_key, p.date
-        order by p.dollar_volume desc nulls last, p.ticker
-    ) = 1
+    -- One row per security and session: its primary line (stg_security_lines).
+    where u.is_primary_line
 
 ), returns as (
 
@@ -48,29 +44,42 @@ with base as (
     where in_universe and ret_1 is not null
     group by date
 
+), sec_divs as (
+
+    -- A dividend belongs to the security that held its ticker on the last session on
+    -- or before the ex-date. A ticker change thus keeps the dividend history.
+    select b.security_key, ca.event_date, ca.cash_amount
+    from (
+        select ticker, event_date, cash_amount
+        from {{ ref('stg_corporate_actions') }}
+        where kind = 'dividend'
+          and cash_amount > 0
+    ) ca
+    asof join base b
+        on b.ticker = ca.ticker
+       and b.date  <= ca.event_date
+
 ), divs as (
 
-    -- Trailing 12 months of cash dividends per ticker, per session. Nominal cash
-    -- on the ex-date over the unadjusted price; a split inside the 12-month window
+    -- Trailing 12 months of cash dividends per security, per session. Nominal cash
+    -- on the ex-date over the unadjusted price. A split inside the 12-month window
     -- is a rare, small distortion. Non-payers get 0.
     select
-        b.ticker, b.date,
-        sum(ca.cash_amount) as div_ttm
+        b.security_key, b.date,
+        sum(d.cash_amount) as div_ttm
     from base b
-    left join {{ ref('stg_corporate_actions') }} ca
-        on ca.ticker = b.ticker
-       and ca.kind = 'dividend'
-       and ca.cash_amount > 0
-       and ca.event_date <= b.date
-       and ca.event_date > b.date - interval 1 year
-    group by b.ticker, b.date
+    left join sec_divs d
+        on d.security_key = b.security_key
+       and d.event_date  <= b.date
+       and d.event_date   > b.date - interval 1 year
+    group by b.security_key, b.date
 
 ), joined as (
 
     select r.*, m.mkt_ret, coalesce(d.div_ttm, 0) as div_ttm
     from returns r
     left join mkt m on m.date = r.date
-    left join divs d on d.ticker = r.ticker and d.date = r.date
+    left join divs d on d.security_key = r.security_key and d.date = r.date
 
 ), factors as (
 

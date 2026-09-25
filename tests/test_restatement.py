@@ -1,8 +1,8 @@
 """Diff between two vendor pulls.
 
 The diff reads vendor/, not raw/. It uses the event key, not the vendor id
-(which is not stable across pulls). An ambiguous key within one pull is
-reported, not counted as a change.
+(which is not stable across pulls). A key whose rows disagree within one pull
+is ambiguous. It is reported, not counted as a change.
 """
 import datetime as dt
 import json
@@ -97,6 +97,42 @@ def test_a_null_factor_that_becomes_a_number_is_a_restatement(ca_vendor):
 
     d = restatement.diff(dal.DIVIDENDS)
     assert d.events_restated == 1
+
+
+def test_a_null_change_is_counted_apart_from_the_sizes(ca_vendor):
+    """A change to or from null has no size, so the largest change must not hide it."""
+    ca_vendor(dal.DIVIDENDS, P1, [("a", "AAA", D(2024, 1, 5), None),
+                                ("b", "BBB", D(2024, 1, 5), 0.9)])
+    ca_vendor(dal.DIVIDENDS, P2, [("a", "AAA", D(2024, 1, 5), 0.99),
+                                ("b", "BBB", D(2024, 1, 5), None)])
+
+    d = restatement.diff(dal.DIVIDENDS)
+    assert (d.events_restated, d.events_null_changed) == (2, 2)
+    assert d.max_relative_change is None
+    text = restatement.drift(dal.DIVIDENDS, D(2024, 1, 1), D(2024, 12, 31))
+    assert "to or from null      2" in text
+
+
+def test_duplicate_rows_that_agree_are_compared(ca_vendor):
+    """Two rows for one key with one factor are a duplicate, not a contradiction."""
+    ca_vendor(dal.SPLITS, P1, [("a", "AAA", D(2024, 1, 5), 0.5),
+                             ("b", "AAA", D(2024, 1, 5), 0.5)])
+    ca_vendor(dal.SPLITS, P2, [("c", "AAA", D(2024, 1, 5), 0.4),
+                             ("d", "AAA", D(2024, 1, 5), 0.4)])
+
+    d = restatement.diff(dal.SPLITS)
+    assert (d.ambiguous_older, d.ambiguous_newer) == (0, 0)
+    assert d.events_restated == 1
+
+
+def test_a_key_with_a_null_and_a_number_is_ambiguous(ca_vendor):
+    ca_vendor(dal.DIVIDENDS, P1, [("a", "AAA", D(2024, 1, 5), None),
+                                ("b", "AAA", D(2024, 1, 5), 0.9)])
+    ca_vendor(dal.DIVIDENDS, P2, [("a", "AAA", D(2024, 1, 5), 0.9)])
+
+    d = restatement.diff(dal.DIVIDENDS)
+    assert (d.ambiguous_older, d.ambiguous_newer) == (1, 0)
+    assert d.events_restated == 0
 
 
 def test_a_diff_needs_two_pulls(ca_vendor):
