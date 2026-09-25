@@ -1,4 +1,4 @@
-"""Covariance estimators and risk models in sdp.risk.
+"""Covariance estimators, risk models and the name selection in sdp.risk.
 
 Each test uses a small synthetic panel with a fixed seed. The two shapes cover
 T > N and N > T, because QIS takes a different path for each.
@@ -83,9 +83,41 @@ def test_gmv_weights_sum_to_one_and_beat_equal_weight(seed, T, N):
     assert w @ S @ w <= ew @ S @ ew
 
 
-def test_gmv_weights_sum_to_one_on_a_singular_matrix():
+def test_gmv_uses_a_ridge_on_an_exactly_singular_matrix():
     S = np.ones((3, 3))
-    assert risk.gmv(S).sum() == pytest.approx(1.0, abs=1e-12)
+    with pytest.raises(np.linalg.LinAlgError):
+        np.linalg.solve(S, np.ones(3))
+    np.testing.assert_allclose(risk.gmv(S), np.full(3, 1 / 3), rtol=1e-6)
+
+
+def selection_panel():
+    """Return (R, U, A) for 5 rows and 5 names. Name 0 has a gap on row 2, name 1 is out
+    of the universe on row 3 and name 4 has a gap on row 4 only."""
+    R = np.full((5, 5), 0.01)
+    R[2, 0] = np.nan
+    R[4, 4] = np.nan
+    U = np.ones((5, 5), dtype=bool)
+    U[3, 1] = False
+    A = np.tile([50.0, 40.0, 10.0, 20.0, 30.0], (5, 1))
+    A[4] = [1.0, 2.0, 3.0, 4.0, 5.0]
+    return R, U, A
+
+
+def test_eligible_needs_the_universe_and_a_full_window_on_the_rows_before_d():
+    R, U, A = selection_panel()
+    # Row 3 decides. Name 0 has a gap in the window, name 1 is out of the universe.
+    np.testing.assert_array_equal(risk.eligible(R, U, A, d=4, win=3, n=10), [4, 3, 2])
+
+
+def test_eligible_does_not_read_row_d():
+    R, U, A = selection_panel()
+    # Row 4 holds a gap for name 4 and a different adv order. Neither changes the result.
+    np.testing.assert_array_equal(risk.eligible(R, U, A, d=4, win=3, n=2), [4, 3])
+
+
+def test_eligible_window_can_start_after_a_gap():
+    R, U, A = selection_panel()
+    np.testing.assert_array_equal(risk.eligible(R, U, A, d=4, win=1, n=10), [0, 4, 3, 2])
 
 
 def factor_panel(T=500, N=20, K=3, noise=1e-4, seed=3):

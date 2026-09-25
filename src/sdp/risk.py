@@ -1,10 +1,21 @@
 # src/sdp/risk.py
-"""Covariance estimators and risk models for a T x N return matrix. NumPy only,
-with no I/O. Each estimator takes one row per session and one column per name.
+"""Covariance estimators, risk models and a point-in-time name selection for a T x N
+return matrix. NumPy only, with no I/O. Each matrix has one row per session and one
+column per name.
 """
 from __future__ import annotations
 
 import numpy as np
+
+
+def eligible(
+    R: np.ndarray, U: np.ndarray, A: np.ndarray, d: int, win: int, n: int
+) -> np.ndarray:
+    """Return the columns of the top n names by A on row d - 1, largest first. A name is
+    eligible when U is true on row d - 1 and R has a value on each row from d - win to d - 1."""
+    ok = U[d - 1] & ~np.isnan(R[d - win:d]).any(axis=0)
+    cols = np.flatnonzero(ok)
+    return cols[np.argsort(-A[d - 1, cols], kind="stable")[:n]]
 
 
 def gmv(S: np.ndarray) -> np.ndarray:
@@ -64,8 +75,9 @@ def qis(
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Return the Ledoit-Wolf quadratic-inverse shrinkage (QIS) covariance, a port of the
     authors' reference code. It keeps the sample eigenvectors and gives each eigenvalue
-    its own correction, for T > N and for N > T. With return_spectrum it returns the
-    ascending sample eigenvalues and their shrunk values."""
+    its own correction, for T > N and for N > T. When T > N, the sample covariance must have
+    full rank. With return_spectrum it returns the ascending sample eigenvalues and their
+    shrunk values."""
     T, N = X.shape
     Xc = X - X.mean(0)
     n = T - 1
@@ -99,8 +111,8 @@ def ff_cov(
     R: np.ndarray, F: np.ndarray, rf: np.ndarray | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return (Sigma, B) for a time-series factor model, Sigma = B Omega B' + diag(resid
-    var). Each name regresses on an intercept and the T x K factor returns F, and on
-    excess returns R - rf when rf is given."""
+    var). The returns of each name regress on an intercept and the T x K factor returns F.
+    When rf is given, the excess returns R - rf regress on them."""
     Y = R if rf is None else R - np.asarray(rf)[:, None]
     F1 = np.column_stack([np.ones(len(F)), F])
     coef, *_ = np.linalg.lstsq(F1, Y, rcond=None)
