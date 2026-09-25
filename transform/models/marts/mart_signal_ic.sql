@@ -1,42 +1,36 @@
 {#
   The daily cross-sectional rank correlation (Spearman IC) between each signal
-  at D and the forward return over each horizon, over in_universe names.
+  at D and the forward return over each horizon, over in_universe names. The
+  value and the forward return get a new rank over the names that have a
+  forward return. Tied values get the average of the ranks that they occupy.
 #}
 
-with sig as (
+with joined as (
 
-    select security_key, date, signal, value
+    select date, signal, horizon, value, fwd_ret
     from (
-        unpivot {{ ref('mart_signals') }}
-        on {{ signal_columns() }}
-        into name signal value value
-    )
-    where in_universe
-
-), fwd as (
-
-    select security_key, date, horizon, fwd_ret
-    from (
-        unpivot {{ ref('mart_forward_returns') }}
+        unpivot (
+            select date, signal, value, fwd_ret_1, fwd_ret_5, fwd_ret_21
+            from {{ ref('mart_signal_panel') }}
+        )
         on fwd_ret_1, fwd_ret_5, fwd_ret_21
         into name horizon value fwd_ret
     )
-
-), joined as (
-
-    select s.date, s.signal, f.horizon, s.value, f.fwd_ret
-    from sig s
-    inner join fwd f
-        on f.security_key = s.security_key and f.date = s.date
-    where s.value is not null and f.fwd_ret is not null
+    where fwd_ret is not null
 
 ), ranked as (
 
+    -- The average rank, by the same rule as mart_signal_panel.
     select
         date, signal, horizon,
-        rank() over (partition by date, signal, horizon order by value)   as r_value,
-        rank() over (partition by date, signal, horizon order by fwd_ret) as r_fwd
+        (rank() over wv + count(*) over wv) / 2.0 as r_value,
+        (rank() over wf + count(*) over wf) / 2.0 as r_fwd
     from joined
+    window
+        wv as (partition by date, signal, horizon order by value
+               range between unbounded preceding and current row),
+        wf as (partition by date, signal, horizon order by fwd_ret
+               range between unbounded preceding and current row)
 
 )
 

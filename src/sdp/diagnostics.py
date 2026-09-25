@@ -40,7 +40,7 @@ def _liquid_bars_sql() -> str:
     """
 
 
-# ---------- decision 0007: the identifier ----------
+# ---------- the identifier ----------
 
 def figi_reuse() -> str:
     """How many CS tickers map to more than one composite_figi in the window? A
@@ -103,8 +103,15 @@ def figi_exposure() -> str:
 
 def corporate_action_duplicates() -> str:
     """How many events share a ticker and date and disagree about the factor? An
-    as-of join against the raw rows would fan out; the staging model collapses
-    them first, and this is the exposure it hides."""
+    as-of join against the raw rows would duplicate price rows. The staging model
+    collapses them first, and this is the exposure it hides."""
+    # The window is the first to the last day-aggregate session in the lake.
+    coverage = dal.coverage(dal.DAY_AGGS)
+    in_window_sql = (
+        f"(select count(*) from k where n > 1 "
+        f"and ev between date '{coverage[0]}' and date '{coverage[1]}')"
+        if coverage else "null"
+    )
     out = []
     for ds, key in ((dal.SPLITS, "execution_date"),
                     (dal.DIVIDENDS, "ex_dividend_date")):
@@ -118,10 +125,11 @@ def corporate_action_duplicates() -> str:
             select (select count(*) from k),
                    (select count(*) from k where n > 1),
                    (select count(*) from k where n_f > 1),
-                   (select count(*) from k where n > 1
-                      and ev >= date '2021-08-01')
+                   {in_window_sql}
         """, _ca=rel)
         total, dup, disagree, in_window = rows[0]
+        if in_window is None:
+            in_window = "not available"
         out.append(f"{ds.name}\n"
                    f"  distinct (ticker, date)     {total}\n"
                    f"  with more than one row      {dup}\n"

@@ -28,8 +28,8 @@ def fake_backfill(monkeypatch):
     """Record the calls that the driver makes into sdp.backfill."""
     calls = []
 
-    def fake(target, start, end, *, force=False, dry_run=False, limit=None,
-             on_session=None):
+    def fake(target, start, end, *, refetch=False, rebuild=False, dry_run=False,
+             limit=None, on_session=None):
         calls.append({"target": target, "start": start, "end": end, "limit": limit})
         return []
 
@@ -151,21 +151,38 @@ def test_every_backfill_target_is_a_daily_event_stream():
 
 
 class TestDbtStale:
+    """Freshness comes from the stamp of the last publish, not from the
+    warehouse mtime. A failed build can still write the warehouse file."""
+
+    @staticmethod
+    def _stamp(mtime: float) -> None:
+        from sdp import transform
+        _touch(transform.stamp_path(), mtime)
+
     def test_an_absent_warehouse_is_stale(self, tmp_data_root):
         assert daily.dbt_stale() is True
 
-    def test_a_warehouse_newer_than_raw_is_fresh(self, tmp_data_root):
+    def test_a_warehouse_with_no_stamp_is_stale(self, tmp_data_root):
         _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 1000)
         _touch(settings.warehouse_path, 2000)
+        assert daily.dbt_stale() is True
+
+    def test_a_stamp_newer_than_raw_is_fresh(self, tmp_data_root):
+        _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 1000)
+        _touch(settings.warehouse_path, 2000)
+        self._stamp(2000)
         assert daily.dbt_stale() is False
 
-    def test_a_warehouse_older_than_raw_is_stale(self, tmp_data_root):
-        _touch(settings.warehouse_path, 1000)
+    def test_a_stamp_older_than_raw_is_stale(self, tmp_data_root):
+        """A newer warehouse mtime does not hide an old stamp."""
+        self._stamp(1000)
         _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 2000)
+        _touch(settings.warehouse_path, 3000)
         assert daily.dbt_stale() is True
 
     def test_an_empty_raw_is_not_stale(self, tmp_data_root):
         _touch(settings.warehouse_path, 1000)
+        self._stamp(1000)
         assert daily.dbt_stale() is False
 
 
@@ -233,8 +250,8 @@ class TestUpdate:
         lake(dal.DAY_AGGS, D(2024, 1, 4), [("AAA", 1.0)])
         fake_pull()
 
-        def fake_backfill(target, start, end, *, force=False, dry_run=False,
-                          limit=None, on_session=None):
+        def fake_backfill(target, start, end, *, refetch=False, rebuild=False,
+                          dry_run=False, limit=None, on_session=None):
             for d in backfill.sessions(start, end)[:limit]:
                 if on_session:
                     on_session(d, "ok")
@@ -600,6 +617,20 @@ class TestLogPruning:
         assert (logs / "daily.out.log.1").read_text() == "x" * 11
         assert (logs / "daily.err.log").read_text() == "small"
         assert not (logs / "daily.err.log.1").exists()
+
+    def test_a_large_dashboard_log_is_copied_and_truncated(self, tmp_data_root,
+                                                           monkeypatch):
+        """The dashboard keeps its log open, so the file must stay in place."""
+        monkeypatch.setattr(daily, "LOG_ROTATE_BYTES", 10)
+        logs = tmp_data_root / "_logs"
+        logs.mkdir(parents=True)
+        log_file = logs / "dashboard.err.log"
+        log_file.write_text("y" * 11)
+        with log_file.open("a") as held:
+            daily._prune_logs()
+            held.write("next")
+        assert (logs / "dashboard.err.log.1").read_text() == "y" * 11
+        assert log_file.read_text() == "next"
 
     def test_update_prunes_the_logs(self, tmp_data_root, monkeypatch):
         monkeypatch.setattr(daily, "run", lambda *a, **k: 0)

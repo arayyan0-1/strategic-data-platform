@@ -174,3 +174,11 @@ class TestWarehouse:
                 wh.execute("create table main_marts.u as select 2 as y")
         finally:
             wh.close()
+
+    def test_the_connection_renders_in_utc(self, tmp_data_root):
+        self._build()
+        wh = dal.warehouse()
+        try:
+            assert wh.sql("select current_setting('TimeZone')").fetchone() == ("UTC",)
+        finally:
+            wh.close()

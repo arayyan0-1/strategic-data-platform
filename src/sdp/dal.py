@@ -253,14 +253,17 @@ def short_interest(start: dt.date | None = None, end: dt.date | None = None):
 
 
 def warehouse() -> duckdb.DuckDBPyConnection:
-    """Return a read-only connection to the dbt warehouse. A build publishes a new file,
-    so connect again to read a newer build."""
+    """Return a read-only connection to the dbt warehouse, in UTC. A build publishes
+    a new file. DuckDB keeps one open database per path, so close every warehouse
+    connection before a new one can read the newer build."""
     path = settings.warehouse_path
     if not path.exists():
         raise MissingPartition(
             f"The warehouse is absent: {path}. Run python -m sdp.transform build."
         )
-    return duckdb.connect(str(path), read_only=True)
+    wh = duckdb.connect(str(path), read_only=True)
+    wh.execute("set TimeZone = 'UTC'")
+    return wh
 
 
 def status() -> str:

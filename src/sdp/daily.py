@@ -72,6 +72,10 @@ LOG_ROTATE_BYTES = 5 * 1024 * 1024
 ROTATED_LOGS = ("daily.out.log", "daily.err.log")
 """The launchd logs of this job, which the pruning rotates."""
 
+COPIED_LOGS = ("dashboard.out.log", "dashboard.err.log")
+"""The logs of the dashboard. Its process keeps them open, so the pruning copies
+and truncates them in place instead of a rename."""
+
 
 def _fill_start(ds: dal.Dataset, today: dt.date) -> dt.date:
     """The date the fill of an event stream starts from. A cold stream starts
@@ -277,15 +281,17 @@ def _newest_raw_mtime() -> float | None:
 
 
 def dbt_stale() -> bool:
-    """True when the dbt build is older than the newest raw file, or absent. A
-    fresh raw partition with an older warehouse means the models must run."""
-    wh = settings.warehouse_path
-    if not wh.exists():
+    """True when no build is published, or when the last full build started
+    before the newest raw file. A failed build does not write the stamp, so the
+    warehouse stays stale."""
+    from sdp import transform
+    stamp = transform.stamp_path()
+    if not settings.warehouse_path.exists() or not stamp.exists():
         return True
     raw = _newest_raw_mtime()
     if raw is None:
         return False
-    return wh.stat().st_mtime < raw
+    return stamp.stat().st_mtime < raw
 
 
 def _build_dbt() -> int:
@@ -394,10 +400,11 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                              "level": "warn", "updated": None,
                              "detail": "not pulled"})
 
-    # The dbt build.
-    wh = settings.warehouse_path
-    if wh.exists():
-        built = dt.datetime.fromtimestamp(wh.stat().st_mtime, dt.UTC).date()
+    # The dbt build. The stamp of the last publish dates it.
+    from sdp import transform
+    stamp = transform.last_build()
+    if settings.warehouse_path.exists() and stamp:
+        built = dt.datetime.fromisoformat(stamp["published_utc"]).date()
         stale = dbt_stale()
         dbt = {"built": _iso(built), "stale": stale,
                "level": "bad" if stale else "ok",
@@ -497,13 +504,17 @@ def _alert(message: str | None, prev: dict, today: str) -> str | None:
 # ---------- log pruning ----------
 
 def _prune_one(p: Path, cutoff: float) -> None:
-    """Delete an old backfill run log, or rename a large launchd log to *.log.1."""
+    """Delete an old backfill run log, or move a large launchd log to *.log.1."""
     st = p.stat()
     if p.suffix == ".jsonl":
         if st.st_mtime < cutoff:
             p.unlink(missing_ok=True)
     elif st.st_size > LOG_ROTATE_BYTES:
-        os.replace(p, p.with_name(f"{p.name}.1"))
+        if p.name in COPIED_LOGS:
+            shutil.copyfile(p, p.with_name(f"{p.name}.1"))
+            os.truncate(p, 0)
+        else:
+            os.replace(p, p.with_name(f"{p.name}.1"))
 
 
 def _prune_logs() -> None:
@@ -513,7 +524,7 @@ def _prune_logs() -> None:
     cutoff = time.time() - LOG_KEEP_DAYS * 86400
     try:
         paths = [*d.glob("backfill_*.jsonl"),
-                 *(d / n for n in ROTATED_LOGS if (d / n).exists())]
+                 *(d / n for n in (*ROTATED_LOGS, *COPIED_LOGS) if (d / n).exists())]
     except Exception as exc:  # noqa: BLE001 -- pruning must not fail the run
         log.warning("The log pruning failed. %s: %s", type(exc).__name__, exc)
         return

@@ -41,6 +41,18 @@ def test_a_new_id_for_the_same_event_is_not_a_restatement(ca_vendor):
     d = restatement.diff(dal.SPLITS)
     assert (d.ids_gone, d.ids_new) == (1, 1)
     assert (d.events_gone, d.events_new, d.events_restated) == (0, 0, 0)
+    assert d.ids_churned == 1
+
+
+def test_a_gone_event_is_not_id_churn(ca_vendor):
+    """Churn counts ids whose event is still present. A gone event is not churn."""
+    ca_vendor(dal.SPLITS, P1, [("a", "AAA", D(2024, 1, 5), 0.5),
+                             ("b", "BBB", D(2024, 2, 5), 0.5)])
+    ca_vendor(dal.SPLITS, P2, [("a", "AAA", D(2024, 1, 5), 0.5)])
+
+    d = restatement.diff(dal.SPLITS)
+    assert (d.ids_gone, d.events_gone, d.ids_churned) == (1, 1, 0)
+    assert "id churn only        0 ids" in str(d)
 
 
 def test_a_changed_factor_is_a_restatement(ca_vendor):
@@ -103,3 +115,15 @@ def test_drift_measures_the_movement_between_two_pulls(ca_vendor):
     text = restatement.drift(dal.SPLITS, D(2024, 1, 1), D(2024, 12, 31))
     assert "matched events       2" in text
     assert "restated             1 (50.000 percent), 1 tickers" in text
+
+
+def test_drift_can_start_from_a_named_pull(ca_vendor):
+    """A study compares the pull it used with the newest pull."""
+    P0 = D(2026, 8, 1)
+    ca_vendor(dal.SPLITS, P0, [("a", "AAA", D(2024, 1, 5), 0.3)])
+    ca_vendor(dal.SPLITS, P1, [("a", "AAA", D(2024, 1, 5), 0.5)])
+    ca_vendor(dal.SPLITS, P2, [("a", "AAA", D(2024, 1, 5), 0.5)])
+
+    text = restatement.drift(dal.SPLITS, D(2024, 1, 1), D(2024, 12, 31), older=P1)
+    assert f"vendor pull {P1} against {P2}" in text
+    assert "restated             0 (0.000 percent)" in text
