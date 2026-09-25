@@ -1917,6 +1917,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "exchange-calendars" },
     { name = "httpx" },
+    { name = "numpy" },
     { name = "pydantic-settings" },
     { name = "pytz" },
 ]
@@ -1947,6 +1948,7 @@ requires-dist = [
     { name = "duckdb" },
     { name = "exchange-calendars", specifier = ">=4.13.2" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "numpy" },
     { name = "pydantic-settings" },
     { name = "pytz" },
 ]
