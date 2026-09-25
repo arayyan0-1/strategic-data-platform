@@ -151,21 +151,38 @@ def test_every_backfill_target_is_a_daily_event_stream():
 
 
 class TestDbtStale:
+    """Freshness comes from the stamp of the last publish, not from the
+    warehouse mtime. A failed build can still write the warehouse file."""
+
+    @staticmethod
+    def _stamp(mtime: float) -> None:
+        from sdp import transform
+        _touch(transform.stamp_path(), mtime)
+
     def test_an_absent_warehouse_is_stale(self, tmp_data_root):
         assert daily.dbt_stale() is True
 
-    def test_a_warehouse_newer_than_raw_is_fresh(self, tmp_data_root):
+    def test_a_warehouse_with_no_stamp_is_stale(self, tmp_data_root):
         _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 1000)
         _touch(settings.warehouse_path, 2000)
+        assert daily.dbt_stale() is True
+
+    def test_a_stamp_newer_than_raw_is_fresh(self, tmp_data_root):
+        _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 1000)
+        _touch(settings.warehouse_path, 2000)
+        self._stamp(2000)
         assert daily.dbt_stale() is False
 
-    def test_a_warehouse_older_than_raw_is_stale(self, tmp_data_root):
-        _touch(settings.warehouse_path, 1000)
+    def test_a_stamp_older_than_raw_is_stale(self, tmp_data_root):
+        """A newer warehouse mtime does not hide an old stamp."""
+        self._stamp(1000)
         _touch(dal.DAY_AGGS.partition_file(D(2024, 1, 4)), 2000)
+        _touch(settings.warehouse_path, 3000)
         assert daily.dbt_stale() is True
 
     def test_an_empty_raw_is_not_stale(self, tmp_data_root):
         _touch(settings.warehouse_path, 1000)
+        self._stamp(1000)
         assert daily.dbt_stale() is False
 
 

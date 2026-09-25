@@ -281,15 +281,17 @@ def _newest_raw_mtime() -> float | None:
 
 
 def dbt_stale() -> bool:
-    """True when the dbt build is older than the newest raw file, or absent. A
-    fresh raw partition with an older warehouse means the models must run."""
-    wh = settings.warehouse_path
-    if not wh.exists():
+    """True when no build is published, or when the last full build started
+    before the newest raw file. A failed build does not write the stamp, so the
+    warehouse stays stale."""
+    from sdp import transform
+    stamp = transform.stamp_path()
+    if not settings.warehouse_path.exists() or not stamp.exists():
         return True
     raw = _newest_raw_mtime()
     if raw is None:
         return False
-    return wh.stat().st_mtime < raw
+    return stamp.stat().st_mtime < raw
 
 
 def _build_dbt() -> int:
@@ -398,10 +400,11 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                              "level": "warn", "updated": None,
                              "detail": "not pulled"})
 
-    # The dbt build.
-    wh = settings.warehouse_path
-    if wh.exists():
-        built = dt.datetime.fromtimestamp(wh.stat().st_mtime, dt.UTC).date()
+    # The dbt build. The stamp of the last publish dates it.
+    from sdp import transform
+    stamp = transform.last_build()
+    if settings.warehouse_path.exists() and stamp:
+        built = dt.datetime.fromisoformat(stamp["published_utc"]).date()
         stale = dbt_stale()
         dbt = {"built": _iso(built), "stale": stale,
                "level": "bad" if stale else "ok",
