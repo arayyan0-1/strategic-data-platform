@@ -4,41 +4,9 @@
   includes D uses the volume of the day a position opens.
 #}
 
-with reference as (
+with keyed as (
 
-    select
-        ticker,
-        cast(date as date)      as date,
-        name,
-        type,
-        primary_exchange,
-        active,
-        currency_name,
-        cik,
-        composite_figi,
-        share_class_figi
-    from {{ lake('massive_tickers', 'date') }}
-
-), keyed as (
-
-    select
-        *,
-        -- Prefer the security identifier (FIGI), fall back to an issuer id made
-        -- unique by ticker. key_rule records which rule fired, so the fallback
-        -- rate is measurable.
-        coalesce(
-            share_class_figi,
-            composite_figi,
-            nullif(cik, '') || '.' || ticker,
-            'TICKER.' || ticker
-        ) as security_key,
-        case
-            when share_class_figi is not null then 'share_class_figi'
-            when composite_figi   is not null then 'composite_figi'
-            when nullif(cik, '')  is not null then 'cik_ticker'
-            else 'ticker_only'
-        end as key_rule
-    from reference
+    select * from {{ ref('stg_tickers') }}
 
 ), bars as (
 
@@ -75,8 +43,10 @@ with reference as (
         k.ticker,
         k.security_key,
         k.key_rule,
+        s.is_primary_line,
         k.name,
         k.type,
+        k.type_filled,
         k.primary_exchange,
         t.close,
         t.dollar_volume,
@@ -86,8 +56,8 @@ with reference as (
 
         -- A null type, exchange or active flag fails the filter.
         coalesce(
-            k.type in ({{ "'" ~ var('universe_types') | join("','") ~ "'" }})
-                and k.primary_exchange in ({{ "'" ~ var('universe_exchanges') | join("','") ~ "'" }})
+            k.type_filled in ({{ sql_list('universe_types') }})
+                and k.primary_exchange in ({{ sql_list('universe_exchanges') }})
                 and k.active,
             false
         )                                                   as passes_instrument,
@@ -102,6 +72,9 @@ with reference as (
     inner join liquidity t
         on k.ticker = t.ticker
        and k.date   = t.date
+    inner join {{ ref('stg_security_lines') }} s
+        on s.ticker = k.ticker
+       and s.date   = k.date
 
 ), flagged as (
 

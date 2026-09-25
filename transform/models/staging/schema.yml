@@ -15,8 +15,32 @@ models:
               arguments:
                 values: ["split", "dividend"]
 
+  - name: stg_tickers
+    description: The ticker reference per date, with the security key and the rule that set it.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: key_rule
+        description: share_class_figi_filled is a FIGI that the vendor dropped on this date, taken from the same ticker and CIK.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["share_class_figi", "share_class_figi_filled", "composite_figi", "cik_ticker", "ticker_only"]
+      - name: type_filled
+        description: The vendor type, or the last known type of the security where the vendor type is null.
+
+  - name: stg_security_lines
+    description: One row per ticker and session with a bar, with the security key and the primary line of the security.
+    columns:
+      - name: is_primary_line
+        description: One line per security and session. The shortest ticker wins, so a when-issued line gives way to the regular line.
+        tests: [not_null]
+
   - name: stg_prices_adjusted
-    description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins.
+    description: >
+      Unadjusted prices, the two factors and the adjusted columns, from two as-of joins.
+      At a ticker change, the rows of the earlier ticker also take the factors of the later
+      ticker of the same security.
     columns:
       - name: ticker
         tests: [not_null]
@@ -26,6 +50,8 @@ models:
         tests: [not_null]
       - name: adj_close_split
         tests: [not_null]
+      - name: later_ticker
+        description: The next ticker of the same security, whose factors this row takes. Null when the ticker does not change.
 
   - name: stg_universe
     description: The universe per date, from an instrument filter and a liquidity filter.
@@ -36,11 +62,9 @@ models:
         tests: [not_null]
       - name: security_key
         tests: [not_null]
-      - name: key_rule
-        tests:
-          - accepted_values:
-              arguments:
-                values: ["share_class_figi", "composite_figi", "cik_ticker", "ticker_only"]
+      - name: is_primary_line
+        description: The line that every series of the security reads on this session.
+        tests: [not_null]
       - name: passes_instrument
         tests: [not_null]
       - name: passes_liquidity
