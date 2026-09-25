@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python -m pytest *)",
+      "Bash(uv run pytest *)",
+      "Bash(.venv/bin/ruff check *)",
+      "Bash(uv run ruff check *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(.venv/bin/python -m sdp.dal *)",
+      "Bash(.venv/bin/python -m sdp.transform *)",
+      "Bash(python -m sdp.dal *)",
+      "Bash(python -m sdp.transform *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Edit(./.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
