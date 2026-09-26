@@ -1,7 +1,9 @@
 {#
   The state of the US stock market from the in-universe common stock, one row per
   session. Each name is its security series (the primary line), and the moving
-  averages and 52-week extremes use the total-adjusted close over the full series.
+  averages and 52-week extremes use the total-adjusted close over the full series. The
+  series keeps the sessions of every type, so a name that converts from an ADR to
+  ordinary shares keeps its history. in_universe selects common stock on each session.
 
   - ew_ret is the equal-weighted return, with each return winsorized at the 1st and
     99th percentile of the session, so one microcap spike does not move the index.
@@ -25,7 +27,7 @@ with s as (
         coalesce(p.adj_close_total, p.adj_close_split) as px
     from {{ ref('stg_prices_adjusted') }} p
     join {{ ref('stg_universe') }} u using (ticker, date)
-    where u.is_primary_line and u.type_filled = 'CS'
+    where u.is_primary_line
 
 ), f as (
 
