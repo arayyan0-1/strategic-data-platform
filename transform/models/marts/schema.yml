@@ -31,16 +31,52 @@ models:
       - name: quintile
         tests: [not_null]
 
+  - name: mart_forward_residuals
+    description: Forward residuals of the style and industry model over 1, 5 and 21 sessions, from the exposures of D.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: date
+        tests: [not_null]
+
+  - name: mart_eval_sessions
+    description: The evaluation calendar. The fold of each session and the fold where its label ends.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+      - name: fold
+        tests: [not_null]
+      - name: period
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['before', 'development', 'holdout']
+
   - name: mart_signal_ic
-    description: Daily cross-sectional Spearman IC per signal and horizon.
+    description: Daily cross-sectional Spearman IC per signal, target (return or residual) and horizon.
     columns:
       - name: signal
+        tests: [not_null]
+      - name: target
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['return', 'residual']
+      - name: horizon
         tests: [not_null]
       - name: ic
         tests: [not_null]
 
   - name: mart_signal_ic_summary
-    description: Mean IC, t and lag-one IC autocorrelation, per signal and horizon.
+    description: IC statistics per signal, target and horizon over development and each development fold, with the Newey-West t.
+    columns:
+      - name: signal
+        tests: [not_null]
+      - name: period
+        tests: [not_null]
+
+  - name: mart_signal_ic_holdout
+    description: IC statistics over the holdout. Read it once for a final signal.
     columns:
       - name: signal
         tests: [not_null]

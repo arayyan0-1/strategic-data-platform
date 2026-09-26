@@ -36,6 +36,12 @@ vars:
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
+  # The evaluation calendar. Development is split into eval_folds contiguous folds, and a
+  # signal is judged on development. The sessions from holdout_start are the holdout: a
+  # signal meets it once, when it is final. The date stays fixed as the data grows.
+  eval_folds: 4
+  holdout_start: "2025-10-01"
+
   # The market monitor lists an item as an exception beyond these limits: a move of
   # monitor_z standard deviations, a percentile in the outer monitor_pct of its
   # history, and a stock-specific move of twice monitor_z for a cap of monitor_big_cap.
