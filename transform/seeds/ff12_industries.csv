@@ -1,0 +1,50 @@
+industry,industry_name,sic_from,sic_to
+NoDur,Consumer nondurables,100,999
+NoDur,Consumer nondurables,2000,2399
+NoDur,Consumer nondurables,2700,2749
+NoDur,Consumer nondurables,2770,2799
+NoDur,Consumer nondurables,3100,3199
+NoDur,Consumer nondurables,3940,3989
+Durbl,Consumer durables,2500,2519
+Durbl,Consumer durables,2590,2599
+Durbl,Consumer durables,3630,3659
+Durbl,Consumer durables,3710,3711
+Durbl,Consumer durables,3714,3714
+Durbl,Consumer durables,3716,3716
+Durbl,Consumer durables,3750,3751
+Durbl,Consumer durables,3792,3792
+Durbl,Consumer durables,3900,3939
+Durbl,Consumer durables,3990,3999
+Manuf,Manufacturing,2520,2589
+Manuf,Manufacturing,2600,2699
+Manuf,Manufacturing,2750,2769
+Manuf,Manufacturing,3000,3099
+Manuf,Manufacturing,3200,3569
+Manuf,Manufacturing,3580,3629
+Manuf,Manufacturing,3700,3709
+Manuf,Manufacturing,3712,3713
+Manuf,Manufacturing,3715,3715
+Manuf,Manufacturing,3717,3749
+Manuf,Manufacturing,3752,3791
+Manuf,Manufacturing,3793,3799
+Manuf,Manufacturing,3830,3839
+Manuf,Manufacturing,3860,3899
+Enrgy,Energy,1200,1399
+Enrgy,Energy,2900,2999
+Chems,Chemicals,2800,2829
+Chems,Chemicals,2840,2899
+BusEq,Business equipment,3570,3579
+BusEq,Business equipment,3660,3692
+BusEq,Business equipment,3694,3699
+BusEq,Business equipment,3810,3829
+BusEq,Business equipment,7370,7379
+Telcm,Telecom,4800,4899
+Utils,Utilities,4900,4949
+Shops,Shops,5000,5999
+Shops,Shops,7200,7299
+Shops,Shops,7600,7699
+Hlth,Health care,2830,2839
+Hlth,Health care,3693,3693
+Hlth,Health care,3840,3859
+Hlth,Health care,8000,8099
+Money,Finance,6000,6999

@@ -57,8 +57,16 @@ DIVIDENDS = Dataset("massive_dividends", None)
 SHORT_VOLUME = Dataset("massive_short_volume", "date", union_by_name=True)
 SHORT_INTEREST = Dataset("massive_short_interest", "date", union_by_name=True)
 
+# Ticker details: shares outstanding, market cap and the industry code. One
+# request per ticker, so one partition per month, on its last session.
+TICKER_DETAILS = Dataset("massive_ticker_details", "date", union_by_name=True)
+
+# The Fama-French daily factors. The library restates the whole history in each
+# file, so the table is current state.
+FRENCH = Dataset("french_factors", None)
+
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS,
-                                SHORT_VOLUME, SHORT_INTEREST)}
+                                SHORT_VOLUME, SHORT_INTEREST, TICKER_DETAILS, FRENCH)}
 
 _con: duckdb.DuckDBPyConnection | None = None
 
@@ -194,9 +202,9 @@ def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
 # ---------- current state: one table ----------
 
 def current(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """The corporate action table as the vendor states it now. One table,
-    replaced by each pull, so this read is not point-in-time. A past belief of
-    the vendor comes from the dated files in vendor/."""
+    """A current-state table as the vendor states it now. One table, replaced
+    by each pull, so this read is not point-in-time. A past belief of the vendor
+    comes from the dated files in vendor/."""
     if ds.key is not None:
         raise ValueError(
             f"{ds.name} is an event stream. Use series(ds, start, end) or "
@@ -236,6 +244,18 @@ def splits():
 def dividends():
     """Return the dividend table as the vendor states it now. See current()."""
     return current(DIVIDENDS)
+
+
+def ticker_details(start: dt.date | None = None, end: dt.date | None = None):
+    """Monthly ticker details of the common stock, point-in-time: shares outstanding,
+    market cap (for the whole company) and the SIC industry code."""
+    return series(TICKER_DETAILS, start, end)
+
+
+def french_factors():
+    """Return the Fama-French daily factors as the library states them now, as
+    fractions. crsp_month names the version of the library files."""
+    return current(FRENCH)
 
 
 def short_volume(start: dt.date | None = None, end: dt.date | None = None):

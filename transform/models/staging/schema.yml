@@ -29,6 +29,14 @@ models:
       - name: type_filled
         description: The vendor type, or the last known type of the security where the vendor type is null.
 
+  - name: stg_security_details
+    description: One row per security and month-end, with the market cap of the share class and the industry.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: industry
+        tests: [not_null]
+
   - name: stg_security_lines
     description: One row per ticker and session with a bar, with the security key and the primary line of the security.
     columns:
@@ -64,6 +72,11 @@ models:
         tests: [not_null]
       - name: is_primary_line
         description: The line that every series of the security reads on this session.
+        tests: [not_null]
+      - name: market_cap
+        description: The market cap of the share class, from the newest month-end of ticker details, moved with the split-adjusted price. Null when the month-end is over 70 days old.
+      - name: industry
+        description: The Fama-French 12-industry class of the SIC code. Unknown when the security has no code.
         tests: [not_null]
       - name: passes_instrument
         tests: [not_null]

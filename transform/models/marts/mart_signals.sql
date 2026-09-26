@@ -90,6 +90,9 @@ with base as (
         in_universe,
         dollar_volume,
 
+        -- The total return of the session, from the close before. Not a signal.
+        ret_1,
+
         -- reversal: the negative past return
         -1 * ret_1                                                as reversal_1,
         -1 * (adj_close_total / nullif(lag(adj_close_total, 5) over w, 0) - 1)

@@ -52,3 +52,124 @@ models:
         tests: [not_null]
       - name: ticker
         tests: [not_null]
+
+  - name: mart_securities
+    description: The security master. One row per security_key, with its tickers in order.
+    columns:
+      - name: security_key
+        tests: [not_null, unique]
+      - name: ticker
+        tests: [not_null]
+
+  - name: mart_factor_style
+    description: Pure style factor returns from one weighted cross-sectional regression per session.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+      - name: market
+        description: The intercept, the return of the regression-weighted market.
+      - name: r2
+        description: The share of the cross-section of returns that the styles explain on the session.
+
+  - name: mart_factor_pca
+    description: The top five eigenportfolios of the trailing correlation matrix, held out of sample.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+      - name: pc1_share
+        description: The absorption ratio. A high value means that the stocks move together.
+
+  - name: mart_factor_ff_mimic
+    description: The Fama-French factors mimicked with the style and statistical portfolios, out of sample, up to the last session.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+
+  - name: mart_factor_returns
+    description: Every factor return in one long table, by family (quintile, style, pca, ff, ff_mimic).
+    columns:
+      - name: date
+        tests: [not_null]
+      - name: family
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["quintile", "style", "industry", "pca", "ff", "ff_mimic"]
+      - name: factor
+        tests: [not_null]
+
+  - name: mart_factor_performance
+    description: Compounded returns over standard windows, volatility, Sharpe ratio and drawdown, per factor.
+    columns:
+      - name: factor
+        tests: [not_null]
+
+  - name: mart_factor_correlation
+    description: The correlation of the daily returns of each pair of factors over the last two years.
+
+  - name: mart_market_board
+    description: The cross-asset ETF board, from the monitor_etfs seed.
+    columns:
+      - name: ticker
+        tests: [not_null, unique]
+      - name: close
+        tests: [not_null]
+
+  - name: mart_market_history
+    description: The total-adjusted close of each monitor ETF over the last two years.
+
+  - name: mart_market_breadth
+    description: Breadth, dispersion, correlation and volatility of the in-universe common stock, per session.
+    columns:
+      - name: date
+        tests: [not_null, unique]
+
+  - name: mart_market_movers
+    description: The in-universe names that moved most on the last session, in ranked lists.
+
+  - name: mart_market_calendar
+    description: Splits and ex-dividend dates of the next 45 days, for the tickers that traded on the last session.
+
+  - name: mart_market_short_interest
+    description: Short interest of the in-universe names at the last settlement, beside the settlement before.
+
+  - name: mart_style_exposures
+    description: The industry and the eight style z-scores of each in-universe name per session, with its regression weight and the return of the next session.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: industry
+        tests: [not_null]
+
+  - name: mart_residuals
+    description: The return of each in-universe name split into market, industry and style parts and a stock-specific residual, with the residual in units of its own volatility.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: resid
+        tests: [not_null]
+
+  - name: mart_factor_crowding
+    description: Crowding of each style from short interest in its short leg less its long leg, per settlement.
+
+  - name: mart_factor_risk
+    description: The risk state of each factor on its last session in units of its own history (z, volatility percentile, drawdown percentile, correlation shift, crowding).
+    columns:
+      - name: factor
+        tests: [not_null]
+
+  - name: mart_spreads
+    description: The bid-ask spread of each common stock, estimated from daily prices (Abdi and Ranaldo).
+
+  - name: mart_signal_costs
+    description: Gross, cost and net daily return of each quintile long-short, from the estimated spreads.
+
+  - name: mart_market_relations
+    description: Cross-asset relations (ratios and correlations of the monitor ETFs) over two years, with the 21-session change, its z-score and the percentile.
+
+  - name: mart_market_regime
+    description: The regime measures of the stock market on the last session against their history.
+
+  - name: mart_market_exceptions
+    description: What is unusual on the last session, one row per item, with a score in standard deviations.

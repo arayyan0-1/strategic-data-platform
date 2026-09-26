@@ -22,7 +22,17 @@ class Settings(BaseSettings):
 
     massive_api_base: str = "https://api.massive.com"
 
+    # The Kenneth French Data Library. It is public and needs no key.
+    french_base_url: str = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+
     data_root: Path = _REPO_ROOT / "data"
+
+    # DuckDB in a dbt build. Above the memory limit, DuckDB writes to disk, which costs
+    # little. A higher limit lets the system compress or swap the build when other
+    # programs need memory, and that makes the build many times slower. One model
+    # already uses every core, so one dbt thread builds fastest.
+    dbt_memory_limit: str = "4GB"
+    dbt_threads: int = 1
 
     @property
     def vendor_dir(self) -> Path:
