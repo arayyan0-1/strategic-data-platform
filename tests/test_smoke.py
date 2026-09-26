@@ -51,6 +51,7 @@ def test_backfill_targets_are_all_event_streams():
         "tickers": dal.TICKERS,
         "short_volume": dal.SHORT_VOLUME,
         "short_interest": dal.SHORT_INTEREST,
+        "ticker_details": dal.TICKER_DETAILS,
     }
     # Every target must appear here, so that a new target cannot enter the
     # runner without a statement of its kind.

@@ -24,7 +24,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sdp.config import settings
-from sdp.ingest import massive_day_aggs, massive_short, massive_tickers
+from sdp.ingest import (
+    massive_day_aggs,
+    massive_short,
+    massive_ticker_details,
+    massive_tickers,
+)
 from sdp.ingest.common import XNYS, add_mode_flags, check_mode
 
 log = logging.getLogger("sdp.backfill")
@@ -37,6 +42,12 @@ TARGETS: dict[str, Callable[..., Path | None]] = {
     "tickers": massive_tickers.ingest,
     "short_volume": massive_short.ingest_short_volume,
     "short_interest": massive_short.ingest_short_interest,
+    "ticker_details": massive_ticker_details.ingest,
+}
+
+# A target with a sparser calendar than every session. Ticker details are monthly.
+DATES: dict[str, Callable[[dt.date, dt.date], list[dt.date]]] = {
+    "ticker_details": massive_ticker_details.month_end_sessions,
 }
 
 _NOT_BACKFILLABLE = {
@@ -90,7 +101,7 @@ def backfill(
         )
 
     ingest = TARGETS[target]
-    days = sessions(start, end)
+    days = DATES.get(target, sessions)(start, end)
     if limit is not None:
         days = days[:limit]
     if not days:

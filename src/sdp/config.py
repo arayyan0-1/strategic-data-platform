@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     massive_api_base: str = "https://api.massive.com"
 
+    # The Kenneth French Data Library. It is public and needs no key.
+    french_base_url: str = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+
     data_root: Path = _REPO_ROOT / "data"
 
     @property

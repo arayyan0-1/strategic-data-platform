@@ -39,7 +39,7 @@ def fake_backfill(monkeypatch):
 
 @pytest.fixture
 def fake_pull(monkeypatch):
-    """Replace the corporate-action ingest with a recorder."""
+    """Replace the current-state ingests with a recorder."""
 
     def install(fail: tuple = ()):
         calls = []
@@ -50,10 +50,27 @@ def fake_pull(monkeypatch):
                 raise RuntimeError("vendor is down")
             return f"/fake/{dataset}"
 
+        def ingest_french(pull_date=None, *, force=False, rebuild=False):
+            return ingest(daily.french.DATASET.name, pull_date, force=force)
+
         monkeypatch.setattr(daily.ca, "ingest", ingest)
+        monkeypatch.setattr(daily.french, "ingest", ingest_french)
         return calls
 
     return install
+
+
+@pytest.fixture(autouse=True)
+def no_details_download(monkeypatch):
+    """No test requests ticker details."""
+    monkeypatch.setattr(daily.details, "ingest", lambda d, **kw: f"/fake/details/{d}")
+
+
+@pytest.fixture(autouse=True)
+def no_factor_download(monkeypatch):
+    """No test downloads the factor library. fake_pull replaces this stub."""
+    monkeypatch.setattr(daily.french, "ingest",
+                        lambda pull_date=None, *, force=False, rebuild=False: "/fake/french")
 
 
 @pytest.fixture(autouse=True)
@@ -109,7 +126,7 @@ class TestEventStreamFill:
 
 
 class TestCurrentStatePull:
-    def test_both_datasets_are_pulled(self, tmp_data_root, fake_pull):
+    def test_each_dataset_is_pulled(self, tmp_data_root, fake_pull):
         calls = fake_pull()
         assert daily._pull_current_state(TODAY) == []
         assert calls == daily.CURRENT_STATE
@@ -147,7 +164,7 @@ class TestExitCode:
 
 def test_every_backfill_target_is_a_daily_event_stream():
     """The driver and the runner must agree on which datasets they fill."""
-    assert set(daily.EVENT_STREAMS) == set(backfill.TARGETS)
+    assert set(daily.EVENT_STREAMS) | set(daily.MONTHLY_STREAMS) == set(backfill.TARGETS)
 
 
 class TestDbtStale:

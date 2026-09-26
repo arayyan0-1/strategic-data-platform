@@ -3,10 +3,12 @@
 
     python -m sdp.daily
 
-Three steps. (1) Pull the current-state datasets (splits, dividends). Each pull
-replaces the whole table, so a missed day costs nothing. (2) Fill the four event
+Three steps. (1) Pull the current-state datasets (splits, dividends, and the
+Fama-French factors once a week). Each pull replaces the whole table, so a missed
+day costs nothing. (2) Fill the four event
 streams (day_aggs, tickers, short_volume, short_interest) from the day after the
-last partition, so a machine that slept self-heals. Step 2 is capped so a long
+last partition, so a machine that slept self-heals, then the monthly ticker
+details of each month-end that has ended. Step 2 is capped so a long
 gap does not become a backfill. (3) Build the dbt models, but only when a new
 session landed, so raw data becomes usable without a second command. `update()`
 runs all three under a lock. `run()` is steps 1 and 2 alone. When the vendor
@@ -32,11 +34,13 @@ from urllib.parse import urlsplit
 
 from sdp import backfill, dal
 from sdp.config import settings
+from sdp.ingest import french
 from sdp.ingest import massive_corporate_actions as ca
+from sdp.ingest import massive_ticker_details as details
 
 log = logging.getLogger("sdp.daily")
 
-CURRENT_STATE = ["massive_splits", "massive_dividends"]
+CURRENT_STATE = ["massive_splits", "massive_dividends", french.DATASET.name]
 
 EVENT_STREAMS = {
     "day_aggs": dal.DAY_AGGS,
@@ -46,6 +50,9 @@ EVENT_STREAMS = {
     "short_volume": dal.SHORT_VOLUME,
     "short_interest": dal.SHORT_INTEREST,
 }
+
+# Event streams with one partition per month, filled after the daily streams.
+MONTHLY_STREAMS = {"ticker_details": dal.TICKER_DETAILS}
 
 DEFAULT_MAX_SESSIONS = 30
 """The most sessions that one daily run fills for each event stream."""
@@ -112,7 +119,10 @@ def _pull_current_state(today: dt.date, *, force: bool = False,
         if on_event:
             on_event({"kind": "pull_start", "dataset": dataset})
         try:
-            path = ca.ingest(dataset, today, force=force)
+            if dataset == french.DATASET.name:
+                path = french.ingest(today, force=force)
+            else:
+                path = ca.ingest(dataset, today, force=force)
             log.info("%s: %s", dataset, path)
             ok = True
         except Exception as exc:  # noqa: BLE001 -- one dataset must not stop the other
@@ -122,6 +132,37 @@ def _pull_current_state(today: dt.date, *, force: bool = False,
         if on_event:
             on_event({"kind": "pull_done", "dataset": dataset, "ok": ok})
     return failed
+
+
+def _pending_month_ends(today: dt.date) -> list[dt.date]:
+    """Return the month-end sessions after the last ticker-details partition whose
+    tickers and day_aggs partitions are published. A lake with no partition starts 45
+    days back. Run python -m sdp.backfill ticker_details for a full history."""
+    parts = dal.partitions(dal.TICKER_DETAILS)
+    start = parts[-1] + dt.timedelta(days=1) if parts else today - dt.timedelta(days=45)
+    return [d for d in details.month_end_sessions(start, today)
+            if dal.TICKERS.partition_file(d).exists() and dal.DAY_AGGS.partition_file(d).exists()]
+
+
+def _fill_ticker_details(today: dt.date,
+                         on_event: Callable[[dict], None] | None = None) -> list[str]:
+    """Publish the ticker details of each pending month-end. Return the problems."""
+    pending = _pending_month_ends(today)
+    if on_event:
+        on_event({"kind": "stream_start", "dataset": "ticker_details", "pending": len(pending)})
+    found = []
+    for d in pending:
+        try:
+            details.ingest(d)
+            status = "ok"
+        except Exception as exc:  # noqa: BLE001 -- one month must not stop the run
+            found.append(f"ticker_details {d}: {type(exc).__name__}: {exc}")
+            log.error("ticker_details %s FAILED %s: %s", d, type(exc).__name__, exc)
+            status = "failed"
+        if on_event:
+            on_event({"kind": "session", "dataset": "ticker_details", "date": d,
+                      "status": status})
+    return found
 
 
 def _fill_event_stream(
@@ -192,6 +233,8 @@ def run(
             failures = _fill_event_stream(name, ds, _fill_end(name, today),
                                           max_sessions, on_event)
             found += [f"{name} {d}: {msg}" for d, msg in failures]
+        # Monthly, after the tickers and bars of the month-end are published.
+        found += _fill_ticker_details(today, on_event)
 
     if problems is not None:
         problems.extend(found)
@@ -385,14 +428,29 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                      "updated": updated,
                      "detail": f"last settlement {last}" if last else "no settlements"})
 
-    # Current state. A missed day costs nothing, so it is never "bad".
-    for name, ds in (("splits", dal.SPLITS), ("dividends", dal.DIVIDENDS)):
+    # Ticker details are monthly. They are current when the last month-end session
+    # before the expected session is published.
+    cov = dal.coverage(dal.TICKER_DETAILS)
+    last = cov[1] if cov else None
+    due = details.month_end_sessions(expected - dt.timedelta(days=40), expected) \
+        if expected else []
+    ok = bool(last and due and last >= due[-1])
+    datasets.append({"name": "ticker_details", "kind": "monthly", "last": _iso(last),
+                     "behind": None, "level": "ok" if ok else "warn",
+                     "updated": _mtime_iso(dal.TICKER_DETAILS.partition_file(last))
+                     if last else None,
+                     "detail": f"month-end {last}" if last else "no partitions"})
+
+    # Current state. A missed day costs nothing, so it is never "bad". The factor
+    # library updates monthly, so its pull is weekly.
+    for name, ds, max_age in (("splits", dal.SPLITS, 0), ("dividends", dal.DIVIDENDS, 0),
+                              ("french_factors", dal.FRENCH, french.MAX_AGE_DAYS)):
         f = ds.table_file
         if f.exists():
             when = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.UTC).date()
             age = (now_utc.date() - when).days
             datasets.append({"name": name, "kind": "current", "behind": None,
-                             "level": "ok" if age == 0 else "warn",
+                             "level": "ok" if age <= max_age else "warn",
                              "updated": _mtime_iso(f),
                              "detail": f"refreshed {when}"})
         else:
@@ -548,6 +606,7 @@ def _plan_total(today: dt.date, max_sessions: int, *,
     if not skip_event_streams:
         for name, ds in EVENT_STREAMS.items():
             total += _pending_count(ds, _fill_end(name, today), max_sessions)
+        total += len(_pending_month_ends(today))
     return total + 1  # The dbt step is always one unit, built or skipped.
 
 
