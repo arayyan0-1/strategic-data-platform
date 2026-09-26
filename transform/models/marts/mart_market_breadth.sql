@@ -13,7 +13,7 @@
     average single-name volatility, an estimate of the average pairwise correlation.
   - resid_dispersion is the robust cross-sectional standard deviation of the residuals
     of the style and industry model: the room for stock picking. median_spread is the
-    median estimated spread (mart_spreads). style_r2 is the share of the cross-section
+    median model spread (mart_spreads). style_r2 is the share of the cross-section
     that the model explains, and absorption the variance share of the first principal
     component. The _21 columns are their 21-session means.
 #}
