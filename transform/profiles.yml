@@ -4,5 +4,8 @@ sdp:
     dev:
       type: duckdb
       path: "{{ env_var('SDP_WAREHOUSE') }}"
-      threads: 4
+      # sdp.transform sets these from config.Settings.
+      threads: "{{ env_var('SDP_DBT_THREADS', '1') | int }}"
       extensions: []
+      settings:
+        memory_limit: "{{ env_var('SDP_DBT_MEMORY_LIMIT', '4GB') }}"

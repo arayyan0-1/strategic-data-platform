@@ -48,6 +48,8 @@ def env(warehouse: Path | None = None) -> dict[str, str]:
     out = os.environ.copy()
     out["SDP_DATA_ROOT"] = str(settings.data_root)
     out["SDP_WAREHOUSE"] = str(warehouse or settings.warehouse_path)
+    out["SDP_DBT_MEMORY_LIMIT"] = settings.dbt_memory_limit
+    out["SDP_DBT_THREADS"] = str(settings.dbt_threads)
     return out
 
 

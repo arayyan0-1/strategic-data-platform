@@ -9,41 +9,50 @@
 
 with sig as (
 
-    select date, security_key, ticker, signal, value
+    -- The forward returns join before the unpivot, when there is one row for
+    -- each name and session.
+    select date, security_key, ticker, signal, value, fwd_ret_1, fwd_ret_5, fwd_ret_21
     from (
-        unpivot {{ ref('mart_signals') }}
+        unpivot (
+            select s.*, f.fwd_ret_1, f.fwd_ret_5, f.fwd_ret_21
+            from {{ ref('mart_signals') }} s
+            left join {{ ref('mart_forward_returns') }} f
+                on f.security_key = s.security_key and f.date = s.date
+            where s.in_universe
+        )
         on {{ signal_columns() }}
         into name signal value value
     )
-    where in_universe and value is not null
+    where value is not null
 
 ), ranked as (
 
     -- rank() is 1 more than the count of lower values. count(*) over w is the
     -- count of values at or below this value. Their mean is the average rank.
+    -- Both windows sort on the same keys, so they share one sort.
     select
         *,
-        count(*) over (partition by date, signal)   as n,
-        (rank() over w + count(*) over w) / 2.0     as avg_rank
-    from sig
+        count(*) over (
+            partition by date, sid order by value
+            rows between unbounded preceding and unbounded following) as n,
+        (rank() over w + count(*) over w) / 2.0                       as avg_rank
+    from (select *, {{ signal_id('signal') }} as sid from sig)
     window w as (
-        partition by date, signal order by value
+        partition by date, sid order by value
         range between unbounded preceding and current row)
 
 )
 
 select
-    r.date,
-    r.security_key,
-    r.ticker,
-    r.signal,
-    r.value,
-    r.n,
-    r.avg_rank,
-    cast(ceil(r.avg_rank * 5.0 / r.n) as integer) as quintile,
-    f.fwd_ret_1,
-    f.fwd_ret_5,
-    f.fwd_ret_21
-from ranked r
-left join {{ ref('mart_forward_returns') }} f
-    on f.security_key = r.security_key and f.date = r.date
+    date,
+    security_key,
+    ticker,
+    signal,
+    value,
+    n,
+    avg_rank,
+    cast(ceil(avg_rank * 5.0 / n) as integer) as quintile,
+    fwd_ret_1,
+    fwd_ret_5,
+    fwd_ret_21
+from ranked

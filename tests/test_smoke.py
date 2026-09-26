@@ -70,3 +70,16 @@ def test_the_dbt_runner_gives_dbt_the_repo_paths():
     assert e["SDP_WAREHOUSE"] == str(settings.warehouse_path)
     assert Path(e["SDP_DATA_ROOT"]).is_absolute()
     assert transform.PROJECT_DIR.name == "transform"
+
+
+def test_the_dbt_profile_reads_the_limits_of_the_runner():
+    """A memory limit or a thread count that stays in Settings has no effect."""
+    from sdp import transform
+    from sdp.config import settings
+
+    e = transform.env()
+    assert e["SDP_DBT_MEMORY_LIMIT"] == settings.dbt_memory_limit
+    assert e["SDP_DBT_THREADS"] == str(settings.dbt_threads)
+    profile = (transform.PROJECT_DIR / "profiles.yml").read_text()
+    assert "env_var('SDP_DBT_MEMORY_LIMIT'" in profile
+    assert "env_var('SDP_DBT_THREADS'" in profile
