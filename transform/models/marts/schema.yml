@@ -196,10 +196,15 @@ models:
         tests: [not_null]
 
   - name: mart_spreads
-    description: The bid-ask spread of each common stock, estimated from daily prices (Abdi and Ranaldo).
+    description: The bid-ask spread of each common stock from the invariance cost model of Kyle and Obizhaeva, with the Abdi-Ranaldo estimate beside it as a diagnostic.
+    columns:
+      - name: security_key
+        tests: [not_null]
+      - name: date
+        tests: [not_null]
 
   - name: mart_signal_costs
-    description: Gross, cost and net daily return of each quintile long-short, from the estimated spreads.
+    description: Gross, cost and net daily return of each quintile long-short, from the model spreads.
 
   - name: mart_market_relations
     description: Cross-asset relations (ratios and correlations of the monitor ETFs) over two years, with the 21-session change, its z-score and the percentile.

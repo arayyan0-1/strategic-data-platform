@@ -1,5 +1,5 @@
 {#
-  The cost of each quintile long-short, from the estimated spreads. Each leg is equal
+  The cost of each quintile long-short, from the model spreads (mart_spreads). Each leg is equal
   weight. A name that enters a leg is bought, and a name that leaves is sold, each at
   half its spread, so the cost of a leg on a session is the sum of those half spreads
   over the count of names. The cost is paid at the close of the formation session, the

@@ -33,6 +33,11 @@ vars:
   min_days_in_window: 15
   min_days_since_first_bar: 60
 
+  # The spread model (mart_spreads): the half spread of the benchmark stock of Kyle and
+  # Obizhaeva (2016), linear calibration, and the minimum price increment in dollars.
+  spread_kappa0: 0.000821
+  tick_size: 0.01
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
