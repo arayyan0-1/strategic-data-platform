@@ -4,7 +4,8 @@
     python -m sdp.dashboard
 
 Serves http://127.0.0.1:8787. Use --port to select a different port. The page
-shows what each dataset holds, what is missing, and how old the dbt build is.
+shows what each dataset holds, what is missing, and how old the dbt build is. The
+market monitor (sdp.market) is at /market.
 One button pulls the missing sessions and builds the dbt models. The page is
 local only and does not need the network, except when it pulls. The pull runs in
 a background thread, so the page stays live while it works.
@@ -21,7 +22,7 @@ import time
 from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from sdp import daily
+from sdp import daily, market
 
 log = logging.getLogger("sdp.dashboard")
 
@@ -143,6 +144,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(data)))
+            # The data changes with each build, so the browser must not keep a copy.
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(data)
         except ConnectionError:
@@ -161,6 +164,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, PAGE, "text/html; charset=utf-8")
         elif self.path == "/state":
             self._send(200, json.dumps(_state()))
+        elif self.path == "/market" or self.path.startswith("/market?"):
+            self._send(200, market.PAGE, "text/html; charset=utf-8")
+        elif self.path == "/market.json":
+            try:
+                self._send(200, json.dumps(market.snapshot()))
+            except Exception as exc:  # noqa: BLE001 -- the page must show any failure
+                log.exception("The market payload failed.")
+                self._send(500, json.dumps({"errors": [f"{type(exc).__name__}: {exc}"]}))
         else:
             self._send(404, json.dumps({"error": "not found"}))
 
@@ -253,7 +264,8 @@ PAGE = """<!doctype html>
 </head>
 <body>
 <div class="wrap">
-  <h1>sdp data status</h1>
+  <h1>sdp data status
+    <a href="/market" style="font-size:14px;margin-left:10px">market monitor</a></h1>
   <div class="sub" id="generated">reading…</div>
   <div class="bar">
     <button id="pull" onclick="pull()">Update everything</button>

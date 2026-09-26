@@ -1,0 +1,68 @@
+ticker,asset_group,label,position
+SPY,US equity,S&P 500,1
+QQQ,US equity,Nasdaq 100,2
+DIA,US equity,Dow 30,3
+MDY,US equity,S&P MidCap 400,4
+IWM,US equity,Russell 2000,5
+RSP,US equity,S&P 500 equal weight,6
+VTI,US equity,Total market,7
+XLK,Sectors,Technology,10
+XLC,Sectors,Communication services,11
+XLY,Sectors,Consumer discretionary,12
+XLP,Sectors,Consumer staples,13
+XLE,Sectors,Energy,14
+XLF,Sectors,Financials,15
+XLV,Sectors,Health care,16
+XLI,Sectors,Industrials,17
+XLB,Sectors,Materials,18
+XLRE,Sectors,Real estate,19
+XLU,Sectors,Utilities,20
+SMH,Sectors,Semiconductors,21
+KRE,Sectors,Regional banks,22
+XBI,Sectors,Biotech,23
+ITB,Sectors,Homebuilders,24
+MTUM,Styles,Momentum,30
+QUAL,Styles,Quality,31
+USMV,Styles,Minimum volatility,32
+VLUE,Styles,Value,33
+SIZE,Styles,Size,34
+IWF,Styles,Large growth,35
+IWD,Styles,Large value,36
+IWO,Styles,Small growth,37
+IWN,Styles,Small value,38
+SPLV,Styles,Low volatility,39
+SPHB,Styles,High beta,40
+ARKK,Styles,Innovation,41
+BIL,Rates and credit,T-bills 1-3M,50
+SHY,Rates and credit,Treasuries 1-3Y,51
+IEF,Rates and credit,Treasuries 7-10Y,52
+TLT,Rates and credit,Treasuries 20Y+,53
+TIP,Rates and credit,TIPS,54
+LQD,Rates and credit,Investment grade,55
+HYG,Rates and credit,High yield,56
+EMB,Rates and credit,EM sovereign debt,57
+GLD,Commodities,Gold,60
+SLV,Commodities,Silver,61
+CPER,Commodities,Copper,62
+USO,Commodities,Crude oil,63
+UNG,Commodities,Natural gas,64
+DBC,Commodities,Broad commodities,65
+EFA,International,Developed ex-US,70
+VGK,International,Europe,71
+EWJ,International,Japan,72
+EEM,International,Emerging markets,73
+FXI,International,China large-cap,74
+MCHI,International,China,75
+INDA,International,India,76
+EWZ,International,Brazil,77
+EWY,International,South Korea,78
+EWT,International,Taiwan,79
+UUP,Currencies,US dollar,80
+FXE,Currencies,Euro,81
+FXY,Currencies,Japanese yen,82
+IBIT,Crypto,Bitcoin,90
+ETHA,Crypto,Ether,91
+BITO,Crypto,Bitcoin futures,92
+VIXY,Volatility,VIX futures,95
+UVXY,Volatility,VIX futures 1.5x,96
+VIXM,Volatility,VIX mid-term futures,97

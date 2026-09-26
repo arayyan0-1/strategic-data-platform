@@ -36,6 +36,17 @@ vars:
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
+  # The market monitor lists an item as an exception beyond these limits: a move of
+  # monitor_z standard deviations, a percentile in the outer monitor_pct of its
+  # history, and a stock-specific move of twice monitor_z for a cap of monitor_big_cap.
+  monitor_z: 2.0
+  monitor_pct: 0.05
+  monitor_big_cap: 10000000000
+
+seeds:
+  sdp:
+    +schema: reference
+
 models:
   sdp:
     staging:

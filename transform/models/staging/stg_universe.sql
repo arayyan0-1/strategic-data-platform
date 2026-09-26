@@ -14,6 +14,7 @@ with keyed as (
         ticker,
         date,
         close,
+        adj_close_split,
         dollar_volume
     from {{ ref('stg_prices_adjusted') }}
 
@@ -23,6 +24,7 @@ with keyed as (
         ticker,
         date,
         close,
+        adj_close_split,
         dollar_volume,
         avg(dollar_volume) over w      as adv,
         count(dollar_volume) over w    as days_in_window,
@@ -54,6 +56,14 @@ with keyed as (
         t.days_in_window,
         t.bars_seen,
 
+        -- The market cap of the share class. It moves with the split-adjusted price
+        -- from the month-end, and it is null when the month-end is over 70 days old.
+        case when k.date - d.snap_date <= 70
+             then d.cap * t.adj_close_split / d.adj_close_split end    as market_cap,
+        coalesce(d.industry, n.industry, 'Unknown')                    as industry,
+        coalesce(d.industry_name, n.industry_name, 'Unknown')          as industry_name,
+        coalesce(d.sic_code, n.sic_code)                               as sic_code,
+
         -- A null type, exchange or active flag fails the filter.
         coalesce(
             k.type_filled in ({{ sql_list('universe_types') }})
@@ -75,6 +85,15 @@ with keyed as (
     inner join {{ ref('stg_security_lines') }} s
         on s.ticker = k.ticker
        and s.date   = k.date
+    -- The newest month-end of ticker details on or before the session.
+    asof left join {{ ref('stg_security_details') }} d
+        on d.security_key = k.security_key
+       and d.snap_date   <= k.date
+    -- The first month-end after, for the industry of a security that listed during
+    -- the month. An industry code does not predict a return.
+    asof left join {{ ref('stg_security_details') }} n
+        on n.security_key = k.security_key
+       and n.snap_date   >= k.date
 
 ), flagged as (
 
