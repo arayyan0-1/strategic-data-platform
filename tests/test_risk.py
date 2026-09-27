@@ -161,3 +161,22 @@ def test_ff_cov_accepts_one_factor():
     Sigma, B = risk.ff_cov(R, F, rf)
     assert Sigma.shape == (R.shape[1], R.shape[1])
     assert B.shape == (R.shape[1], 1)
+
+
+def test_exposure_cov_recovers_the_covariance_of_a_known_model():
+    rng = np.random.default_rng(3)
+    T, N, K = 20_000, 6, 3
+    X = rng.normal(size=(N, K))
+    F = rng.normal(scale=[0.02, 0.01, 0.005], size=(T, K))
+    spec = rng.uniform(0.01, 0.02, size=N) ** 2
+    R = F @ X.T + rng.normal(size=(T, N)) * np.sqrt(spec)
+    S = risk.exposure_cov(X, F, spec)
+    assert S.shape == (N, N)
+    assert np.allclose(S, np.cov(R, rowvar=False), rtol=0.05, atol=2e-6)
+
+
+def test_exposure_cov_accepts_one_factor():
+    X = np.ones((4, 1))
+    F = np.array([[0.01], [-0.01], [0.02]])
+    S = risk.exposure_cov(X, F, np.full(4, 1e-4))
+    assert np.allclose(S - np.diag(np.full(4, 1e-4)), np.var(F, ddof=1))
