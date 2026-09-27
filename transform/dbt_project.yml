@@ -38,6 +38,14 @@ vars:
   spread_kappa0: 0.000821
   tick_size: 0.01
 
+  # A new FIGI on a ticker continues the security only when the split-adjusted jump
+  # from the last old bar to the first new bar is at most link_max_jump_sigma standard
+  # deviations of the last link_vol_window daily returns of the old FIGI. The deviation
+  # needs at least link_min_returns returns.
+  link_vol_window: 63
+  link_min_returns: 20
+  link_max_jump_sigma: 4.0
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
