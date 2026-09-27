@@ -2,13 +2,13 @@
 -- names, so the typical in-universe beta must sit near 1. A sign error or a
 -- wrong window would move it far off. Check the median over recent dense
 -- sessions; a wide band keeps the test about gross errors, not calibration.
-with last as (select max(date) as d from {{ ref('mart_signals') }})
+with last as (select max(date) as d from {{ ref('signals') }})
 
 select
     s.date,
     median(s.beta_252) as median_beta,
     count(*)           as n
-from {{ ref('mart_signals') }} s, last
+from {{ ref('signals') }} s, last
 where s.in_universe
   and s.beta_252 is not null
   and s.date > last.d - interval 90 day

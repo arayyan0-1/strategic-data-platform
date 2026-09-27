@@ -5,19 +5,19 @@
                      'Utils', 'Shops', 'Hlth', 'Money', 'Other', 'Unknown'] %}
 with days as (
     select date, lead(date) over (order by date) as next_date
-    from (select distinct date from {{ ref('mart_style_exposures') }})
+    from (select distinct date from {{ ref('style_exposures') }})
 ), shares as (
-    select d.next_date as date, e.industry, sum(e.cap) / sum(sum(e.cap)) over (partition by d.next_date) as share
-    from {{ ref('mart_style_exposures') }} e
+    select d.next_date as date, e.industry, sum(e.weight_cap) / sum(sum(e.weight_cap)) over (partition by d.next_date) as share
+    from {{ ref('style_exposures') }} e
     join days d using (date)
-    where e.r is not null and e.w > 0
+    where e.fwd_ret_1 is not null and e.weight > 0
     group by d.next_date, e.industry
 )
 select s.date, sum(s.share * case s.industry
     {% for c in industries %}when '{{ c }}' then f.ind_{{ c | lower }}
     {% endfor %}end) as weighted_sum
 from shares s
-join {{ ref('mart_factor_style') }} f using (date)
+join {{ ref('style_factor_returns') }} f using (date)
 group by s.date
 having abs(sum(s.share * case s.industry
     {% for c in industries %}when '{{ c }}' then f.ind_{{ c | lower }}

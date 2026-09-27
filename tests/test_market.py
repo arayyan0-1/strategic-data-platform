@@ -22,23 +22,24 @@ def warehouse(tmp_data_root):
     """Write a warehouse with a few rows in each mart that the monitor reads."""
     settings.warehouse_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(settings.warehouse_path))
-    con.execute("create schema main_marts")
-    con.execute("""create table main_marts.mart_market_board as
+    con.execute("create schema monitor")
+    con.execute("""create table monitor.market_board as
         select 'SPY' as ticker, 'US equity' as asset_group, 'S&P 500' as label, 1 as position,
                'SPDR' as name, date '2026-09-24' as last_date, 700.0 as close,
                0.01 as ret_1d, 0.02 as ret_1w, 'nan'::double as ret_1m, 0.05 as ret_3m,
                0.06 as ret_6m, 0.1 as ret_ytd, 0.2 as ret_1y, -0.01 as off_52w_high,
-               0.3 as over_52w_low, 0.12 as vol_20d, 1.1 as rel_volume""")
-    con.execute("""create table main_marts.mart_market_history as
-        select 'SPY' as ticker, date '2026-09-23' + cast(i as integer) as date, 100.0 + i as px
+               0.3 as over_52w_low, 0.12 as vol_20, 1.1 as rel_volume""")
+    con.execute("""create table monitor.market_history as
+        select 'SPY' as ticker, date '2026-09-23' + cast(i as integer) as date,
+               100.0 + i as adj_close
         from range(2) t(i)""")
-    con.execute("""create table main_marts.mart_market_breadth as
+    con.execute("""create table monitor.market_breadth as
         select date '2026-09-24' as date, 3000 as n_names, 1600 as advancers, 1300 as decliners,
                0.004 as ew_ret, 0.003 as dv_ret, 0.001 as median_ret, 0.02 as dispersion,
                0.6 as pct_above_ma50, 0.55 as pct_above_ma200, 50 as new_highs, 20 as new_lows,
                0.6 as up_volume_share, 300 as ad_line, 1.2 as ew_index, 1.1 as dv_index,
                0.14 as ew_vol_21, 0.2 as avg_corr_21""")
-    con.execute("""create table main_marts.mart_market_exceptions as
+    con.execute("""create table monitor.market_exceptions as
         select date '2026-09-24' as date, * from (values
             ('factor', 'style: momentum', 'momentum factor -3.1 sigma', 3.1, -1.0),
             ('cross-asset', 'SPY', 'SPY -2.2 sigma', 2.2, -1.0),

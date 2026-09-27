@@ -11,8 +11,8 @@ with cases (ticker, before_date, after_date, one_security) as (
 )
 select c.*, b.security_key as key_before, a.security_key as key_after
 from cases c
-left join {{ ref('stg_tickers') }} b on b.ticker = c.ticker and b.date = c.before_date
-left join {{ ref('stg_tickers') }} a on a.ticker = c.ticker and a.date = c.after_date
+left join {{ ref('int_tickers_keyed') }} b on b.ticker = c.ticker and b.date = c.before_date
+left join {{ ref('int_tickers_keyed') }} a on a.ticker = c.ticker and a.date = c.after_date
 where b.security_key is null
    or a.security_key is null
    or (a.security_key = b.security_key) <> c.one_security

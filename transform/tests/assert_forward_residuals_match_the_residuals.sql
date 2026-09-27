@@ -3,7 +3,7 @@
 with days as (
 
     select date, lead(date) over (order by date) as next_date
-    from (select distinct date from {{ ref('mart_signals') }})
+    from (select distinct date from {{ ref('signals') }})
 
 ), recent as (
 
@@ -12,9 +12,9 @@ with days as (
 )
 
 select f.security_key, f.date, f.fwd_resid_1, r.resid
-from {{ ref('mart_forward_residuals') }} f
+from {{ ref('forward_residuals') }} f
 join days d using (date)
-join {{ ref('mart_residuals') }} r
+join {{ ref('style_residuals') }} r
     on r.security_key = f.security_key and r.date = d.next_date
 where f.date in (select date from recent)
   and ((f.fwd_resid_1 is null) <> (r.resid is null)

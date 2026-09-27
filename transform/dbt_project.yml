@@ -14,10 +14,6 @@ flags:
   send_anonymous_usage_stats: false
 
 vars:
-  # The lake. dbt starts from its own directory, so this must be absolute.
-  # profiles.yml and this value both come from the SDP_DATA_ROOT variable.
-  data_root: "{{ env_var('SDP_DATA_ROOT') }}"
-
   # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
   # A study must not read a short interest number before this many sessions have
   # passed. It is a var and not a constant, because the schedule changed in the
@@ -46,7 +42,7 @@ vars:
   class_count_agree_ratio: 1.25
   class_count_max_run: 6
 
-  # The spread model (mart_spreads): the half spread of the benchmark stock of Kyle and
+  # The spread model (spreads): the half spread of the benchmark stock of Kyle and
   # Obizhaeva (2016), linear calibration, and the minimum price increment in dollars.
   spread_kappa0: 0.000821
   tick_size: 0.01
@@ -79,11 +75,23 @@ seeds:
   sdp:
     +schema: reference
 
+# Each layer and each mart domain is its own schema: staging.stg_massive__day_aggs,
+# intermediate.int_universe, research.signal_ic.
 models:
   sdp:
     staging:
-      +materialized: table
+      +materialized: view
       +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
     marts:
       +materialized: table
-      +schema: marts
+      core:
+        +schema: core
+      research:
+        +schema: research
+      factors:
+        +schema: factors
+      monitor:
+        +schema: monitor

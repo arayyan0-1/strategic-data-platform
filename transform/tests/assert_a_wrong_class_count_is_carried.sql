@@ -3,7 +3,7 @@
 -- on 2025-08-29 is 1,000 times too small. COF has the new count after its merger on
 -- 2025-05-30 and the old count for two pulls, so only the old count is carried. The counts
 -- around each run stay, and so does a run with no count after it (CRWD and CAST).
-with cases (ticker, snap_date, expected, cap_low, cap_high) as (
+with cases (ticker, month_end, expected, cap_low, cap_high) as (
     values
         ('NFLX', date '2025-10-31', 'class_shares',  4.0e11, 5.5e11),
         ('NFLX', date '2025-11-28', 'class_carried', 4.0e11, 5.5e11),
@@ -18,16 +18,16 @@ with cases (ticker, snap_date, expected, cap_low, cap_high) as (
         ('CRWD', date '2026-08-31', 'class_shares',  2.0e11, 2.8e11),
         ('CAST', date '2026-08-31', 'class_shares',  3.0e7,  6.0e7)
 )
-select 'details' as check_name, c.ticker, c.snap_date as date, d.cap_source, d.cap
+select 'details' as check_name, c.ticker, c.month_end as date, d.cap_source, d.cap
 from cases c
-left join {{ ref('stg_security_details') }} d
-    on d.ticker = c.ticker and d.snap_date = c.snap_date
+left join {{ ref('int_security_details') }} d
+    on d.ticker = c.ticker and d.month_end = c.month_end
 where d.cap_source is distinct from c.expected
    or d.cap is null
    or d.cap not between c.cap_low and c.cap_high
 union all
 select 'universe', ticker, date, null, market_cap
-from {{ ref('stg_universe') }}
+from {{ ref('int_universe') }}
 where ticker = 'NFLX'
   and date between date '2025-11-28' and date '2025-12-30'
   and (market_cap is null or market_cap < 3.0e11)

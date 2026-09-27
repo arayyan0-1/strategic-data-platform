@@ -3,9 +3,9 @@
 -- date shift or a lost weight breaks the correlation.
 with r as (
     select b.date, b.dv_ret, s.market, p.pc1
-    from {{ ref('mart_market_breadth') }} b
-    join {{ ref('mart_factor_style') }} s using (date)
-    join {{ ref('mart_factor_pca') }} p using (date)
+    from {{ ref('market_breadth') }} b
+    join {{ ref('style_factor_returns') }} s using (date)
+    join {{ ref('pca_factor_returns') }} p using (date)
 )
 select corr(dv_ret, market) as market_corr, corr(dv_ret, pc1) as pc1_corr
 from r

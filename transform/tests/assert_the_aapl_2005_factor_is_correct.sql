@@ -2,7 +2,7 @@
 -- which is 1/56, that is 1/2 x 1/7 x 1/4 compounded with the splits of 2014 and
 -- of 2020. If this number does not appear, the cumulative semantics are wrong.
 select *
-from {{ ref('stg_corporate_actions') }}
+from {{ ref('int_corporate_actions') }}
 where ticker = 'AAPL'
   and kind = 'split'
   and event_date = date '2005-02-28'

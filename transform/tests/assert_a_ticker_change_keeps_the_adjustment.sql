@@ -2,8 +2,8 @@
 -- an event of either ticker lies between the two bars.
 with series as (
     select u.security_key, p.ticker, p.date, p.split_factor, p.dividend_factor
-    from {{ ref('stg_prices_adjusted') }} p
-    inner join {{ ref('stg_universe') }} u
+    from {{ ref('int_prices_adjusted') }} p
+    inner join {{ ref('int_universe') }} u
         on u.ticker = p.ticker and u.date = p.date
     where u.is_primary_line
 ), steps as (
@@ -19,13 +19,13 @@ with series as (
     select
         s.*,
         exists (
-            select 1 from {{ ref('stg_corporate_actions') }} a
+            select 1 from {{ ref('int_corporate_actions') }} a
             where a.kind = 'split'
               and a.ticker in (s.ticker, s.prev_ticker)
               and a.event_date > s.prev_date and a.event_date <= s.date
         ) as split_between,
         exists (
-            select 1 from {{ ref('stg_corporate_actions') }} a
+            select 1 from {{ ref('int_corporate_actions') }} a
             where a.kind = 'dividend'
               and a.ticker in (s.ticker, s.prev_ticker)
               and a.event_date > s.prev_date and a.event_date <= s.date

@@ -1,0 +1,185 @@
+version: 2
+
+models:
+  - name: int_ticker_episodes
+    description: The ticker reference per date, with the key of each episode. A new episode starts when
+      a FIGI changes, or when the first word of the name changes and the CIK is not the known one.
+    columns:
+      - name: episode_key
+        data_tests:
+          - not_null
+
+  - name: int_security_links
+    description: One row per new FIGI that continues the security of the old FIGI on the same ticker.
+      The CIK and the first word of the name stay the same, the sessions are consecutive, the old key
+      stops on every ticker, the new key starts on the link date, and the price does not jump.
+    columns:
+      - name: jump
+        description: The log return of the split-adjusted close from the last old bar to the first new
+          bar.
+      - name: vol
+        description: The standard deviation of the last daily log returns of the old key on the ticker.
+      - name: old_key
+        data_tests:
+          - not_null
+          - unique
+      - name: new_key
+        data_tests:
+          - not_null
+          - unique
+      - name: root_key
+        description: The first key of the chain of links. int_tickers_keyed gives it to the rows of the
+          new key.
+        data_tests:
+          - not_null
+
+  - name: int_tickers_keyed
+    description: The ticker reference per date, with the security key and the rule that set it.
+    columns:
+      - name: security_key
+        description: The episode key, or the first key of the chain when a link continues the security.
+        data_tests:
+          - not_null
+      - name: episode_key
+        description: The key of the episode. It is different from security_key after a link.
+        data_tests:
+          - not_null
+      - name: key_rule
+        description: share_class_figi_filled is a FIGI that the vendor dropped on this date, taken from
+          the same ticker and CIK.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - share_class_figi
+                  - share_class_figi_filled
+                  - composite_figi
+                  - cik_ticker
+                  - ticker_only
+      - name: type_filled
+        description: The vendor type, or the last known type of the security where the vendor type is
+          null.
+
+  - name: int_security_lines
+    description: One row per ticker and session with a bar, with the security key and the primary line
+      of the security.
+    columns:
+      - name: is_primary_line
+        description: One line per security and session. The shortest ticker wins, so a when-issued line
+          gives way to the regular line.
+        data_tests:
+          - not_null
+
+  - name: int_corporate_actions
+    description: One row per ticker, event date and kind. Duplicate vendor rows are collapsed.
+    columns:
+      - name: ticker
+        data_tests:
+          - not_null
+      - name: event_date
+        data_tests:
+          - not_null
+      - name: kind
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - split
+                  - dividend
+
+  - name: int_prices_adjusted
+    description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins. At
+      a ticker change, the rows of the earlier ticker also take the factors of the later ticker of the
+      same security.
+    columns:
+      - name: ticker
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+      - name: split_factor
+        data_tests:
+          - not_null
+      - name: adj_close_split
+        data_tests:
+          - not_null
+      - name: later_ticker
+        description: The next ticker of the same security, whose factors this row takes. Null when the
+          ticker does not change.
+
+  - name: int_security_details
+    description: One row per security and month-end, with the market cap of the share class and the industry.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: cap_source
+        description: The rule that set cap. A class_carried cap takes the last class count that is not
+          refused, in place of a short run of wrong class counts or a refused vendor cap. A refused vendor
+          cap with no such count is null.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - class_shares
+                  - class_carried
+                  - company_cap
+                  - refused
+      - name: industry
+        data_tests:
+          - not_null
+
+  - name: int_universe
+    description: The universe per date, from an instrument filter and a liquidity filter.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: ticker
+        data_tests:
+          - not_null
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: is_primary_line
+        description: The line that every series of the security reads on this session.
+        data_tests:
+          - not_null
+      - name: market_cap
+        description: The market cap of the share class, from the newest month-end of ticker details, moved
+          with the split-adjusted price. Null when the month-end is over 70 days old.
+      - name: industry
+        description: The Fama-French 12-industry class of the SIC code. Unknown when the security has
+          no code.
+        data_tests:
+          - not_null
+      - name: passes_instrument
+        data_tests:
+          - not_null
+      - name: passes_liquidity
+        data_tests:
+          - not_null
+      - name: in_universe
+        data_tests:
+          - not_null
+
+  - name: int_short_interest
+    description: Short interest with the publication lag applied and the 999.99 cap removed.
+    columns:
+      - name: settlement_date
+        description: The date the number describes.
+        data_tests:
+          - not_null
+      - name: effective_date
+        description: The first session the number was public. Null where the bars do not cover the settlement
+          date.
+      - name: ticker
+        data_tests:
+          - not_null
+      - name: days_to_cover
+        description: Null where the vendor returned the 999.99 cap. Use days_to_cover_computed.
+      - name: days_to_cover_is_censored
+        data_tests:
+          - not_null

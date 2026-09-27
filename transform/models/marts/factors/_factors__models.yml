@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: style_exposures
+    description: The industry and the eight style z-scores of each in-universe name per session, with
+      its regression weight and the return of the next session.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: industry
+        data_tests:
+          - not_null
+
+  - name: style_factor_returns
+    description: Pure style factor returns from one weighted cross-sectional regression per session.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
+      - name: market
+        description: The intercept, the return of the regression-weighted market.
+      - name: r2
+        description: The share of the cross-section of returns that the styles explain on the session.
+
+  - name: style_residuals
+    description: The return of each in-universe name split into market, industry and style parts and a
+      stock-specific residual, with the residual in units of its own volatility.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: resid
+        data_tests:
+          - not_null
+
+  - name: pca_factor_returns
+    description: The top five eigenportfolios of the trailing correlation matrix, held out of sample.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
+      - name: pc1_share
+        description: The absorption ratio. A high value means that the stocks move together.
+
+  - name: ff_mimic_returns
+    description: The Fama-French factors mimicked with the style and statistical portfolios, out of sample,
+      up to the last session.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
+
+  - name: factor_returns
+    description: Every factor return in one long table, by family (quintile, style, pca, ff, ff_mimic).
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: family
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - quintile
+                  - style
+                  - industry
+                  - pca
+                  - ff
+                  - ff_mimic
+      - name: factor
+        data_tests:
+          - not_null
+
+  - name: factor_performance
+    description: Compounded returns over standard windows, volatility, Sharpe ratio and drawdown, per
+      factor.
+    columns:
+      - name: factor
+        data_tests:
+          - not_null
+
+  - name: factor_correlation
+    description: The correlation of the daily returns of each pair of factors over the last two years.
+
+  - name: factor_risk
+    description: The risk state of each factor on its last session in units of its own history (z, volatility
+      percentile, drawdown percentile, correlation shift, crowding).
+    columns:
+      - name: factor
+        data_tests:
+          - not_null
+
+  - name: factor_crowding
+    description: Crowding of each style from short interest in its short leg less its long leg, per settlement.

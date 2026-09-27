@@ -19,8 +19,6 @@ import duckdb
 
 from sdp import dal
 
-M = "main_marts"
-
 _lock = threading.Lock()
 _cache: dict[str, Any] = {"stamp": None, "payload": None}
 
@@ -59,14 +57,14 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
     errors: list[str] = []
 
     def exceptions():
-        return _rows(wh, f"select * from {M}.mart_market_exceptions order by score desc limit 40")
+        return _rows(wh, "select * from monitor.market_exceptions order by score desc limit 40")
 
     def board():
-        rows = _rows(wh, f"select * from {M}.mart_market_board order by position")
-        series = {r["ticker"]: r for r in _rows(wh, f"""
-            select ticker, list(date order by date) as dates, list(px order by date) as px
-            from {M}.mart_market_history
-            where date > (select max(date) from {M}.mart_market_history) - interval 1 year
+        rows = _rows(wh, "select * from monitor.market_board order by position")
+        series = {r["ticker"]: r for r in _rows(wh, """
+            select ticker, list(date order by date) as dates, list(adj_close order by date) as px
+            from monitor.market_history
+            where date > (select max(date) from monitor.market_history) - interval 1 year
             group by ticker""")}
         for r in rows:
             h = series.get(r["ticker"], {})
@@ -74,33 +72,33 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
         return {"rows": rows}
 
     def relations():
-        return _rows(wh, f"""
+        return _rows(wh, """
             select relation, any_value(label) as label, any_value(kind) as kind,
                    arg_max(value, date) as value, arg_max(change_21, date) as change_21,
                    arg_max(z_21, date) as z_21, arg_max(pctile, date) as pctile,
                    list(value order by date) as series
-            from {M}.mart_market_relations
+            from monitor.market_relations
             group by relation
             order by relation""")
 
     def regime():
-        return _rows(wh, f"select * from {M}.mart_market_regime order by metric")
+        return _rows(wh, "select * from monitor.market_regime order by metric")
 
     def breadth():
-        return _rows(wh, f"""
-            select * from {M}.mart_market_breadth
-            where date > (select max(date) from {M}.mart_market_breadth) - interval 2 year
+        return _rows(wh, """
+            select * from monitor.market_breadth
+            where date > (select max(date) from monitor.market_breadth) - interval 2 year
             order by date""")
 
     def factors():
-        risk = _rows(wh, f"select * from {M}.mart_factor_risk order by family, factor")
-        perf = _rows(wh, f"select * from {M}.mart_factor_performance order by family, factor")
-        curves = _rows(wh, f"""
+        risk = _rows(wh, "select * from factors.factor_risk order by family, factor")
+        perf = _rows(wh, "select * from factors.factor_performance order by family, factor")
+        curves = _rows(wh, """
             with r as (
                 select family, factor, date, ret
-                from {M}.mart_factor_returns
+                from factors.factor_returns
                 where ret is not null
-                  and date > (select max(date) from {M}.mart_factor_returns) - interval 1 year
+                  and date > (select max(date) from factors.factor_returns) - interval 1 year
             )
             select family, factor,
                    list(date order by date) as dates,
@@ -110,8 +108,8 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
                           rows between unbounded preceding and current row)) - 1 as level
                   from r)
             group by family, factor""")
-        corr = _rows(wh, f"select * from {M}.mart_factor_correlation")
-        costs = _rows(wh, f"""
+        corr = _rows(wh, "select * from factors.factor_correlation")
+        costs = _rows(wh, """
             select signal,
                    avg(gross) / nullif(stddev_samp(gross), 0) * sqrt(252) as sharpe_gross,
                    avg(net) / nullif(stddev_samp(net), 0) * sqrt(252)     as sharpe_net,
@@ -120,8 +118,8 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
                    avg(turnover)                                          as turnover,
                    avg(cost) * 1e4                                        as cost_bps_day,
                    median(capacity) filter (where date > (select max(date)
-                       from {M}.mart_signal_costs) - interval 1 year)     as capacity
-            from {M}.mart_signal_costs
+                       from research.signal_costs) - interval 1 year)     as capacity
+            from research.signal_costs
             group by signal
             order by sharpe_net desc""")
         return {"risk": risk, "performance": perf, "curves": curves, "correlation": corr,
@@ -129,28 +127,28 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
 
     def movers():
         out: dict[str, list] = {}
-        for r in _rows(wh, f"select * from {M}.mart_market_movers order by list, rank"):
+        for r in _rows(wh, "select * from monitor.market_movers order by list, rank"):
             out.setdefault(r["list"], []).append(r)
         return out
 
     def calendar():
-        return _rows(wh, f"""
-            select * from {M}.mart_market_calendar
+        return _rows(wh, """
+            select * from monitor.market_calendar
             order by event_date, dollar_volume desc
             limit 80""")
 
     def short_interest():
-        dtc = _rows(wh, f"""
-            select * from {M}.mart_market_short_interest
+        dtc = _rows(wh, """
+            select * from monitor.market_short_interest
             where days_to_cover is not null and short_value >= 1e7
             order by days_to_cover desc limit 10""")
-        up = _rows(wh, f"""
-            select * from {M}.mart_market_short_interest
+        up = _rows(wh, """
+            select * from monitor.market_short_interest
             where change is not null and prev_short_interest >= 1e5 and short_value >= 1e7
             order by change desc limit 10""")
-        head = _rows(wh, f"""
+        head = _rows(wh, """
             select max(settlement_date) as settlement_date, max(effective_date) as effective_date
-            from {M}.mart_market_short_interest""")
+            from monitor.market_short_interest""")
         return {"days_to_cover": dtc, "increase": up, **(head[0] if head else {})}
 
     payload = {

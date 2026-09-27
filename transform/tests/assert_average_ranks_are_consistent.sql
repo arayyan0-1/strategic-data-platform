@@ -6,14 +6,14 @@
 with recent as (
 
     select distinct date
-    from {{ ref('mart_signal_panel') }}
+    from {{ ref('signal_panel') }}
     order by date desc
     limit 20
 
 ), p as (
 
-    select p.date, p.signal, p.value, p.n, p.avg_rank, p.quintile
-    from {{ ref('mart_signal_panel') }} p
+    select p.date, p.signal, p.value, p.n_names, p.avg_rank, p.quintile
+    from {{ ref('signal_panel') }} p
     inner join recent r on r.date = p.date
 
 ), bad_sum as (
@@ -21,8 +21,8 @@ with recent as (
     select date, signal, 'rank sum is not n(n+1)/2' as failure
     from p
     group by date, signal
-    having count(*) <> max(n)
-        or sum(avg_rank) <> max(n) * (max(n) + 1) / 2.0
+    having count(*) <> max(n_names)
+        or sum(avg_rank) <> max(n_names) * (max(n_names) + 1) / 2.0
 
 ), bad_tie as (
 

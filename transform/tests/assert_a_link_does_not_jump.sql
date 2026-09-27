@@ -1,14 +1,14 @@
--- The jump and the volatility of each link, recomputed from stg_prices_adjusted, agree
+-- The jump and the volatility of each link, recomputed from int_prices_adjusted, agree
 -- with the link table and are within the limit.
 with old_bars as (
 
     select l.new_key, p.date, p.adj_close_split
-    from {{ ref('stg_security_links') }} l
-    inner join {{ ref('stg_tickers') }} k
+    from {{ ref('int_security_links') }} l
+    inner join {{ ref('int_tickers_keyed') }} k
         on k.ticker      = l.ticker
        and k.episode_key = l.old_key
        and k.date       <= l.last_old_bar
-    inner join {{ ref('stg_prices_adjusted') }} p
+    inner join {{ ref('int_prices_adjusted') }} p
         on p.ticker = k.ticker
        and p.date   = k.date
 
@@ -34,10 +34,10 @@ with old_bars as (
         l.vol,
         ln(pn.adj_close_split / po.adj_close_split)   as jump_2,
         (select stddev_samp(r.ret) from old_returns r where r.new_key = l.new_key) as vol_2
-    from {{ ref('stg_security_links') }} l
-    inner join {{ ref('stg_prices_adjusted') }} po
+    from {{ ref('int_security_links') }} l
+    inner join {{ ref('int_prices_adjusted') }} po
         on po.ticker = l.ticker and po.date = l.last_old_bar
-    inner join {{ ref('stg_prices_adjusted') }} pn
+    inner join {{ ref('int_prices_adjusted') }} pn
         on pn.ticker = l.ticker and pn.date = l.first_new_bar
 
 )

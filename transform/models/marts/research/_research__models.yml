@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  - name: signals
+    description: The factor battery, one row per security and session, keyed on security_key.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+
+  - name: forward_returns
+    description: Forward return over 1, 5 and 21 sessions. Kept apart from the signals.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+
+  - name: forward_residuals
+    description: Forward residuals of the style and industry model over 1, 5 and 21 sessions, from the
+      exposures of D.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+
+  - name: signal_panel
+    description: One row per in_universe name, session and signal, with the average rank, the quintile
+      and the forward returns.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: signal
+        data_tests:
+          - not_null
+      - name: avg_rank
+        data_tests:
+          - not_null
+      - name: quintile
+        data_tests:
+          - not_null
+
+  - name: eval_sessions
+    description: The evaluation calendar. The fold of each session and the fold where its label ends.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
+      - name: fold
+        data_tests:
+          - not_null
+      - name: period
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - before
+                  - development
+                  - holdout
+
+  - name: signal_ic
+    description: Daily cross-sectional Spearman IC per signal, target (return or residual) and horizon.
+    columns:
+      - name: signal
+        data_tests:
+          - not_null
+      - name: target
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - return
+                  - residual
+      - name: horizon
+        data_tests:
+          - not_null
+      - name: ic
+        data_tests:
+          - not_null
+
+  - name: signal_ic_summary
+    description: IC statistics per signal, target and horizon over development and each development fold,
+      with the Newey-West t.
+    columns:
+      - name: signal
+        data_tests:
+          - not_null
+      - name: period
+        data_tests:
+          - not_null
+
+  - name: signal_ic_holdout
+    description: IC statistics over the holdout. Read it once for a final signal.
+    columns:
+      - name: signal
+        data_tests:
+          - not_null
+
+  - name: signal_quintiles
+    description: Mean forward return per signal and quintile over the full sample.
+
+  - name: signal_long_short
+    description: Daily return of each top-less-bottom quintile long-short, and its cumulative sum.
+
+  - name: signal_turnover
+    description: Average top-quintile turnover per signal.
+
+  - name: signal_correlation
+    description: Pairwise rank correlation of the signals, averaged over sessions.
+
+  - name: signal_snapshot
+    description: The latest cross-section, with z-score, decile and rank per signal.
+    columns:
+      - name: signal
+        data_tests:
+          - not_null
+      - name: ticker
+        data_tests:
+          - not_null
+
+  - name: signal_costs
+    description: Gross, cost and net daily return of each quintile long-short, from the model spreads.
+
+  - name: spreads
+    description: The bid-ask spread of each common stock from the invariance cost model of Kyle and Obizhaeva,
+      with the Abdi-Ranaldo estimate beside it as a diagnostic.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null

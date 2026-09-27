@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_massive__day_aggs
+    description: One bar per ticker and session, unadjusted.
+
+  - name: stg_massive__tickers
+    description: The ticker reference per date, as the vendor stated it on that date.
+
+  - name: stg_massive__ticker_details
+    description: Share counts, company market cap and SIC code per ticker and month-end.
+
+  - name: stg_massive__splits
+    description: The split table as the vendor states it now.
+
+  - name: stg_massive__dividends
+    description: The dividend table as the vendor states it now.
+
+  - name: stg_massive__short_interest
+    description: FINRA short interest per ticker and settlement date.
+
+  - name: stg_french__factors
+    description: The Fama-French daily factors as fractions, with crsp_month, the version of the files.
