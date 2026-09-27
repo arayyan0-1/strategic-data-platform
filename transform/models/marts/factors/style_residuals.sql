@@ -3,7 +3,8 @@
   model (style_factor_returns) and a residual. The residual is the part that the market,
   the industry and the eight styles do not explain: the stock-specific move, where news
   and alpha live. spec_vol is the volatility of the residual over the 63 sessions
-  before, and resid_z is the residual in units of it. A row is dated on the session of
+  before, and resid_z is the residual in units of it. Both are null until the name has
+  spec_vol_min_obs residuals in that window, so a new listing has no false extreme. A row is dated on the session of
   the return.
 #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
@@ -48,8 +49,10 @@ with days as (
 
 select
     *,
-    stddev_samp(resid) over prev                                     as spec_vol,
-    resid / nullif(stddev_samp(resid) over prev, 0)                  as resid_z
+    case when count(resid) over prev >= {{ var('spec_vol_min_obs') }}
+         then stddev_samp(resid) over prev end                       as spec_vol,
+    case when count(resid) over prev >= {{ var('spec_vol_min_obs') }}
+         then resid / nullif(stddev_samp(resid) over prev, 0) end    as resid_z
 from resid
 window prev as (partition by security_key order by date
                 rows between 63 preceding and 1 preceding)

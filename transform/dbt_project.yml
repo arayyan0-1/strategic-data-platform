@@ -55,6 +55,10 @@ vars:
   link_min_returns: 20
   link_max_jump_sigma: 4.0
 
+  # The specific volatility of a name needs this many residuals of the 63 sessions
+  # before. With two residuals, a new listing showed a move of 65 standard deviations.
+  spec_vol_min_obs: 21
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
