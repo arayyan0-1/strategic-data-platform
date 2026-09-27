@@ -5,13 +5,13 @@
 -- volatility for its first 21 sessions.
 with last as (
 
-    select max(date) as d from {{ ref('mart_spreads') }}
+    select max(date) as d from {{ ref('spreads') }}
 
 ), recent as (
 
     select s.*, u.close, u.market_cap
-    from {{ ref('mart_spreads') }} s
-    join {{ ref('stg_universe') }} u
+    from {{ ref('spreads') }} s
+    join {{ ref('int_universe') }} u
         on u.security_key = s.security_key and u.date = s.date and u.is_primary_line
     where s.in_universe
       and s.date > (select d from last) - interval 60 day

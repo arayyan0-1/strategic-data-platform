@@ -1,0 +1,8 @@
+version: 2
+
+seeds:
+  - name: ff12_industries
+    description: The SIC ranges of the Fama-French 12 industries.
+
+  - name: monitor_etfs
+    description: The ETFs of the cross-asset board of the monitor, with their group, label and position.

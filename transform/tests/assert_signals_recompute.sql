@@ -4,7 +4,7 @@
 with sessions as (
 
     select distinct date
-    from {{ ref('mart_signals') }}
+    from {{ ref('signals') }}
     order by date desc
     limit 60
 
@@ -15,8 +15,8 @@ with sessions as (
         s.date,
         p.adj_close_total,
         row_number() over (partition by s.security_key order by s.date) as n
-    from {{ ref('mart_signals') }} s
-    inner join {{ ref('stg_prices_adjusted') }} p
+    from {{ ref('signals') }} s
+    inner join {{ ref('int_prices_adjusted') }} p
         on p.ticker = s.ticker and p.date = s.date
 
 ), targets as (
@@ -71,7 +71,7 @@ select
     s.momentum_12_1, r.momentum_12_1 as momentum_12_1_recomputed,
     s.vol_20,        r.vol_20        as vol_20_recomputed
 from recomputed r
-inner join {{ ref('mart_signals') }} s
+inner join {{ ref('signals') }} s
     on s.security_key = r.security_key and s.date = r.date
 where false
 {%- for c in ['reversal_5', 'momentum_12_1', 'vol_20'] %}

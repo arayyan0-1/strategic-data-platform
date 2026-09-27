@@ -4,5 +4,5 @@ select
     settlement_date,
     ticker,
     days_to_cover
-from {{ ref('stg_short_interest') }}
+from {{ ref('int_short_interest') }}
 where days_to_cover >= 999.99

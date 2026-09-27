@@ -7,7 +7,7 @@
 with sessions as (
 
     select date as session
-    from (select distinct date from {{ lake('us_stocks_day_aggs') }})
+    from (select distinct date from {{ ref('stg_massive__day_aggs') }})
 
 ),
 
@@ -20,7 +20,7 @@ measured as (
           where c.session > s.settlement_date
             and c.session <= s.effective_date) as sessions_between
     from (select distinct settlement_date, effective_date
-          from {{ ref('stg_short_interest') }}
+          from {{ ref('int_short_interest') }}
           where effective_date is not null) s
 
 )

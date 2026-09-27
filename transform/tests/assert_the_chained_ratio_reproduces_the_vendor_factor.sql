@@ -7,7 +7,7 @@
 -- the column has_collapsed_at_or_after.
 select ticker, event_date, factor, factor_chained_check,
        abs(factor - factor_chained_check) as diff
-from {{ ref('stg_corporate_actions') }}
+from {{ ref('int_corporate_actions') }}
 where kind = 'split'
   and not has_collapsed_at_or_after
   and abs(factor - factor_chained_check) > 1e-6 * greatest(factor, 1.0)

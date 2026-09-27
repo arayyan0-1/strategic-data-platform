@@ -1,7 +1,7 @@
 """The evaluation protocol of a signal: which labels a period may use, and standard
 errors that allow for overlapping labels. NumPy only, no I/O.
 
-mart_eval_sessions gives each session a fold: 0 before development, 1 to K for the
+eval_sessions gives each session a fold: 0 before development, 1 to K for the
 development folds in date order, and K + 1 for the holdout. The label of a session with
 horizon h ends h sessions later, in the fold label_fold. A period uses a session only
 when the session and the end of its label are both inside the period, so no label

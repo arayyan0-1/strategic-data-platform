@@ -1,0 +1,47 @@
+version: 2
+
+# The lake. Each table is Parquet under data/raw, published by Write-Audit-Publish. The
+# identifier is the dataset directory. An event stream reads every partition, and a
+# current-state dataset reads its one file.
+sources:
+  - name: massive
+    description: Market data from Massive (formerly Polygon.io), Stocks Starter tier.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/date=*/data.parquet', hive_partitioning = true)"
+    tables:
+      - name: day_aggs
+        identifier: us_stocks_day_aggs
+        description: One bar per ticker and session, unadjusted, from the S3 flat files.
+      - name: tickers
+        identifier: massive_tickers
+        description: The ticker reference as the vendor stated it on each date. Point in time.
+      - name: ticker_details
+        identifier: massive_ticker_details
+        description: Share counts, market cap and SIC code of each common stock, one partition per month-end.
+      - name: short_interest
+        identifier: massive_short_interest
+        description: FINRA short interest, partitioned by settlement date.
+      - name: short_volume
+        identifier: massive_short_volume
+        description: FINRA off-exchange short volume per ticker and date. No model reads it.
+      - name: splits
+        identifier: massive_splits
+        description: The split table as the vendor states it now. Current state.
+        meta:
+          external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+      - name: dividends
+        identifier: massive_dividends
+        description: The dividend table as the vendor states it now. Current state.
+        meta:
+          external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+
+  - name: french
+    description: The Kenneth French Data Library, pulled weekly.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: factors
+        identifier: french_factors
+        description: The daily five factors and momentum. Current state.

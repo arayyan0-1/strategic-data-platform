@@ -10,10 +10,10 @@ with recomputed as (
             partition by ticker order by date
             rows between {{ var('adv_window') }} preceding and 1 preceding
         ) as adv_excluding_today
-    from {{ ref('stg_prices_adjusted') }}
+    from {{ ref('int_prices_adjusted') }}
 )
 select u.ticker, u.date, u.adv, r.adv_excluding_today
-from {{ ref('stg_universe') }} u
+from {{ ref('int_universe') }} u
 join recomputed r
   on u.ticker = r.ticker
  and u.date   = r.date

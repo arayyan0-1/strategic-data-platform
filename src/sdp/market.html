@@ -318,7 +318,7 @@ function board() {
       <td class="l"><b>${r.ticker}</b> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
       ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1w, r.z_1w)}${zcell(r.ret_1m, r.z_1m)}
       <td>${pct(r.ret_3m)}</td><td>${pct(r.ret_ytd)}</td><td>${pct(r.ret_1y)}</td><td>${pct(r.off_52w_high)}</td>
-      <td class="dim">${pct(r.vol_20d, 0, false)}</td><td>${spark(r.series)}</td></tr>`;
+      <td class="dim">${pct(r.vol_20, 0, false)}</td><td>${spark(r.series)}</td></tr>`;
   }
   $("board").innerHTML = html;
   $("board").querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
@@ -366,7 +366,7 @@ function breadthCharts() {
     `<div class="panel"><h3>${t}</h3><div class="chart" id="bc${i}"></div></div>`).join("");
   const p0 = v => (v * 100).toFixed(0) + "%", p2 = v => (v * 100).toFixed(2) + "%";
   lineChart($("bc0"), [{name: "equal weight", points: rebase(dates, cut.map(r => r.ew_index))},
-                       {name: "$-volume weight", points: rebase(dates, cut.map(r => r.dv_index))}], {zero: true, fmt: p0});
+                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0});
   lineChart($("bc1"), [{name: "> 50d", points: pp(cut, "pct_above_ma50")},
                        {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0});
   lineChart($("bc2"), [{name: "highs", points: pp(cut, "new_highs"), color: "#3fb950"},
@@ -427,7 +427,7 @@ function calendar() {
     <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l"><b>${r.ticker}</b></td>
     <td class="l name">${esc((r.name || "").slice(0, 40))}</td><td class="l dim">${esc(r.type || "")}</td>
     <td class="l">${r.kind}</td><td class="l">${r.kind === "split" ? `${r.split_to}-for-${r.split_from} ${esc(r.detail || "")}`
-      : `$${num(r.cash_amount, 4)} ${esc(r.detail || "")}`}</td><td>${r.kind === "dividend" ? pct(r.yield, 2, false) : ""}</td>
+      : `$${num(r.cash_amount, 4)} ${esc(r.detail || "")}`}</td><td>${r.kind === "dividend" ? pct(r.dividend_yield, 2, false) : ""}</td>
     <td class="dim">${big(r.dollar_volume)}</td></tr>`).join("");
 }
 

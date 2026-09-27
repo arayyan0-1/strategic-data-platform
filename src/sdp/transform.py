@@ -3,7 +3,7 @@
 and dbt works from any working directory.
 
     python -m sdp.transform build
-    python -m sdp.transform test --select stg_prices_adjusted
+    python -m sdp.transform test --select int_prices_adjusted
 
 dbt never writes the live warehouse. It writes a private file in a directory
 beside it. When a `build` or `run` exits 0, that file replaces the live file

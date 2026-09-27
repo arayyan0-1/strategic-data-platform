@@ -2,6 +2,6 @@
 -- happens when two corporate actions share a ticker and a date. The model must
 -- collapse them before the join.
 select ticker, date, count(*) as n
-from {{ ref('stg_prices_adjusted') }}
+from {{ ref('int_prices_adjusted') }}
 group by 1, 2
 having count(*) > 1

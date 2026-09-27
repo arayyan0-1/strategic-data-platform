@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: securities
+    description: The security master. One row per security_key, with its tickers in order.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+          - unique
+      - name: ticker
+        data_tests:
+          - not_null
+
+  - name: security_sessions
+    description: One row per security and session from its primary line, with prices, adjusted prices
+      and the universe state. The price series for notebooks.

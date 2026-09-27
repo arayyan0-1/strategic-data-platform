@@ -12,12 +12,12 @@ with steps as (
         lag(close)           over w as prev_close,
         lag(adj_close_split) over w as prev_adj,
         lag(date)            over w as prev_date
-    from {{ ref('stg_prices_adjusted') }}
+    from {{ ref('int_prices_adjusted') }}
     window w as (partition by ticker order by date)
 ), boundaries as (
     select s.*
     from steps s
-    join {{ ref('stg_corporate_actions') }} a
+    join {{ ref('int_corporate_actions') }} a
       on a.ticker = s.ticker
      and a.kind = 'split'
      and a.event_date > s.prev_date

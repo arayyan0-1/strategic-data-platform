@@ -6,6 +6,6 @@ select
     settlement_date,
     effective_date,
     ticker
-from {{ ref('stg_short_interest') }}
+from {{ ref('int_short_interest') }}
 where effective_date is not null
   and effective_date <= settlement_date

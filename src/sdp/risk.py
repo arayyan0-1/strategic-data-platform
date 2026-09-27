@@ -107,6 +107,14 @@ def qis(
     return (u * delta) @ u.T
 
 
+def exposure_cov(X: np.ndarray, F: np.ndarray, spec_var: np.ndarray) -> np.ndarray:
+    """Return Sigma = X Omega X' + diag(spec_var) for a model with known exposures, as in
+    a Barra model. X is N x K, F is the T x K factor returns and Omega is their sample
+    covariance. spec_var is the specific variance of each of the N names."""
+    omega = np.atleast_2d(np.cov(F, rowvar=False))
+    return X @ omega @ X.T + np.diag(spec_var)
+
+
 def ff_cov(
     R: np.ndarray, F: np.ndarray, rf: np.ndarray | None = None
 ) -> tuple[np.ndarray, np.ndarray]:

@@ -149,8 +149,8 @@ class TestWarehouse:
         path = settings.warehouse_path
         path.parent.mkdir(parents=True, exist_ok=True)
         with duckdb.connect(str(path)) as build:
-            build.execute("create schema main_marts")
-            build.execute("create table main_marts.t as select 1 as x")
+            build.execute("create schema research")
+            build.execute("create table research.t as select 1 as x")
 
     def test_an_absent_warehouse_raises_missing_partition(self, tmp_data_root):
         with pytest.raises(dal.MissingPartition, match="sdp.transform build"):
@@ -160,7 +160,7 @@ class TestWarehouse:
         self._build()
         wh = dal.warehouse()
         try:
-            assert wh.sql("select x from main_marts.t").fetchall() == [(1,)]
+            assert wh.sql("select x from research.t").fetchall() == [(1,)]
         finally:
             wh.close()
 
@@ -171,7 +171,7 @@ class TestWarehouse:
         wh = dal.warehouse()
         try:
             with pytest.raises(duckdb.Error, match="read-only"):
-                wh.execute("create table main_marts.u as select 2 as y")
+                wh.execute("create table research.u as select 2 as y")
         finally:
             wh.close()
 

@@ -7,7 +7,7 @@ with runs as (
         min(session) as first_session,
         max(session) as last_session,
         count(*)     as n
-    from {{ ref('mart_eval_sessions') }}
+    from {{ ref('eval_sessions') }}
     where period = 'development'
     group by fold
 
