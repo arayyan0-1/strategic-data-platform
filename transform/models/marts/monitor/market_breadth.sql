@@ -7,8 +7,8 @@
 
   - ew_ret is the equal-weighted return, with each return winsorized at the 1st and
     99th percentile of the session, so one microcap spike does not move the index.
-    dv_ret weights by trailing dollar volume, a proxy for a cap-weighted index until
-    market cap arrives.
+    cap_ret weights by the market cap of the session before, so the return of a
+    session does not set its own weight. A name with no cap is not in it.
   - dispersion is the interquartile range of the returns over 1.349, a robust
     cross-sectional standard deviation.
   - avg_corr_21 is the variance of ew_ret over 21 sessions over the square of the
@@ -23,7 +23,7 @@
 with s as (
 
     select
-        u.security_key, p.date, u.in_universe, u.adv, p.dollar_volume,
+        u.security_key, p.date, u.in_universe, u.adv, u.market_cap, p.dollar_volume,
         coalesce(p.adj_close_total, p.adj_close_split) as px
     from {{ ref('int_prices_adjusted') }} p
     join {{ ref('int_universe') }} u using (ticker, date)
@@ -34,6 +34,7 @@ with s as (
     select
         *,
         px / lag(px) over w - 1                                             as ret,
+        lag(market_cap) over w                                              as cap_before,
         avg(px)   over (partition by security_key order by date
                         rows between 49 preceding and current row)          as ma50,
         count(px) over (partition by security_key order by date
@@ -74,7 +75,9 @@ with s as (
         count(*) filter (where ret > 0)                             as advancers,
         count(*) filter (where ret < 0)                             as decliners,
         avg(least(greatest(ret, b.lo), b.hi))                       as ew_ret,
-        sum(ret * adv) / nullif(sum(adv) filter (where ret is not null), 0) as dv_ret,
+        sum(ret * cap_before) filter (where cap_before > 0)
+            / nullif(sum(cap_before) filter (where ret is not null and cap_before > 0), 0)
+                                                                    as cap_ret,
         median(ret)                                                 as median_ret,
         (quantile_cont(ret, 0.75) - quantile_cont(ret, 0.25)) / 1.349 as dispersion,
         avg((px > ma50)::int) filter (where n50 = 50)               as pct_above_ma50,
@@ -123,7 +126,7 @@ select
     avg(up_volume_share) over w21                                   as up_volume_share_21,
     sum(advancers - decliners) over w                               as ad_line,
     exp(sum(ln(1 + coalesce(ew_ret, 0))) over w)                    as ew_index,
-    exp(sum(ln(1 + coalesce(dv_ret, 0))) over w)                    as dv_index,
+    exp(sum(ln(1 + coalesce(cap_ret, 0))) over w)                   as cap_index,
     stddev_samp(ew_ret) over w21 * sqrt(252)                        as ew_vol_21,
     var_samp(ew_ret) over w21 / nullif(avg_sigma21 * avg_sigma21, 0) as avg_corr_21
 from joined

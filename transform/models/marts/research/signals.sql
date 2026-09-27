@@ -11,6 +11,7 @@ with base as (
         p.ticker,
         p.date,
         u.in_universe,
+        u.market_cap,
         p.open,
         p.close,
         p.total_factor,
@@ -31,17 +32,18 @@ with base as (
         *,
         adj_close_total     / nullif(lag(adj_close_total) over w, 0) - 1 as ret_1,
         open * total_factor / nullif(lag(adj_close_total) over w, 0) - 1 as overnight_ret,
-        close               / nullif(open, 0) - 1                        as intraday_ret
+        close               / nullif(open, 0) - 1                        as intraday_ret,
+        lag(market_cap) over w                                           as cap_before
     from base
     window w as (partition by security_key order by date)
 
 ), mkt as (
 
-    -- Equal-weight market proxy over the in-universe names each session. A
-    -- cap-weight proxy waits on market_cap from the ticker-details ingest.
-    select date, avg(ret_1) as mkt_ret
+    -- The cap-weighted return of the in-universe names. Each weight is the cap of the
+    -- session before, so the return of a session does not set its own weight.
+    select date, sum(ret_1 * cap_before) / sum(cap_before) as mkt_ret
     from returns
-    where in_universe and ret_1 is not null
+    where in_universe and ret_1 is not null and cap_before > 0
     group by date
 
 ), sec_divs as (
@@ -112,7 +114,7 @@ with base as (
             partition by security_key order by date
             rows between 19 preceding and current row)            as amihud_20,
 
-        -- market beta over one year, to the equal-weight market proxy
+        -- market beta over one year, to the cap-weighted market of the universe
         covar_pop(ret_1, mkt_ret) over (partition by security_key order by date
             rows between 251 preceding and current row)
           / nullif(var_pop(mkt_ret) over (partition by security_key order by date

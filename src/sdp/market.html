@@ -366,7 +366,7 @@ function breadthCharts() {
     `<div class="panel"><h3>${t}</h3><div class="chart" id="bc${i}"></div></div>`).join("");
   const p0 = v => (v * 100).toFixed(0) + "%", p2 = v => (v * 100).toFixed(2) + "%";
   lineChart($("bc0"), [{name: "equal weight", points: rebase(dates, cut.map(r => r.ew_index))},
-                       {name: "$-volume weight", points: rebase(dates, cut.map(r => r.dv_index))}], {zero: true, fmt: p0});
+                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0});
   lineChart($("bc1"), [{name: "> 50d", points: pp(cut, "pct_above_ma50")},
                        {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0});
   lineChart($("bc2"), [{name: "highs", points: pp(cut, "new_highs"), color: "#3fb950"},

@@ -35,9 +35,9 @@ def warehouse(tmp_data_root):
         from range(2) t(i)""")
     con.execute("""create table monitor.market_breadth as
         select date '2026-09-24' as date, 3000 as n_names, 1600 as advancers, 1300 as decliners,
-               0.004 as ew_ret, 0.003 as dv_ret, 0.001 as median_ret, 0.02 as dispersion,
+               0.004 as ew_ret, 0.003 as cap_ret, 0.001 as median_ret, 0.02 as dispersion,
                0.6 as pct_above_ma50, 0.55 as pct_above_ma200, 50 as new_highs, 20 as new_lows,
-               0.6 as up_volume_share, 300 as ad_line, 1.2 as ew_index, 1.1 as dv_index,
+               0.6 as up_volume_share, 300 as ad_line, 1.2 as ew_index, 1.1 as cap_index,
                0.14 as ew_vol_21, 0.2 as avg_corr_21""")
     con.execute("""create table monitor.market_exceptions as
         select date '2026-09-24' as date, * from (values
