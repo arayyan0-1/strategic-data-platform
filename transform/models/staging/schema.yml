@@ -15,10 +15,39 @@ models:
               arguments:
                 values: ["split", "dividend"]
 
+  - name: stg_ticker_episodes
+    description: The ticker reference per date, with the key of each episode. A new episode starts when a FIGI changes, or when the first word of the name changes and the CIK is not the known one.
+    columns:
+      - name: episode_key
+        tests: [not_null]
+
+  - name: stg_security_links
+    description: >
+      One row per new FIGI that continues the security of the old FIGI on the same
+      ticker. The CIK and the first word of the name stay the same, the sessions are
+      consecutive, the old key stops on every ticker, the new key starts on the link
+      date, and the price does not jump.
+    columns:
+      - name: jump
+        description: The log return of the split-adjusted close from the last old bar to the first new bar.
+      - name: vol
+        description: The standard deviation of the last daily log returns of the old key on the ticker.
+      - name: old_key
+        tests: [not_null, unique]
+      - name: new_key
+        tests: [not_null, unique]
+      - name: root_key
+        description: The first key of the chain of links. stg_tickers gives it to the rows of the new key.
+        tests: [not_null]
+
   - name: stg_tickers
     description: The ticker reference per date, with the security key and the rule that set it.
     columns:
       - name: security_key
+        description: The episode key, or the first key of the chain when a link continues the security.
+        tests: [not_null]
+      - name: episode_key
+        description: The key of the episode. It is different from security_key after a link.
         tests: [not_null]
       - name: key_rule
         description: share_class_figi_filled is a FIGI that the vendor dropped on this date, taken from the same ticker and CIK.
