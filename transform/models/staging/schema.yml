@@ -34,6 +34,12 @@ models:
     columns:
       - name: security_key
         tests: [not_null]
+      - name: cap_source
+        description: The rule that set cap. A refused vendor cap disagrees with the class counts of the episode, and its cap is null.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["class_shares", "company_cap", "refused"]
       - name: industry
         tests: [not_null]
 

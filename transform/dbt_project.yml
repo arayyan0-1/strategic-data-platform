@@ -33,6 +33,11 @@ vars:
   min_days_in_window: 15
   min_days_since_first_bar: 60
 
+  # A vendor market cap of a month-end with no class share count is refused when each
+  # nearest class count of the episode, before and after, disagrees with it by more
+  # than this factor. A lower factor also refuses right values next to a share issue.
+  company_cap_max_ratio: 2.0
+
   # The spread model (mart_spreads): the half spread of the benchmark stock of Kyle and
   # Obizhaeva (2016), linear calibration, and the minimum price increment in dollars.
   spread_kappa0: 0.000821
