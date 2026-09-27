@@ -38,6 +38,14 @@ vars:
   # than this factor. A lower factor also refuses right values next to a share issue.
   company_cap_max_ratio: 2.0
 
+  # A run of at most class_count_max_run month-ends of class counts is refused when it
+  # jumps by more than class_count_max_ratio from the count before it, and the count
+  # after it agrees with the count before within class_count_agree_ratio. The jump limit
+  # is below 1.5, so that a lag after a 3-for-2 or a 2-for-1 split is a jump.
+  class_count_max_ratio: 1.4
+  class_count_agree_ratio: 1.25
+  class_count_max_run: 6
+
   # The spread model (mart_spreads): the half spread of the benchmark stock of Kyle and
   # Obizhaeva (2016), linear calibration, and the minimum price increment in dollars.
   spread_kappa0: 0.000821
