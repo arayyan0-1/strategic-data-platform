@@ -2,12 +2,15 @@
 -- class count and values the 156M old shares at the new price, so its cap is refused and
 -- the universe has no cap until the next month-end. The pull of 2025-10-31 counts the new
 -- shares, and its vendor cap stays. The vendor cap of HON on 2026-06-30 disagrees with the
--- class count before it and agrees with the count after it, so it stays.
+-- class count before it and agrees with the count after it, so it stays. The pull of LLYVA
+-- on 2026-08-31 has no class count and a vendor cap of all three classes, so it takes the
+-- class count of the pull before.
 with cases (ticker, snap_date, expected) as (
     values
-        ('WOLF', date '2025-09-30', 'refused'),
-        ('WOLF', date '2025-10-31', 'company_cap'),
-        ('HON',  date '2026-06-30', 'company_cap')
+        ('WOLF',  date '2025-09-30', 'refused'),
+        ('WOLF',  date '2025-10-31', 'company_cap'),
+        ('HON',   date '2026-06-30', 'company_cap'),
+        ('LLYVA', date '2026-08-31', 'class_carried')
 )
 select 'details' as check_name, c.ticker, c.snap_date as date, d.cap_source, d.cap
 from cases c

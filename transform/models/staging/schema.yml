@@ -64,11 +64,11 @@ models:
       - name: security_key
         tests: [not_null]
       - name: cap_source
-        description: The rule that set cap. A refused vendor cap disagrees with the class counts of the episode, and its cap is null.
+        description: The rule that set cap. A class_carried cap takes the last class count that is not refused, in place of a short run of wrong class counts or a refused vendor cap. A refused vendor cap with no such count is null.
         tests:
           - accepted_values:
               arguments:
-                values: ["class_shares", "company_cap", "refused"]
+                values: ["class_shares", "class_carried", "company_cap", "refused"]
       - name: industry
         tests: [not_null]
 
