@@ -44,4 +44,31 @@ sources:
     tables:
       - name: factors
         identifier: french_factors
-        description: The daily five factors and momentum. Current state.
+        description: >-
+          The daily five factors, momentum, the short- and long-term reversal factors and
+          the value-weighted returns of the 12 industry portfolios. Current state.
+
+  - name: fred
+    description: FRED of the St. Louis Fed, pulled daily.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: series
+        identifier: fred_series
+        description: >-
+          Rates, credit spreads, volatility and financial conditions, one row per series
+          and date, in the units of FRED. The fold of the kept pulls, so a date that left
+          a rolling window keeps its value. Current state.
+
+  - name: global_q
+    description: The q-factors of Hou, Xue and Zhang (global-q.org), pulled monthly.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: factors
+        identifier: q_factors
+        description: >-
+          The daily q5 factors (market, size, investment, profitability, expected
+          growth) and the risk-free rate, as fractions. A new vintage about once a year.

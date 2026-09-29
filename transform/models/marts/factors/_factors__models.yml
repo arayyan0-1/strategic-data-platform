@@ -55,7 +55,8 @@ models:
           - unique
 
   - name: factor_returns
-    description: Every factor return in one long table, by family (quintile, style, pca, ff, ff_mimic).
+    description: Every factor return in one long table, by family (quintile, style, industry, pca, ff,
+      ff_industry, ff_mimic, q).
     columns:
       - name: date
         data_tests:
@@ -71,7 +72,9 @@ models:
                   - industry
                   - pca
                   - ff
+                  - ff_industry
                   - ff_mimic
+                  - q
       - name: factor
         data_tests:
           - not_null

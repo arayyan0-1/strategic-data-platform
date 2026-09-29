@@ -1,6 +1,7 @@
 # src/sdp/ingest/common.py
-"""The parts that the event-stream ingest modules share: the audit error, the
-XNYS calendar, the publish step and the two modes that publish a date again."""
+"""The parts that the ingest modules share: the audit error, the XNYS calendar, the
+publish step, the two modes that publish a date again, and the download of a public
+file."""
 from __future__ import annotations
 
 import argparse
@@ -8,12 +9,14 @@ import datetime as dt
 import logging
 import os
 import shutil
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 import duckdb
 import exchange_calendars as xcals
+import httpx
 
 from sdp.config import settings
 from sdp.ingest.rest import _temp_beside
@@ -25,6 +28,32 @@ XNYS = xcals.get_calendar("XNYS")
 
 class AuditFailure(RuntimeError):
     """A staged file failed a fatal check. The partition is not published."""
+
+
+def get_public(url: str, attempts: int = 4, *, user_agent: str | None = "Mozilla/5.0") -> bytes:
+    """Return the body of a public URL. A transport error or HTTP 5xx causes a retry
+    with backoff. A 4xx error raises at once. The client sends no credentials. With
+    user_agent None, the client sends its own default, which FRED needs: FRED stalls a
+    request with a set User-Agent."""
+    last = ""
+    headers = {"User-Agent": user_agent} if user_agent else {}
+    with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=True,
+                      headers=headers) as client:
+        for i in range(attempts):
+            try:
+                resp = client.get(url)
+            except httpx.TransportError as exc:
+                last = type(exc).__name__
+            else:
+                if resp.status_code < 500 and resp.is_error:
+                    raise RuntimeError(f"HTTP {resp.status_code} on {url}")
+                if not resp.is_error:
+                    return resp.content
+                last = f"HTTP {resp.status_code}"
+            if i + 1 < attempts:
+                log.warning("Attempt %s of %s on %s failed with %s.", i + 1, attempts, url, last)
+                time.sleep(2 ** i)
+    raise RuntimeError(f"All {attempts} attempts on {url} failed. The last error was {last}.")
 
 
 def one(sql: str) -> tuple:

@@ -50,11 +50,11 @@ def fake_pull(monkeypatch):
                 raise RuntimeError("vendor is down")
             return f"/fake/{dataset}"
 
-        def ingest_french(pull_date=None, *, force=False, rebuild=False):
-            return ingest(daily.french.DATASET.name, pull_date, force=force)
-
         monkeypatch.setattr(daily.ca, "ingest", ingest)
-        monkeypatch.setattr(daily.french, "ingest", ingest_french)
+        for name, module in daily.PUBLIC.items():
+            monkeypatch.setattr(module, "ingest",
+                                lambda pull_date=None, *, force=False, rebuild=False, name=name:
+                                ingest(name, pull_date, force=force))
         return calls
 
     return install
@@ -67,10 +67,12 @@ def no_details_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def no_factor_download(monkeypatch):
-    """No test downloads the factor library. fake_pull replaces this stub."""
-    monkeypatch.setattr(daily.french, "ingest",
-                        lambda pull_date=None, *, force=False, rebuild=False: "/fake/french")
+def no_public_download(monkeypatch):
+    """No test downloads a public source. fake_pull replaces these stubs."""
+    for name, module in daily.PUBLIC.items():
+        monkeypatch.setattr(module, "ingest",
+                            lambda pull_date=None, *, force=False, rebuild=False, name=name:
+                            f"/fake/{name}")
 
 
 @pytest.fixture(autouse=True)

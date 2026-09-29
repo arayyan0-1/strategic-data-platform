@@ -34,12 +34,26 @@ models:
   - name: market_movers
     description: The in-universe names that moved most on the last session, in ranked lists.
 
+  - name: market_rates
+    description: The Treasury curve, real yields, inflation expectations, funding rates, credit
+      spreads, volatility and financial conditions on the last session, from FRED, with the changes,
+      the daily move in sigma, the percentile of the level and the curve a month and a year before.
+    columns:
+      - name: measure
+        data_tests:
+          - not_null
+          - unique
+
+  - name: market_rates_history
+    description: The measures of market_rates over the last two years, one row per measure and session.
+
   - name: market_regime
     description: The regime measures of the stock market on the last session against their history.
 
   - name: market_relations
-    description: Cross-asset relations (ratios and correlations of the monitor ETFs) over two years, with
-      the 21-session change, its z-score and the percentile.
+    description: Cross-asset relations (ratios and correlations of the monitor ETFs, and the correlation
+      of stocks with Treasury yields) over two years, with the 21-session change, its z-score and the
+      percentile.
 
   - name: market_short_interest
     description: Short interest of the in-universe names at the last settlement, beside the settlement

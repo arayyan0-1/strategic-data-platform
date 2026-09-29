@@ -45,6 +45,14 @@ def warehouse(tmp_data_root):
             ('cross-asset', 'SPY', 'SPY -2.2 sigma', 2.2, -1.0),
             ('regime', 'avg_corr_21', 'correlation at the 97th percentile', 2.4, -1.0)
         ) t(area, subject, message, score, direction)""")
+    con.execute("""create table monitor.market_rates as
+        select * from (values
+            (2, 't_10y', 'Treasury 10 years', 'Nominal curve', 'pct', 120, 'high', 4.1, 0.03),
+            (1, 't_2y', 'Treasury 2 years', 'Nominal curve', 'pct', 24, 'high', 3.6, 'nan'::double)
+        ) t(position, measure, label, grp, unit, maturity, stress, value, chg_1d)""")
+    con.execute("""create table monitor.market_rates_history as
+        select 't_10y' as measure, date '2026-09-23' + cast(i as integer) as date, 4.0 + i as value
+        from range(2) t(i)""")
     con.close()
     _stamp("2026-09-25T00:00:00+00:00")
     market._cache.update(stamp=None, payload=None)
@@ -61,6 +69,13 @@ def test_the_payload_carries_json_safe_values(warehouse):
     assert row["series"] == [100.0, 101.0]
     assert p["as_of"] == "2026-09-24"
     json.dumps(p, allow_nan=False)
+
+
+def test_the_rates_come_in_order_with_their_history(warehouse):
+    rows = market.snapshot()["rates"]["rows"]
+    assert [r["measure"] for r in rows] == ["t_2y", "t_10y"]
+    assert rows[0]["chg_1d"] is None and rows[0]["series"] == []
+    assert rows[1]["series"] == [4.0, 5.0] and rows[1]["dates"][0] == "2026-09-23"
 
 
 def test_a_missing_mart_empties_its_section_and_names_the_fix(warehouse):
