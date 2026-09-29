@@ -16,7 +16,10 @@ models:
           - not_null
 
   - name: style_factor_returns
-    description: Pure style factor returns from one weighted cross-sectional regression per session.
+    description: Pure style factor returns from one weighted cross-sectional regression per session. With
+      style_return_clip above 0, the fit clips the returns of the session around their weighted median.
+    config:
+      style_return_clip: "{{ var('style_return_clip') }}"
     columns:
       - name: date
         data_tests:
@@ -25,7 +28,7 @@ models:
       - name: market
         description: The intercept, the return of the regression-weighted market.
       - name: r2
-        description: The share of the cross-section of returns that the styles explain on the session.
+        description: The weighted share of the variance of the raw returns that the model explains on the session.
 
   - name: style_residuals
     description: The return of each in-universe name split into market, industry and style parts and a

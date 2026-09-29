@@ -137,3 +137,77 @@ def test_industry_returns_recover_market_industries_and_styles():
         assert np.abs(G[t] - rel).max() < 1e-5
         assert np.abs(F[t] - f).max() < 1e-5
     assert np.nanmin(r2) > 0.99
+
+
+def test_clip_returns_limits_a_jump_and_leaves_the_rest():
+    rng = np.random.default_rng(6)
+    r = rng.normal(0, 0.01, 1000)
+    r[0] = 0.8
+    w = rng.uniform(1, 4, 1000)
+    c = factors.clip_returns(r, w, 5.0)
+    med = factors.weighted_median(r, w)
+    mad = 1.4826 * factors.weighted_median(np.abs(r - med), w)
+    assert c[0] == np.float64(med + 5 * mad)
+    assert 0.01 < c[0] < 0.1
+    assert np.array_equal(c[1:], r[1:])
+    assert factors.clip_returns(r, w, 0.0) is r
+    assert factors.clip_returns(np.zeros(5), np.ones(5), 5.0).sum() == 0
+
+
+def test_weighted_median_follows_the_weights():
+    x = np.array([1.0, 2.0, 3.0])
+    assert factors.weighted_median(x, np.array([1.0, 1.0, 1.0])) == 2.0
+    assert factors.weighted_median(x, np.array([1.0, 1.0, 5.0])) == 3.0
+
+
+def _panel_with_jumps(jumps: bool, seed=7, days=30, names=600, k=3, n_jumps=4):
+    """Return a panel with known factor returns. On each session with jumps, the names with
+    the largest exposure to the first style earn a return of +50% on top of the model."""
+    rng = np.random.default_rng(seed)
+    f_true = rng.normal(0, 0.002, (days, k + 1))
+    rows_day, rows_z, rows_r, rows_w = [], [], [], []
+    for t in range(days):
+        w = rng.uniform(1, 4, names)
+        Z = rng.normal(0, 1, (names, k))
+        r = f_true[t, 0] + Z @ f_true[t, 1:] + rng.normal(0, 1e-3, names)
+        if jumps:
+            r[np.argsort(Z[:, 0])[-n_jumps:]] += 0.5
+        rows_day.append(np.full(names, t))
+        rows_z.append(Z)
+        rows_r.append(r)
+        rows_w.append(w)
+    return (np.concatenate(rows_day), np.vstack(rows_z), np.concatenate(rows_r),
+            np.concatenate(rows_w), f_true)
+
+
+def test_return_clip_recovers_the_factor_returns_through_jumps():
+    day, Z, r, w, f_true = _panel_with_jumps(jumps=True)
+    _, _, F_raw, *_ = factors.cross_section_returns(day, Z, r, w)
+    _, _, F_clip, *_ = factors.cross_section_returns(day, Z, r, w, return_clip=5.0)
+    err_raw = np.abs(F_raw - f_true[:, 1:]).max()
+    err_clip = np.abs(F_clip - f_true[:, 1:]).max()
+    assert err_raw > 5e-3, "a jump moves the raw fit"
+    assert err_clip < 1.5e-3
+    assert err_clip < err_raw / 10
+
+
+def test_return_clip_agrees_with_the_raw_fit_without_jumps():
+    day, Z, r, w, _ = _panel_with_jumps(jumps=False)
+    _, m0, F0, _, _, r2_0 = factors.cross_section_returns(day, Z, r, w)
+    _, m5, F5, _, _, r2_5 = factors.cross_section_returns(day, Z, r, w, return_clip=5.0)
+    assert np.abs(F0 - F5).max() < 1e-9
+    assert np.abs(m0 - m5).max() < 1e-9
+    assert np.abs(r2_0 - r2_5).max() < 1e-9
+
+
+def test_return_clip_keeps_the_r2_on_the_raw_returns():
+    day, Z, r, w, _ = _panel_with_jumps(jumps=True, days=1)
+    _, market, F, _, _, r2 = factors.cross_section_returns(day, Z, r, w, return_clip=5.0)
+    A = np.column_stack([np.ones(r.size), Z])
+    coef = np.concatenate([market, F[0]])
+    resid = r - A @ coef
+    mean = np.average(r, weights=w)
+    expected = 1 - np.sum(w * resid ** 2) / np.sum(w * (r - mean) ** 2)
+    assert abs(r2[0] - expected) < 1e-12
+    _, _, _, _, _, r2_raw = factors.cross_section_returns(day, Z, r, w)
+    assert r2[0] < r2_raw[0], "the raw fit has the highest R² on the raw returns"

@@ -70,6 +70,11 @@ vars:
   style_center: cap
   style_clip: 3.0
 
+  # The style fit clips the returns of each session at the weighted median plus or minus
+  # this many robust standard deviations (1.4826 times the MAD). 0 means no clip. The
+  # residual and r2 always use the raw returns, so a jump stays in the residual.
+  style_return_clip: 0.0
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 

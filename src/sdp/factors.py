@@ -67,10 +67,31 @@ def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
     return Z
 
 
+def weighted_median(x: np.ndarray, w: np.ndarray) -> float:
+    """Return the smallest value of x with at least half of the total weight w at or below
+    it."""
+    order = np.argsort(x, kind="stable")
+    cum = np.cumsum(w[order])
+    return float(x[order][np.searchsorted(cum, 0.5 * cum[-1])])
+
+
+def clip_returns(r: np.ndarray, w: np.ndarray, k: float) -> np.ndarray:
+    """Clip the returns r of one session at their w-weighted median plus or minus k robust
+    standard deviations (1.4826 times the w-weighted median absolute deviation). Return r
+    unchanged when k is 0 or the deviation is 0."""
+    if k <= 0:
+        return r
+    med = weighted_median(r, w)
+    mad = 1.4826 * weighted_median(np.abs(r - med), w)
+    if not mad > 0:
+        return r
+    return np.clip(r, med - k * mad, med + k * mad)
+
+
 def cross_section_returns(
     day: np.ndarray, Z: np.ndarray, r: np.ndarray, w: np.ndarray, *,
     groups: np.ndarray | None = None, n_groups: int = 0, cap: np.ndarray | None = None,
-    min_names: int = 100,
+    min_names: int = 100, return_clip: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Regress the returns of each session on the exposures Z, with weights w. Return the
     sessions, the market return, the style returns (one column for each column of Z), the
@@ -82,7 +103,11 @@ def cross_section_returns(
     coefficients weighted by cap, and each group return is its coefficient less the
     market, so the cap-weighted group returns sum to 0 (the constraint of a Barra model).
     A group with no names in a session gets NaN. A session with fewer than min_names
-    usable rows gets NaN."""
+    usable rows gets NaN.
+
+    With return_clip above 0, the fit uses the returns clipped by clip_returns, so one
+    extreme return has a bounded effect on a coefficient. The residual and the R² use the
+    raw returns. With 0, the fit uses the raw returns."""
     day = np.asarray(day)
     order = np.argsort(day, kind="stable")
     days, starts = np.unique(day[order], return_index=True)
@@ -110,7 +135,8 @@ def cross_section_returns(
             D = (gg[:, None] == present[None, :]).astype(float)
             A = np.column_stack([D, zz])
         sw = np.sqrt(ww)
-        coef, *_ = np.linalg.lstsq(A * sw[:, None], rr * sw, rcond=None)
+        coef, *_ = np.linalg.lstsq(
+            A * sw[:, None], clip_returns(rr, ww, return_clip) * sw, rcond=None)
         if groups is None:
             market[i] = coef[0]
             F[i] = coef[1:]
