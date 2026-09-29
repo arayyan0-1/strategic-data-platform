@@ -113,7 +113,14 @@ models:
     description: Mean forward return per signal and quintile over the full sample.
 
   - name: signal_long_short
-    description: Daily return of each top-less-bottom quintile long-short, and its cumulative sum.
+    description: Daily return of each top-less-bottom quintile long-short, and its cumulative sum. The return
+      is the equal-weight mean of the top bin less the mean of the bottom bin, gross of cost, with no clip.
+    columns:
+      - name: ret
+        description: The return that a portfolio earns, dated on the formation session.
+      - name: ret_winsorized
+        description: A robustness check and not a return that a portfolio earns. The same long-short with each
+          forward return clipped to the long_short_winsor quantiles of its session.
 
   - name: signal_turnover
     description: Average top-quintile turnover per signal.
@@ -132,7 +139,8 @@ models:
           - not_null
 
   - name: signal_costs
-    description: Gross, cost and net daily return of each quintile long-short, from the model spreads.
+    description: Gross, cost and net daily return of each quintile long-short, from the model spreads. Gross is
+      the unclipped return of signal_long_short.
 
   - name: spreads
     description: The bid-ask spread of each common stock from the invariance cost model of Kyle and Obizhaeva,

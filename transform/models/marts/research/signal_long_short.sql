@@ -1,11 +1,16 @@
 {#
-  Long-short return of each signal: the top quintile less the bottom, equal
-  weighted, rebalanced daily. The bins are the panel quintiles, so tied values
-  share one bin. Many tied values can leave bin 1 or bin 5 empty, so each side
-  is the lowest or highest bin that has names. The forward return is winsorized
-  to its 1st and 99th percentile each session, so one extreme print does not
-  dominate. The IC needs no such step, because a rank is already robust. cum_ret
-  is the arithmetic sum, gross of cost. Read it beside signal_turnover.
+  Long-short return of each signal: the mean forward return of the top quintile less
+  the mean of the bottom quintile. Each leg is equal weight, rebalanced daily, and
+  gross of cost. ret keeps every return as printed, so it holds the squeezes and the
+  jumps that a portfolio earns. cum_ret is the arithmetic sum of ret. Read it beside
+  signal_turnover.
+
+  The bins are the panel quintiles, so tied values share one bin. Many tied values can
+  leave bin 1 or bin 5 empty, so each side is the lowest or highest bin that has names.
+
+  ret_winsorized is a robustness check. It clips each forward return to the
+  long_short_winsor and 1 - long_short_winsor quantiles of its session before it
+  averages the legs. A portfolio does not earn that return.
 #}
 
 with bins as (
@@ -27,15 +32,15 @@ with bins as (
 
     select
         signal, date,
-        quantile_cont(fwd_ret_1, 0.01) as lo,
-        quantile_cont(fwd_ret_1, 0.99) as hi
+        quantile_cont(fwd_ret_1, {{ var('long_short_winsor') }})     as lo,
+        quantile_cont(fwd_ret_1, 1 - {{ var('long_short_winsor') }}) as hi
     from binned
     group by signal, date
 
 ), capped as (
 
     select
-        b.signal, b.date, b.quintile, b.bottom, b.top,
+        b.signal, b.date, b.quintile, b.bottom, b.top, b.fwd_ret_1,
         least(greatest(b.fwd_ret_1, c.lo), c.hi) as w_ret
     from binned b
     inner join caps c on c.signal = b.signal and c.date = b.date
@@ -46,8 +51,10 @@ with bins as (
     select
         signal,
         date,
+        avg(fwd_ret_1) filter (where quintile = top)
+            - avg(fwd_ret_1) filter (where quintile = bottom and bottom < top) as ret,
         avg(w_ret) filter (where quintile = top)
-            - avg(w_ret) filter (where quintile = bottom and bottom < top) as ret
+            - avg(w_ret) filter (where quintile = bottom and bottom < top)     as ret_winsorized
     from capped
     group by signal, date
 
@@ -59,5 +66,6 @@ select
     ret,
     sum(ret) over (
         partition by signal order by date
-        rows between unbounded preceding and current row) as cum_ret
+        rows between unbounded preceding and current row) as cum_ret,
+    ret_winsorized
 from daily

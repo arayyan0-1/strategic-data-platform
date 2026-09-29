@@ -89,6 +89,11 @@ vars:
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
+  # signal_long_short.ret_winsorized clips a forward return at this quantile of its
+  # session and at the quantile 1 - this value. It is a robustness check. A portfolio
+  # does not earn it.
+  long_short_winsor: 0.01
+
   # The evaluation calendar. Development is split into eval_folds contiguous folds, and a
   # signal is judged on development. The sessions from holdout_start are the holdout: a
   # signal meets it once, when it is final. The date stays fixed as the data grows.
