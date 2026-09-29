@@ -9,3 +9,21 @@ seeds:
 
   - name: factor_labels
     description: A readable label for each factor of each family, and for each signal (the quintile family).
+
+  - name: security_link_decisions
+    description: The reviewed decisions on a change of FIGI key that the identity tests of a link cannot
+      settle, one row per ticker and link date. link continues the security, refuse starts a new one.
+      The structure and price tests of int_key_changes still apply to a link.
+    config:
+      column_types:
+        ticker: varchar
+        link_date: date
+        decision: varchar
+        reason: varchar
+    columns:
+      - name: decision
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['link', 'refuse']

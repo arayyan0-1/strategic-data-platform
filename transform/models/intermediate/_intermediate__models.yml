@@ -3,17 +3,25 @@ version: 2
 models:
   - name: int_ticker_episodes
     description: The ticker reference per date, with the key of each episode. A new episode starts when
-      a FIGI changes, or when the first word of the name changes and the CIK is not the known one.
+      a FIGI changes, or when the first word of the name changes and the CIK is not the known one. A
+      FIGI on one session between two sessions of the same other FIGI takes that FIGI.
     columns:
       - name: episode_key
         data_tests:
           - not_null
 
+  - name: int_key_changes
+    description: One row per change of FIGI key between two consecutive rows of a ticker, with each test
+      of a link (identity, structure, price), the reviewed decision, whether it links, and whether it
+      needs a review.
+    columns:
+      - name: linked
+        data_tests:
+          - not_null
+
   - name: int_security_links
-    description: One row per new FIGI that continues the security of the old FIGI on the same ticker.
-      The CIK stays the same, each name with no spaces starts with the first word of the other name,
-      the sessions are consecutive, the old key stops on every ticker, the new key starts on the link
-      date, and the price does not jump.
+    description: One row per new FIGI that continues the security of the old FIGI on the same ticker,
+      from the rows of int_key_changes that link. basis is rule or reviewed.
     columns:
       - name: jump
         description: The log return of the split-adjusted close from the last old bar to the first new

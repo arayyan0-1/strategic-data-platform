@@ -649,6 +649,8 @@ function sources() {
   const S = DATA.sources || [];
   const today = new Date();
   $("sources").innerHTML = S.map(s => {
+    if (s.pending !== null && s.pending !== undefined) return s.pending ? `<span title="${esc(s.note)}"><i
+      style="background:var(--amber)"></i>${esc(s.source)}: ${s.pending} to review</span>` : "";
     const age = s.last_date ? Math.round((today - new Date(s.last_date)) / 864e5) : null;
     const c = age === null ? "var(--dim)" : age > s.max_age_days * 1.5 ? "var(--down)" : age > s.max_age_days ? "var(--amber)" : "var(--up)";
     return `<span title="${esc(s.note)}${s.pulled ? " · pulled " + s.pulled : ""}"><i style="background:${c}"></i>${esc(s.source)} ${esc(s.last_date || "–")}</span>`;

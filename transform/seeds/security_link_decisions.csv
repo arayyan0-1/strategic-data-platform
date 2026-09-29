@@ -1,0 +1,57 @@
+ticker,link_date,decision,reason
+APO,2022-01-03,link,A new holding company for the Athene merger. Holders of the old stock took new shares one for one.
+NCNO,2022-01-10,link,A new holding company for the SimpleNexus deal. Same name and a new CIK.
+CHGX,2022-03-21,link,The fund moved to a new sponsor (AXS). Same fund and share for share.
+URNM,2022-04-25,link,The fund moved to a new sponsor (Sprott). Same fund and share for share.
+CR,2022-05-17,link,A reorganization into a holding company (Crane Holdings). A new CIK.
+QDEL,2022-05-27,link,A new holding company (QuidelOrtho) for the Ortho merger. Quidel holders took new shares one for one.
+NNAVW,2022-06-02,link,The warrant of NextNav under a new CIK. Same name.
+OUSA,2022-06-22,link,The O'Shares fund moved to a new trust (ALPS). Share for share.
+OGIG,2022-06-22,link,The O'Shares fund moved to a new trust (ALPS). Share for share.
+OEUR,2022-06-22,link,The O'Shares fund moved to a new trust (ALPS). Share for share.
+OUSM,2022-06-22,link,The O'Shares fund moved to a new trust (ALPS). Share for share.
+DSPC,2022-08-08,link,The fund moved to a new sponsor (AXS). Share for share.
+SOGU,2022-08-08,link,The fund moved to a new sponsor (AXS). Share for share.
+FOMO,2022-08-08,link,The fund moved to a new sponsor (AXS). Share for share.
+SARK,2022-08-08,link,The fund moved to a new sponsor (AXS). Share for share.
+AAA,2022-10-17,link,The fund moved to a new sponsor (AXS). Share for share.
+WUGI,2022-12-19,link,The fund moved to a new sponsor (AXS). Share for share.
+STNC,2022-12-23,link,The fund moved to a new sponsor (Hennessy). Share for share.
+BPRN,2023-01-11,link,A reorganization into a holding company (Princeton Bancorp). Same CIK.
+THCX,2023-01-23,link,The fund moved to a new sponsor (AXS). Share for share.
+BATRK,2023-07-19,link,The Liberty Braves tracking stock became Atlanta Braves Holdings one for one.
+BATRA,2023-07-19,link,The Liberty Braves tracking stock became Atlanta Braves Holdings one for one.
+IPAY,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+HACK,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+GAMR,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+ETHO,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+MJUS,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+AWAY,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+ITEQ,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+AIEQ,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+MJ,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+GERM,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+IVES,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+SILJ,2024-01-29,link,The ETFMG funds moved to Amplify. Share for share.
+OWNS,2024-03-18,link,The fund moved to a new sponsor (CCM). Share for share.
+FPAG,2024-04-26,link,Same fund and name under a new CIK.
+LH,2024-05-20,link,A reorganization into a holding company (Labcorp Holdings). Same CIK.
+TIME,2024-06-24,link,Same fund and name under a new CIK.
+FUN,2024-07-02,link,Cedar Fair merged with Six Flags into a new company. Cedar Fair holders took new shares one for one.
+SSPY,2024-09-30,link,The fund changed its name when its sponsor changed. Share for share.
+SHUS,2024-09-30,link,The fund changed its name and strategy under a new sponsor. Share for share.
+NUSI,2024-11-11,link,The fund moved to a new sponsor (NEOS). Share for share.
+LCR,2025-01-21,link,Same fund and name under a new CIK.
+CPII,2025-04-14,link,The fund moved to a new sponsor (American Beacon). Share for share.
+TPYP,2025-05-12,link,Same fund and name under a new CIK.
+CIB,2025-05-19,link,A reorganization into a holding company (Grupo Cibest). Same CIK.
+ERNZ,2025-06-16,link,The fund moved to a new trust. Share for share.
+TBLU,2025-07-14,link,Same fund under a shorter name and a new CIK.
+TGLR,2026-04-13,link,The fund moved to a new sponsor (Wedbush). Share for share.
+BOUT,2026-04-27,link,The fund moved to a new sponsor (CapForce). Share for share.
+FFTY,2026-04-27,link,The fund moved to a new sponsor (CapForce). Share for share.
+DMRC,2026-05-19,link,A reorganization into a holding company (Digimarc Parent). A new CIK.
+YALL,2026-06-22,link,The fund changed its name under a new sponsor. Share for share.
+GORO,2026-07-20,refuse,Goldgroup Mining took the ticker of Gold Resource. A different company.
+MAGA,2026-07-27,link,The fund changed its name under a new sponsor. Share for share.
+SCEC,2026-09-15,link,Same fund. The vendor gives the trust name and no CIK.
