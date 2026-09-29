@@ -159,8 +159,9 @@
       <div class="panel"><h3 id="attr-n-title">By name</h3><table id="attr-names"></table></div>
     </div>
     <div class="note">The in-universe common stock through the style and industry model. Each part is in basis
-      points of the market and the parts sum to its return. The cap-weighted market has style exposure too: on a
-      day when the largest names beat the rest, size shows here. By name: the cap weight times the return; the
+      points of the market and the parts sum to its return. Each style is centered on the cap-weighted market, as in
+      Barra, so cap-weighted the styles are near zero and the market factor is the market. Equal-weighted, the styles
+      show how the average name differs: on a day when small names beat large ones, size shows here. By name: the cap weight times the return; the
       stock-specific part is in grey. The names are for the last session (1D) or the last 21 sessions.</div>
   </section>
 
@@ -1323,7 +1324,8 @@ function stockPage(P) {
         <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
       <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, stock-specific
         ${pct(r.spec_vol, 1, false)} (the last 63 sessions). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
-        factor that hedges the others. For the largest names the model is noisy: the size exposure sits at its cap of 3σ.</div>`;
+        factor that hedges the others. Every name has a market exposure of 1, and the beta style adjusts it. For a name that
+        moves little with the market (BRK.B, AAPL, WMT, JNJ in 2026), the adjustment falls short and the factor part adds noise.</div>`;
   } else $("st-risk").innerHTML = '<div class="note">Not in the model universe.</div>';
   const relRow = (x, k) => `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td>
     <td>${num(x[k], 2)}</td><td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`;

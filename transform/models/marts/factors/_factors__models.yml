@@ -4,6 +4,9 @@ models:
   - name: style_exposures
     description: The industry and the eight style z-scores of each in-universe name per session, with
       its regression weight and the return of the next session.
+    config:
+      style_center: "{{ var('style_center') }}"
+      style_clip: "{{ var('style_clip') }}"
     columns:
       - name: security_key
         data_tests:

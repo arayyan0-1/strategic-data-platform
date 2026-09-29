@@ -6,7 +6,10 @@ momentum, reversal, volatility, dividend yield and the 52-week high.
 
 The regression weight is the square root of the market cap. A name with no market cap
 takes the median ratio of cap to dollar volume of its session, so it keeps a weight and
-its size z-score is 0. style_factor_returns and style_residuals read this table.
+its size z-score is 0. The var style_center sets the mean of each z-score: sqrt_cap (the
+regression weight) or cap (as in Barra, so the cap-weighted market has no style
+exposure). style_clip is the largest z-score. style_factor_returns and style_residuals
+read this table.
 """
 import numpy as np
 
@@ -26,6 +29,10 @@ STYLES = {
 
 def model(dbt, session):
     dbt.config(materialized="table")
+    center = dbt.config.get("style_center")
+    clip = float(dbt.config.get("style_clip"))
+    if center not in ("sqrt_cap", "cap"):
+        raise ValueError(f"style_center must be sqrt_cap or cap. It is {center}.")
     session.register("exp_signals", dbt.ref("signals"))
     session.register("exp_forward", dbt.ref("forward_returns"))
     session.register("exp_universe", dbt.ref("int_universe"))
@@ -64,7 +71,7 @@ def model(dbt, session):
 
     X = np.column_stack([filled(p[f"x_{n}"]) for n in STYLES])
     X[~np.isfinite(X)] = np.nan
-    Z = standardize(day, X, w)
+    Z = standardize(day, X, cap_filled if center == "cap" else w, clip)
 
     out = {"rid": np.arange(day.size, dtype=np.int64), "cap": cap_filled, "w": w}
     for j, n in enumerate(STYLES):

@@ -63,6 +63,13 @@ vars:
   # across names grows from 0.6 to between 1.6 and 30, and a new listing reached 1,401.
   beta_min_obs: 126
 
+  # The style z-scores: the mean each is centered on (sqrt_cap, the regression weight, or
+  # cap, as in Barra) and the largest absolute value. The center does not change the fit
+  # or the residuals: the market and industry coefficients absorb it. With cap, the
+  # market factor is the cap-weighted market and that market has no style exposure.
+  style_center: cap
+  style_clip: 3.0
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 

@@ -29,8 +29,9 @@ def filled(a) -> np.ndarray:
 
 def zscore(x: np.ndarray, w: np.ndarray, clip: float = 3.0) -> np.ndarray:
     """Standardize one cross-section. Winsorize at the median plus or minus 5 robust
-    standard deviations, center on the w-weighted mean, divide by the standard deviation
-    and clip at plus or minus clip. A missing value becomes 0, the mean."""
+    standard deviations, center on the w-weighted mean, divide by the equal-weighted
+    standard deviation and clip at plus or minus clip. A missing value becomes 0, the
+    mean. With w the market cap, the cap-weighted market has an exposure of 0."""
     x = np.asarray(x, dtype=float)
     z = np.zeros_like(x)
     ok = np.isfinite(x)
@@ -50,9 +51,10 @@ def zscore(x: np.ndarray, w: np.ndarray, clip: float = 3.0) -> np.ndarray:
     return z
 
 
-def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray) -> np.ndarray:
-    """Return the z-score of each column of X within each session (zscore). Rows keep
-    their order. A missing value becomes 0."""
+def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
+                clip: float = 3.0) -> np.ndarray:
+    """Return the z-score of each column of X within each session (zscore), centered on
+    the w-weighted mean. Rows keep their order. A missing value becomes 0."""
     day = np.asarray(day)
     Z = np.zeros_like(X, dtype=float)
     order = np.argsort(day, kind="stable")
@@ -61,7 +63,7 @@ def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray) -> np.ndarray:
     for a, b in zip(starts, ends, strict=True):
         rows = order[a:b]
         for j in range(X.shape[1]):
-            Z[rows, j] = zscore(X[rows, j], w[rows])
+            Z[rows, j] = zscore(X[rows, j], w[rows], clip)
     return Z
 
 

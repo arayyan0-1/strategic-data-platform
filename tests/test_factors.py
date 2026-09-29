@@ -22,6 +22,16 @@ def test_zscore_limits_an_outlier():
     assert z[-1] == 3
 
 
+def test_zscore_centered_on_the_cap_gives_the_cap_weighted_market_no_exposure():
+    rng = np.random.default_rng(2)
+    cap = np.exp(rng.normal(22, 1.5, 2000))
+    x = np.log(cap)
+    z = factors.zscore(x, cap, clip=10.0)
+    assert abs(np.average(z, weights=cap)) < 1e-9
+    assert abs(z.std() - 1) < 1e-9, "the scale stays the equal-weighted deviation"
+    assert factors.zscore(x, cap, clip=1.5).max() == 1.5
+
+
 def test_style_returns_recover_the_factor_returns():
     rng = np.random.default_rng(2)
     days, names, k = 40, 600, 3
