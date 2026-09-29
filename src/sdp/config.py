@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # The Kenneth French Data Library. It is public and needs no key.
     french_base_url: str = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
 
+    # FRED of the St. Louis Fed: one CSV per series. It is public and needs no key.
+    fred_csv_url: str = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+
+    # The q-factors of Hou, Xue and Zhang. The page links the file of the latest vintage.
+    qfactors_page_url: str = "https://global-q.org/factors.html"
+
     data_root: Path = _REPO_ROOT / "data"
 
     # DuckDB in a dbt build. Above the memory limit, DuckDB writes to disk, which costs

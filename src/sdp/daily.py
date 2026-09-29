@@ -3,9 +3,9 @@
 
     python -m sdp.daily
 
-Three steps. (1) Pull the current-state datasets (splits, dividends, and the
-Fama-French factors once a week). Each pull replaces the whole table, so a missed
-day costs nothing. (2) Fill the four event
+Three steps. (1) Pull the current-state datasets: splits and dividends, the FRED
+series once a day, the Fama-French factors once a week and the q-factors once a month.
+Each pull replaces the whole table, so a missed day costs nothing. (2) Fill the four event
 streams (day_aggs, tickers, short_volume, short_interest) from the day after the
 last partition, so a machine that slept self-heals, then the monthly ticker
 details of each month-end that has ended. Step 2 is capped so a long
@@ -34,13 +34,16 @@ from urllib.parse import urlsplit
 
 from sdp import backfill, dal
 from sdp.config import settings
-from sdp.ingest import french
+from sdp.ingest import fred, french, qfactors
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_ticker_details as details
 
 log = logging.getLogger("sdp.daily")
 
-CURRENT_STATE = ["massive_splits", "massive_dividends", french.DATASET.name]
+# The public current-state sources, each with its ingest module. Each pulls when its
+# table is older than the MAX_AGE_DAYS of its module.
+PUBLIC = {m.DATASET.name: m for m in (french, fred, qfactors)}
+CURRENT_STATE = ["massive_splits", "massive_dividends", *PUBLIC]
 
 EVENT_STREAMS = {
     "day_aggs": dal.DAY_AGGS,
@@ -119,8 +122,8 @@ def _pull_current_state(today: dt.date, *, force: bool = False,
         if on_event:
             on_event({"kind": "pull_start", "dataset": dataset})
         try:
-            if dataset == french.DATASET.name:
-                path = french.ingest(today, force=force)
+            if dataset in PUBLIC:
+                path = PUBLIC[dataset].ingest(today, force=force)
             else:
                 path = ca.ingest(dataset, today, force=force)
             log.info("%s: %s", dataset, path)
@@ -441,10 +444,11 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                      if last else None,
                      "detail": f"month-end {last}" if last else "no partitions"})
 
-    # Current state. A missed day costs nothing, so it is never "bad". The factor
-    # library updates monthly, so its pull is weekly.
+    # Current state. A missed day costs nothing, so it is never "bad". Each public
+    # source has its own cadence.
     for name, ds, max_age in (("splits", dal.SPLITS, 0), ("dividends", dal.DIVIDENDS, 0),
-                              ("french_factors", dal.FRENCH, french.MAX_AGE_DAYS)):
+                              *((m.DATASET.name, m.DATASET, m.MAX_AGE_DAYS)
+                                for m in PUBLIC.values())):
         f = ds.table_file
         if f.exists():
             when = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.UTC).date()

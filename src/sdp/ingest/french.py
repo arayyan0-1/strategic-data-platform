@@ -1,5 +1,6 @@
 # src/sdp/ingest/french.py
-"""The Fama-French daily factors from the Kenneth French Data Library.
+"""The Fama-French daily factors and the 12 industry portfolios from the Kenneth French
+Data Library.
 
     python -m sdp.ingest.french             # pull when the table is a week old
     python -m sdp.ingest.french --force     # pull now
@@ -7,7 +8,8 @@
 
 Each file states the whole history, and the library revises it, so the table is
 current state: one file in raw/, replaced by each pull. vendor/ keeps the zip files
-of each pull. The files give daily returns in percent. The table holds fractions.
+of each pull. The files give daily returns in percent. The table holds fractions. The
+dates of the five-factor file are the rows. The other files join on them.
 The library updates about once a month, so a pull is due only after MAX_AGE_DAYS.
 """
 from __future__ import annotations
@@ -18,28 +20,35 @@ import io
 import logging
 import os
 import re
-import time
 import zipfile
 from pathlib import Path
 
 import duckdb
-import httpx
 import numpy as np
 
 from sdp import dal
 from sdp.config import settings
-from sdp.ingest.common import AuditFailure, one, publish
+from sdp.ingest.common import AuditFailure, get_public, one, publish
 from sdp.ingest.rest import _temp_beside
 
 log = logging.getLogger(__name__)
 
 DATASET = dal.FRENCH
 
-# Each file and the columns it gives after the date, in order.
+# Each file and the columns it gives after the date, in order. The first file sets the
+# rows. The industry file holds value-weighted returns, then equal-weighted returns. The
+# parser reads the first section only.
+INDUSTRIES = ("nodur", "durbl", "manuf", "enrgy", "chems", "buseq", "telcm", "utils",
+              "shops", "hlth", "money", "other")
 FILES = {
     "F-F_Research_Data_5_Factors_2x3_daily_CSV.zip": ("mkt_rf", "smb", "hml", "rmw", "cma", "rf"),
     "F-F_Momentum_Factor_daily_CSV.zip": ("mom",),
+    "F-F_ST_Reversal_Factor_daily_CSV.zip": ("st_rev",),
+    "F-F_LT_Reversal_Factor_daily_CSV.zip": ("lt_rev",),
+    "12_Industry_Portfolios_daily_CSV.zip": tuple(f"ind_{c}" for c in INDUSTRIES),
 }
+OPTIONAL = tuple(c for cols in list(FILES.values())[1:] for c in cols)
+MISSING = (-99.99, -999.0)
 FACTORS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf")
 
 MAX_AGE_DAYS = 7
@@ -67,27 +76,8 @@ def vendor_pulls() -> list[tuple[dt.date, Path]]:
 
 
 def _download(name: str, attempts: int = 4) -> bytes:
-    """Return the bytes of one library file. A transport error or HTTP 5xx causes a
-    retry with backoff. The client sends no credentials."""
-    url = settings.french_base_url + name
-    last = ""
-    with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=True,
-                      headers={"User-Agent": "Mozilla/5.0"}) as client:
-        for i in range(attempts):
-            try:
-                resp = client.get(url)
-            except httpx.TransportError as exc:
-                last = type(exc).__name__
-            else:
-                if resp.status_code < 500 and resp.is_error:
-                    raise RuntimeError(f"HTTP {resp.status_code} on {url}")
-                if not resp.is_error:
-                    return resp.content
-                last = f"HTTP {resp.status_code}"
-            if i + 1 < attempts:
-                log.warning("Attempt %s of %s on %s failed with %s.", i + 1, attempts, url, last)
-                time.sleep(2 ** i)
-    raise RuntimeError(f"All {attempts} attempts on {url} failed. The last error was {last}.")
+    """Return the bytes of one library file."""
+    return get_public(settings.french_base_url + name, attempts)
 
 
 def fetch(pull_date: dt.date) -> Path:
@@ -104,8 +94,10 @@ def fetch(pull_date: dt.date) -> Path:
 
 
 def _parse(data: bytes, cols: tuple[str, ...]) -> tuple[dict[str, list[float]], str | None]:
-    """Return the daily rows of one zip file by date, as fractions, and the CRSP month
-    that built the file. A row is a line with an 8-digit date and one value per column."""
+    """Return the daily rows of the first section of one zip file by date, as fractions,
+    and the CRSP month that built the file. A row is a line with an 8-digit date and one
+    value per column. A missing value (-99.99 or -999) is NaN. The first line of text
+    after the rows ends the section."""
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         text = z.read(z.namelist()[0]).decode("latin-1")
     crsp = re.search(r"(\d{6}) CRSP", text)
@@ -115,20 +107,25 @@ def _parse(data: bytes, cols: tuple[str, ...]) -> tuple[dict[str, list[float]], 
         if len(parts) == len(cols) + 1 and parts[0].isdigit() and len(parts[0]) == 8:
             if parts[0] in rows:
                 raise AuditFailure(f"The file repeats the date {parts[0]}.")
-            rows[parts[0]] = [float(v) / 100 for v in parts[1:]]
+            rows[parts[0]] = [np.nan if float(v) in MISSING else float(v) / 100
+                              for v in parts[1:]]
+        elif rows and line.strip() and not line.lstrip().startswith(","):
+            break
     return rows, crsp.group(1) if crsp else None
 
 
 def build(pull: Path, pull_date: dt.date) -> Path:
     """Build the table from one vendor pull into _staging/. Return the staged file."""
-    (five_name, five_cols), (mom_name, mom_cols) = FILES.items()
+    (five_name, five_cols), *others = FILES.items()
     five, crsp = _parse((pull / five_name).read_bytes(), five_cols)
-    mom, _ = _parse((pull / mom_name).read_bytes(), mom_cols)
     keys = sorted(five)
     arrays = {"date": np.array([f"{k[:4]}-{k[4:6]}-{k[6:]}" for k in keys])}
     for j, col in enumerate(five_cols):
         arrays[col] = np.array([five[k][j] for k in keys])
-    arrays["mom"] = np.array([mom[k][0] if k in mom else np.nan for k in keys])
+    for name, cols in others:
+        rows, _ = _parse((pull / name).read_bytes(), cols)
+        for j, col in enumerate(cols):
+            arrays[col] = np.array([rows[k][j] if k in rows else np.nan for k in keys])
     staged = settings.staging_dir / f"{DATASET.name}-{os.getpid()}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
     french_rows = arrays  # noqa: F841 -- DuckDB reads the local variable by its name.
@@ -138,7 +135,8 @@ def build(pull: Path, pull_date: dt.date) -> Path:
             copy (
                 select cast(date as date) as date,
                        {", ".join(f"round({c}, 8) as {c}" for c in FACTORS)},
-                       case when isnan(mom) then null else round(mom, 8) end as mom,
+                       {", ".join(f"case when isnan({c}) then null else round({c}, 8) end as {c}"
+                                  for c in OPTIONAL)},
                        {f"'{crsp}'" if crsp else "null"}::varchar as crsp_month,
                        date '{pull_date}' as vendor_pull_date
                 from french_rows
@@ -154,7 +152,7 @@ def audit(staged: Path, pull_date: dt.date) -> int:
     n, dups, nulls, worst, last = one(f"""
         select count(*), count(*) - count(distinct date),
                count(*) filter ({" or ".join(f"{c} is null" for c in FACTORS)}),
-               greatest({", ".join(f"max(abs({c}))" for c in (*FACTORS, "mom"))}),
+               greatest({", ".join(f"max(abs({c}))" for c in (*FACTORS, *OPTIONAL))}),
                max(date)
         from read_parquet('{staged}')""")
     if n < MIN_ROWS:

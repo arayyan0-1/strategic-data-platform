@@ -65,8 +65,16 @@ TICKER_DETAILS = Dataset("massive_ticker_details", "date", union_by_name=True)
 # file, so the table is current state.
 FRENCH = Dataset("french_factors", None)
 
-DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS,
-                                SHORT_VOLUME, SHORT_INTEREST, TICKER_DETAILS, FRENCH)}
+# Rates, credit spreads, volatility and financial conditions from FRED, one row per
+# series and date. FRED revises values and serves a rolling window of some series, so
+# the table is current state: the fold of the kept pulls.
+FRED = Dataset("fred_series", None)
+
+# The daily q5 factors of Hou, Xue and Zhang. Current state, like the French factors.
+QFACTORS = Dataset("q_factors", None)
+
+DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
+                                SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRED, QFACTORS)}
 
 _con: duckdb.DuckDBPyConnection | None = None
 
@@ -256,6 +264,18 @@ def french_factors():
     """Return the Fama-French daily factors as the library states them now, as
     fractions. crsp_month names the version of the library files."""
     return current(FRENCH)
+
+
+def fred_series():
+    """Return the FRED series in long form: series_id, date, value, in the units of
+    FRED (percent for rates and spreads). A value is the observation of its date, which
+    FRED publishes on the next business day or later."""
+    return current(FRED)
+
+
+def q_factors():
+    """Return the daily q5 factors as fractions. vintage names the file year."""
+    return current(QFACTORS)
 
 
 def short_volume(start: dt.date | None = None, end: dt.date | None = None):
