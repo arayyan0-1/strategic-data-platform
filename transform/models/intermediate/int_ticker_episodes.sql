@@ -21,6 +21,33 @@ with reference as (
         lower(regexp_extract(name, '[A-Za-z0-9]+')) as name_word
     from {{ ref('stg_massive__tickers') }}
 
+), smoothed as (
+
+    -- The vendor gives a name another FIGI for one session and the old one again on the
+    -- next, as at the reverse splits of WORX, UPLD and BYND. A FIGI on one session
+    -- between two sessions of the same other FIGI takes that FIGI, so the flicker does
+    -- not start a security for one day.
+    select
+        * exclude (sc_before, sc_after, cf_before, cf_after) replace (
+            case when share_class_figi <> sc_before and sc_before = sc_after
+                 then sc_before else share_class_figi end as share_class_figi,
+            case when composite_figi <> cf_before and cf_before = cf_after
+                 then cf_before else composite_figi end as composite_figi)
+    from (
+        select
+            *,
+            last_value(share_class_figi ignore nulls) over earlier as sc_before,
+            first_value(share_class_figi ignore nulls) over later  as sc_after,
+            last_value(composite_figi ignore nulls) over earlier   as cf_before,
+            first_value(composite_figi ignore nulls) over later    as cf_after
+        from reference
+        window
+            earlier as (partition by ticker order by date
+                        rows between unbounded preceding and 1 preceding),
+            later as (partition by ticker order by date
+                      rows between 1 following and unbounded following)
+    )
+
 ), flagged as (
 
     -- The vendor drops an identifier of a name on some dates, and it gives the CIK
@@ -39,7 +66,7 @@ with reference as (
                  or cik <> coalesce(last_value(cik ignore nulls) over earlier, '')),
             false
         ) as starts_episode
-    from reference
+    from smoothed
     window earlier as (
         partition by ticker order by date
         rows between unbounded preceding and 1 preceding
