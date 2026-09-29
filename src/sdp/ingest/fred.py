@@ -1,5 +1,6 @@
 # src/sdp/ingest/fred.py
-"""Rates, credit spreads, volatility and financial conditions from FRED.
+"""Rates, credit, money markets, the Federal Reserve balance sheet, volatility, financial
+conditions, currencies and commodities from FRED.
 
     python -m sdp.ingest.fred             # pull when the table is from an earlier day
     python -m sdp.ingest.fred --force     # pull now
@@ -14,7 +15,7 @@ pull, gzipped. Pulls older than KEEP_DAYS are thinned to one per ISO week, which
 covers every date of a three-year window.
 
 The values keep the units of FRED: percent for rates and spreads, index points for the
-volatility, dollar and stress indices.
+volatility, dollar and stress indices, dollars for the balance sheet and prices.
 """
 from __future__ import annotations
 
@@ -69,12 +70,61 @@ SERIES = {
     "DTWEXBGS": "Nominal broad US dollar index, goods and services",
     "NFCI": "Chicago Fed national financial conditions index, weekly",
     "STLFSI4": "St. Louis Fed financial stress index, weekly",
+    "THREEFYTP10": "10-year Treasury term premium, Kim-Wright model, percent",
+    # Credit spreads by rating.
+    "BAMLC0A1CAAA": "ICE BofA AAA US corporate option-adjusted spread, percent",
+    "BAMLC0A2CAA": "ICE BofA AA US corporate option-adjusted spread, percent",
+    "BAMLC0A3CA": "ICE BofA single-A US corporate option-adjusted spread, percent",
+    "BAMLC0A4CBBB": "ICE BofA BBB US corporate option-adjusted spread, percent",
+    "BAMLH0A1HYBB": "ICE BofA BB US high yield option-adjusted spread, percent",
+    "BAMLH0A2HYB": "ICE BofA single-B US high yield option-adjusted spread, percent",
+    "BAMLH0A3HYC": "ICE BofA CCC and lower US high yield option-adjusted spread, percent",
+    # Money markets and the policy corridor.
+    "IORB": "Interest rate on reserve balances, percent",
+    "RRPONTSYAWARD": "Overnight reverse repurchase award rate, percent",
+    "EFFR": "Effective federal funds rate (New York Fed), percent",
+    "OBFR": "Overnight bank funding rate, percent",
+    "TGCRRATE": "Tri-party general collateral rate, percent",
+    "SOFR1": "SOFR, 1st percentile of volume, percent",
+    "SOFR25": "SOFR, 25th percentile of volume, percent",
+    "SOFR75": "SOFR, 75th percentile of volume, percent",
+    "SOFR99": "SOFR, 99th percentile of volume, percent",
+    "SOFRVOL": "SOFR volume, billions of dollars",
+    "DCPF3M": "3-month AA financial commercial paper rate, percent",
+    "DCPN3M": "3-month AA nonfinancial commercial paper rate, percent",
+    "DPCREDIT": "Discount window primary credit rate, percent",
+    # The balance sheet of the Federal Reserve.
+    "WALCL": "Federal Reserve total assets, Wednesday, millions of dollars",
+    "WSHOTSL": "Federal Reserve Treasury securities held outright, millions of dollars",
+    "WSHOMCB": "Federal Reserve mortgage-backed securities held outright, millions of dollars",
+    "WRESBAL": "Reserve balances with Federal Reserve Banks, millions of dollars",
+    "WTREGEN": "Treasury General Account, Wednesday, millions of dollars",
+    "RRPONTSYD": "Overnight reverse repurchase agreements, billions of dollars",
+    "RPONTSYD": "Overnight repurchase agreements (standing repo), billions of dollars",
+    # Currencies, at the market quote of each pair.
+    "DEXUSEU": "US dollars per euro",
+    "DEXJPUS": "Japanese yen per US dollar",
+    "DEXUSUK": "US dollars per pound sterling",
+    "DEXSZUS": "Swiss francs per US dollar",
+    "DEXCAUS": "Canadian dollars per US dollar",
+    "DEXUSAL": "US dollars per Australian dollar",
+    "DEXUSNZ": "US dollars per New Zealand dollar",
+    "DEXSDUS": "Swedish kronor per US dollar",
+    "DEXNOUS": "Norwegian kroner per US dollar",
+    # Commodities and bitcoin.
+    "DCOILWTICO": "WTI crude oil, spot, dollars per barrel",
+    "DCOILBRENTEU": "Brent crude oil, spot, dollars per barrel",
+    "DHHNGSP": "Henry Hub natural gas, spot, dollars per million Btu",
+    "CBBTCUSD": "Bitcoin, Coinbase, US dollars",
 }
 
 MAX_AGE_DAYS = 1
 KEEP_DAYS = 30
 MIN_VALUES = 500      # The shortest series (the ICE spreads) has about 750 values.
-MAX_ABS = 1000.0      # No value in these units reaches 1,000.
+MAX_ABS = 1000.0      # No rate, spread or index reaches 1,000.
+# The series in dollar amounts or prices have their own limit.
+LIMITS = {"WALCL": 5e7, "WSHOTSL": 5e7, "WSHOMCB": 5e7, "WRESBAL": 5e7, "WTREGEN": 5e7,
+          "RRPONTSYD": 1e5, "RPONTSYD": 1e5, "SOFRVOL": 1e5, "CBBTCUSD": 1e7}
 STALE_DAYS = 21       # A weekly series is about 10 days behind. Longer is unusual.
 
 
@@ -157,13 +207,17 @@ def build(pulls: list[tuple[dt.date, Path]]) -> Path:
 
 def audit(staged: Path, pull_date: dt.date) -> int:
     """Raise AuditFailure on a table that would give wrong numbers. Return the row count."""
-    n, dups, worst = one(f"""
-        select count(*), count(*) - count(distinct (series_id, date)), max(abs(value))
+    n, dups = one(f"""
+        select count(*), count(*) - count(distinct (series_id, date))
         from read_parquet('{staged}')""")
     if dups:
         raise AuditFailure(f"The table has {dups} duplicate (series, date) rows.")
-    if worst is not None and worst >= MAX_ABS:
-        raise AuditFailure(f"A value is {worst}. The limit is {MAX_ABS}.")
+    worst_by_series = duckdb.execute(f"""
+        select series_id, max(abs(value)) from read_parquet('{staged}') group by 1""").fetchall()
+    for series, worst in worst_by_series:
+        limit = LIMITS.get(series, MAX_ABS)
+        if worst is not None and worst >= limit:
+            raise AuditFailure(f"A value of {series} is {worst}. The limit is {limit}.")
     counts = dict(duckdb.execute(f"""
         select series_id, count(value) from read_parquet('{staged}') group by 1""").fetchall())
     for series in SERIES:
