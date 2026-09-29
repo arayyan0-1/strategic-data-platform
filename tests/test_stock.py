@@ -146,6 +146,57 @@ def test_a_pair_gives_the_ratio_the_z_score_and_the_hedge_ratio(warehouse):
     assert q["stats"]["corr_1y"] > 0.8 and q["stats"]["beta_1y"] == pytest.approx(1.1, abs=0.2)
 
 
+def test_a_pair_shows_a_half_life_only_when_the_test_rejects_a_random_walk(warehouse):
+    s = stock.view("pair", "AAA", "BBB")["stats"]
+    assert isinstance(s["adf_t"], float)
+    assert (s["half_life"] is None) == (s["adf_t"] >= stock.ADF_CRITICAL)
+
+
+def _random_walks(n_walks: int, seed: int, n: int = 252) -> np.ndarray:
+    return np.cumsum(np.random.default_rng(seed).normal(0, 0.01, (n_walks, n)), axis=1)
+
+
+def _ar1(phi: float, seed: int, n: int = 252) -> np.ndarray:
+    e = np.random.default_rng(seed).normal(0, 0.01, n)
+    x = np.empty(n)
+    x[0] = e[0] / math.sqrt(1 - phi ** 2)
+    for i in range(1, n):
+        x[i] = phi * x[i - 1] + e[i]
+    return x
+
+
+def test_the_dickey_fuller_t_is_the_t_of_the_slope_of_the_change_on_the_level():
+    x = _random_walks(1, 5)[0]
+    dx, lag = np.diff(x), x[:-1]
+    design = np.column_stack([np.ones(len(lag)), lag])
+    coef = np.linalg.lstsq(design, dx, rcond=None)[0]
+    e = dx - design @ coef
+    cov = (e @ e / (len(dx) - 2)) * np.linalg.inv(design.T @ design)
+    assert stock.reversion(x)[0] == pytest.approx(coef[1] / math.sqrt(cov[1, 1]))
+
+
+def test_a_random_walk_has_no_half_life():
+    t, half_life = stock.reversion(_random_walks(1, 0)[0])
+    assert t > stock.ADF_CRITICAL and half_life is None
+
+
+def test_an_ar1_with_a_coefficient_of_0_9_has_the_half_life_of_the_coefficient():
+    t, half_life = stock.reversion(_ar1(0.9, 0))
+    assert t < stock.ADF_CRITICAL
+    assert half_life == pytest.approx(math.log(0.5) / math.log(0.9), rel=0.3)
+
+
+def test_the_test_rejects_a_random_walk_in_about_5_percent_of_samples():
+    shown = [stock.reversion(x)[1] is not None for x in _random_walks(1000, 1)]
+    assert 0.02 < np.mean(shown) < 0.09, "The slope alone is negative in about 95% of them."
+
+
+def test_white_noise_has_a_half_life_under_one_session_and_a_constant_has_none():
+    t, half_life = stock.reversion(np.random.default_rng(0).normal(0, 0.01, 252))
+    assert t < stock.ADF_CRITICAL and 0 <= half_life < 1
+    assert stock.reversion(np.ones(100)) == (None, None)
+
+
 def test_an_unknown_or_malformed_ticker_is_refused(warehouse):
     with pytest.raises(stock.UnknownTicker, match="has held"):
         stock.view("profile", "ZZZ")

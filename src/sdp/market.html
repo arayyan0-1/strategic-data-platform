@@ -1368,7 +1368,10 @@ function stockPage(P) {
 }
 
 function pairPage(Q) {
-  const a = Q.a || {}, b = Q.b || {}, s = Q.stats;
+  const a = Q.a || {}, b = Q.b || {}, s = Q.stats, hl = s.half_life, t = num(s.adf_t, 2);
+  const life = nil(s.adf_t) ? '<span class="dim">not estimated</span>'
+    : nil(hl) ? `<span class="dim">no mean reversion at 5% (ADF t = ${t})</span>`
+    : `${hl < 1 ? "under 1 session" : num(hl, hl < 10 ? 1 : 0) + " sessions"} <span class="dim">(ADF t = ${t})</span>`;
   let html = `<div class="top"><span class="big">${esc(a.ticker)} / ${esc(b.ticker)}</span>
     <span class="dim">${esc(a.name)} against ${esc(b.name)}</span>
     <button class="btn" onclick="location.hash='pair/${esc(b.ticker)}/${esc(a.ticker)}'">swap</button>
@@ -1379,7 +1382,7 @@ function pairPage(Q) {
     <div><span class="k">Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 1Y</span>${num(s.beta_1y, 2)}</div>
     <div><span class="k">Volatility ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(s.vol_a, 0, false)} / ${pct(s.vol_b, 0, false)}</div>
     <div><span class="k">Ratio z-score (1Y)</span>${sig(s.z_now)}</div>
-    <div><span class="k">Half-life of the ratio</span>${nil(s.half_life) ? "no mean reversion" : num(s.half_life, 0) + " sessions"}</div>
+    <div><span class="k">Half-life of the ratio</span>${life}</div>
     <div><span class="k">Stock-specific correlation</span>${num(s.resid_corr_1y, 2)}</div>
     ${Object.entries(Q.returns).map(([k, v]) => `<div><span class="k">${k.toUpperCase()} ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(v[0], 1)} / ${pct(v[1], 1)}</div>`).join("")}
   </div>
@@ -1389,7 +1392,8 @@ function pairPage(Q) {
     <div class="panel"><h3>Correlation of daily returns, 63 sessions</h3><div class="chart" id="pr-corr"></div></div>
     <div class="panel"><h3>Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 63 sessions</h3><div class="chart" id="pr-beta"></div></div>
   </div>
-  <div class="note">The half-life comes from an AR(1) fit of the log ratio over the last year. A short half-life is not a trade:
+  <div class="note">The half-life comes from an AR(1) fit of the log ratio over the last year. The ADF t tests whether the
+    ratio is a random walk. A t below -2.87 rejects that at 5%, and only then does the page show a half-life. A short half-life is not a trade:
     the ratio can trend, and a pair of one company's share classes or of an ETF and its holdings will always look tight.</div>`;
   $("ov-body").innerHTML = html;
   const D = Q.dates, S = k => D.map((d, i) => [d, Q[k][i]]);

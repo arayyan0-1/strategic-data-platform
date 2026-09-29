@@ -7,7 +7,8 @@
   move with it (in total, and in the stock-specific part, clipped at 3 sigma), its
   signals, short interest, corporate actions and largest stock-specific moves.
 - pair: two tickers against each other: the ratio and its z-score, the rolling
-  correlation and beta, the hedge ratio and the half-life of the ratio.
+  correlation and beta, the hedge ratio and the half-life of the ratio. The half-life
+  shows only when a Dickey-Fuller test rejects a random walk at 5%.
 
 Each view opens a read-only connection to the warehouse and closes it. A view is cached
 until the build stamp changes.
@@ -40,6 +41,8 @@ WINDOWS = (("1d", 1), ("1w", 5), ("1m", 21), ("3m", 63), ("6m", 126), ("1y", 252
 FACTOR_HALF_LIFE = 42
 FACTOR_WINDOW = 504
 CACHE_SIZE = 64
+# The 5% critical value of the Dickey-Fuller t for a fit with a constant, 250 points.
+ADF_CRITICAL = -2.87
 
 _lock = threading.Lock()
 _cache: OrderedDict[tuple, Any] = OrderedDict()
@@ -332,6 +335,29 @@ def _beta(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.cov(a, b)[0, 1] / v) if v > 0 else float("nan")
 
 
+def reversion(x: np.ndarray) -> tuple[float | None, float | None]:
+    """Return the Dickey-Fuller t of the series x and its half-life in sessions.
+
+    The fit is dx(t) = a + b * x(t-1) + e by least squares. The half-life comes from the
+    AR(1) coefficient 1 + b. It is None when t is not below ADF_CRITICAL, because the slope
+    of a random walk is negative in most samples. A coefficient of 0 or less gives a
+    half-life of 0.
+    """
+    dx, w = np.diff(x), x[:-1] - x[:-1].mean()
+    sww = float(w @ w)
+    if len(dx) < 3 or sww <= 0:
+        return None, None
+    slope = float(w @ dx) / sww
+    e = dx - dx.mean() - slope * w
+    s2 = float(e @ e) / (len(dx) - 2)
+    if s2 <= 0:
+        return None, None
+    t = slope / math.sqrt(s2 / sww)
+    if t >= ADF_CRITICAL:
+        return t, None
+    return t, -math.log(2) / math.log(1 + slope) if slope > -1 else 0.0
+
+
 def pair(wh: duckdb.DuckDBPyConnection, a: str, b: str) -> dict:
     """Return the pair view of the tickers a and b (see the module docstring)."""
     ka, kb = resolve(wh, a), resolve(wh, b)
@@ -357,9 +383,7 @@ def pair(wh: duckdb.DuckDBPyConnection, a: str, b: str) -> dict:
          for i, (m, s) in enumerate(zip(mean, sd, strict=True))]
     corr = [None, *_rolling(_corr, 63, ra, rb)]
     beta = [None, *_rolling(_beta, 63, ra, rb)]
-    y = x[-252:]
-    b_ar = _beta(np.diff(y), y[:-1] - y[:-1].mean())
-    half_life = -math.log(2) / math.log(1 + b_ar) if -1 < b_ar < 0 else None
+    adf_t, half_life = reversion(x[-252:])
     resid = _one(wh, """
         with r as (
             select security_key, date, resid from factors.style_residuals
@@ -382,7 +406,7 @@ def pair(wh: duckdb.DuckDBPyConnection, a: str, b: str) -> dict:
                   "beta_1y": _num(_beta(ra[-252:], rb[-252:])),
                   "vol_a": float(ra[-252:].std(ddof=1) * math.sqrt(252)),
                   "vol_b": float(rb[-252:].std(ddof=1) * math.sqrt(252)),
-                  "z_now": z[-1], "half_life": half_life,
+                  "z_now": z[-1], "adf_t": _num(adf_t), "half_life": _num(half_life),
                   "resid_corr_1y": (resid or {}).get("resid_corr")},
     }
 
