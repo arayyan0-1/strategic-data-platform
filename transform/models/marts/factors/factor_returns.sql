@@ -7,8 +7,12 @@
     (style_factor_returns).
   - industry: the Fama-French 12 industries of the same regression, each less the market.
   - pca: eigenportfolios of the correlation matrix (pca_factor_returns).
-  - ff: the published Fama-French factors. They lag about two months.
+  - ff: the published Fama-French factors, with the short- and long-term reversal
+    factors. They lag about two months.
+  - ff_industry: the value-weighted Fama-French 12 industry portfolios, each less the
+    market (mkt_rf + rf), so each compares with the industry family.
   - ff_mimic: the Fama-French factors mimicked in this universe (ff_mimic_returns).
+  - q: the q5 factors of Hou, Xue and Zhang. A new vintage about once a year.
 #}
 
 with sessions as (
@@ -44,10 +48,28 @@ with sessions as (
 
 ), ff as (
 
-    unpivot (select date, mkt_rf, smb, hml, rmw, cma, mom
+    unpivot (select date, mkt_rf, smb, hml, rmw, cma, mom, st_rev, lt_rev
              from {{ ref('stg_french__factors') }}
              where date >= (select min(date) from sessions))
-    on mkt_rf, smb, hml, rmw, cma, mom
+    on mkt_rf, smb, hml, rmw, cma, mom, st_rev, lt_rev
+    into name factor value ret
+
+), ff_industry as (
+
+    select date, replace(factor, 'ind_', '') as factor, ret - (mkt_rf + rf) as ret
+    from (
+        unpivot (select * from {{ ref('stg_french__factors') }}
+                 where date >= (select min(date) from sessions))
+        on columns('^ind_')
+        into name factor value ret
+    )
+
+), q as (
+
+    unpivot (select date, r_mkt as mkt, r_me as me, r_ia as ia, r_roe as roe, r_eg as eg
+             from {{ ref('stg_global_q__factors') }}
+             where date >= (select min(date) from sessions))
+    on mkt, me, ia, roe, eg
     into name factor value ret
 
 ), ff_mimic as (
@@ -77,5 +99,9 @@ union all
 select date, 'pca', factor, ret from pca
 union all
 select date, 'ff', factor, ret from ff
+union all
+select date, 'ff_industry', factor, ret from ff_industry
+union all
+select date, 'q', factor, ret from q
 union all
 select date, 'ff_mimic', factor, ret from ff_mimic

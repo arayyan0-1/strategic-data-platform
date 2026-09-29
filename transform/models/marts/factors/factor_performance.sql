@@ -5,16 +5,24 @@
   largest drawdown of the whole history. The windows count back from the last session
   of each factor, so a lagged factor (ff) reports up to its own last date. Returns are
   gross of cost.
+
+  The Sharpe ratios and the t statistic use the return over cash. A long-short factor
+  is self-financing, so its return is already over cash. The style market and the
+  first eigenportfolio are long portfolios, so each takes off the rf of core.rates.
+  The published market factors (ff mkt_rf, q mkt) are already over cash.
 #}
 
 with r as (
 
     select
-        *,
-        row_number() over (partition by family, factor order by date desc) as back,
-        year(date) = year(max(date) over (partition by family, factor))    as this_year
-    from {{ ref('factor_returns') }}
-    where ret is not null
+        f.*,
+        f.ret - case when (f.family, f.factor) in (('style', 'market'), ('pca', 'pc1'))
+                     then coalesce(c.rf, 0) else 0 end                  as xret,
+        row_number() over (partition by f.family, f.factor order by f.date desc) as back,
+        year(f.date) = year(max(f.date) over (partition by f.family, f.factor)) as this_year
+    from {{ ref('factor_returns') }} f
+    left join {{ ref('rates') }} c using (date)
+    where f.ret is not null
 
 ), curve as (
 
@@ -55,10 +63,10 @@ select
     exp(sum(ln(1 + r.ret)) filter (where r.this_year)) - 1                as ret_ytd,
     exp(sum(ln(1 + r.ret)) filter (where r.back <= 252)) - 1              as ret_1y,
     stddev_samp(r.ret) filter (where r.back <= 252) * sqrt(252)           as vol_1y,
-    avg(r.ret) filter (where r.back <= 252)
-        / nullif(stddev_samp(r.ret) filter (where r.back <= 252), 0) * sqrt(252) as sharpe_1y,
-    avg(r.ret) / nullif(stddev_samp(r.ret), 0) * sqrt(252)                as sharpe_all,
-    avg(r.ret) / nullif(stddev_samp(r.ret) / sqrt(count(*)), 0)           as t_all,
+    avg(r.xret) filter (where r.back <= 252)
+        / nullif(stddev_samp(r.xret) filter (where r.back <= 252), 0) * sqrt(252) as sharpe_1y,
+    avg(r.xret) / nullif(stddev_samp(r.xret), 0) * sqrt(252)              as sharpe_all,
+    avg(r.xret) / nullif(stddev_samp(r.xret) / sqrt(count(*)), 0)         as t_all,
     any_value(d.max_drawdown)                                             as max_drawdown
 from r
 join drawdown d using (family, factor)

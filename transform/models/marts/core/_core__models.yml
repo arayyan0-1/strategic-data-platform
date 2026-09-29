@@ -15,3 +15,14 @@ models:
   - name: security_sessions
     description: One row per security and session from its primary line, with prices, adjusted prices
       and the universe state. The price series for notebooks.
+
+  - name: rates
+    description: Rates, credit spreads, volatility and financial conditions from FRED, one row
+      per session. Each value is the latest observation dated before the session. rf is the
+      return of cash on the session, from the 4-week bill rate and the calendar days since the
+      session before.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique

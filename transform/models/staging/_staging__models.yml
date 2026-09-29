@@ -21,3 +21,23 @@ models:
 
   - name: stg_french__factors
     description: The Fama-French daily factors as fractions, with crsp_month, the version of the files.
+
+  - name: stg_fred__series
+    description: The FRED series, one row per series and date, in the units of FRED. A null
+      value is a day with no observation.
+    columns:
+      - name: series_id
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+
+  - name: stg_global_q__factors
+    description: The daily q5 factors of Hou, Xue and Zhang as fractions. r_mkt is the market
+      less the risk-free rate.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
