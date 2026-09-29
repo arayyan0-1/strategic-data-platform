@@ -35,6 +35,15 @@ def sample_cov(X: np.ndarray) -> np.ndarray:
     return np.cov(X, rowvar=False)
 
 
+def ew_cov(X: np.ndarray, half_life: float) -> np.ndarray:
+    """Return the exponentially weighted covariance of the T x K matrix X. The last row is
+    the newest and has weight 1. The weight halves every half_life rows. The weighted mean
+    is removed, and the divisor corrects for the weights, so equal weights give the sample
+    covariance."""
+    w = 0.5 ** (np.arange(X.shape[0])[::-1] / half_life)
+    return np.atleast_2d(np.cov(X, rowvar=False, aweights=w))
+
+
 def pca_cov(X: np.ndarray) -> np.ndarray:
     """Return a statistical factor model: the top K eigen-directions of the sample
     covariance plus a diagonal idiosyncratic part. K is the count of correlation

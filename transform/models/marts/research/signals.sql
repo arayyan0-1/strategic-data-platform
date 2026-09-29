@@ -49,13 +49,14 @@ with base as (
 ), sec_divs as (
 
     -- A dividend belongs to the security that held its ticker on the last session on
-    -- or before the ex-date. A ticker change thus keeps the dividend history.
-    select b.security_key, ca.event_date, ca.cash_amount
+    -- or before the ex-date. A ticker change thus keeps the dividend history. A key with
+    -- only special rows has no regular amount, so it drops out.
+    select b.security_key, ca.event_date, ca.regular_cash_amount
     from (
-        select ticker, event_date, cash_amount
+        select ticker, event_date, regular_cash_amount
         from {{ ref('int_corporate_actions') }}
         where kind = 'dividend'
-          and cash_amount > 0
+          and regular_cash_amount > 0
     ) ca
     asof join base b
         on b.ticker = ca.ticker
@@ -63,12 +64,12 @@ with base as (
 
 ), divs as (
 
-    -- Trailing 12 months of cash dividends per security, per session. Nominal cash
-    -- on the ex-date over the unadjusted price. A split inside the 12-month window
+    -- Trailing 12 months of regular cash dividends per security, per session. Nominal
+    -- cash on the ex-date over the unadjusted price. A split inside the 12-month window
     -- is a rare, small distortion. Non-payers get 0.
     select
         b.security_key, b.date,
-        sum(d.cash_amount) as div_ttm
+        sum(d.regular_cash_amount) as div_ttm
     from base b
     left join sec_divs d
         on d.security_key = b.security_key
@@ -76,12 +77,37 @@ with base as (
        and d.event_date   > b.date - interval 1 year
     group by b.security_key, b.date
 
+), short as (
+
+    -- Short interest per security and settlement. The security is the one that held the
+    -- ticker on the settlement date. The short value over the guarded cap of that date is
+    -- the share of the shares sold short. A settlement is public from its effective date.
+    select
+        u.security_key,
+        s.settlement_date,
+        s.effective_date,
+        s.short_interest,
+        s.short_interest * u.close / nullif(u.market_cap, 0)   as short_share,
+        s.days_to_cover_computed                               as short_days,
+        lag(s.short_interest) over w                           as prev_short_interest,
+        lag(s.settlement_date) over w                          as prev_settlement_date
+    from {{ ref('int_short_interest') }} s
+    inner join {{ ref('int_universe') }} u
+        on u.ticker = s.ticker and u.date = s.settlement_date and u.is_primary_line
+    where s.effective_date is not null
+    window w as (partition by u.security_key order by s.settlement_date)
+
 ), joined as (
 
-    select r.*, m.mkt_ret, coalesce(d.div_ttm, 0) as div_ttm
+    select r.*, m.mkt_ret, coalesce(d.div_ttm, 0) as div_ttm,
+           sh.effective_date as short_as_of, sh.settlement_date, sh.short_interest,
+           sh.short_share, sh.short_days, sh.prev_short_interest, sh.prev_settlement_date
     from returns r
     left join mkt m on m.date = r.date
     left join divs d on d.security_key = r.security_key and d.date = r.date
+    asof left join short sh
+        on sh.security_key = r.security_key
+       and sh.effective_date <= r.date
 
 ), factors as (
 
@@ -132,8 +158,20 @@ with base as (
             partition by security_key order by date
             rows between 251 preceding and current row), 0)       as high_52w,
 
-        -- trailing 12-month dividend yield (nominal cash over unadjusted price)
-        div_ttm / nullif(close, 0)                                as dividend_yield
+        -- trailing 12-month regular dividend yield (nominal cash over unadjusted price)
+        div_ttm / nullif(close, 0)                                as dividend_yield,
+
+        -- Short interest, from the last settlement that FINRA has published: the share of
+        -- the shares sold short, the days to cover, and the log change since the
+        -- settlement before (at most 35 days before). Null when the last published
+        -- settlement is more than 45 days old.
+        case when date - short_as_of <= 45 then short_share end   as short_ratio,
+        case when date - short_as_of <= 45 then short_days end    as days_to_cover,
+        case when date - short_as_of <= 45
+                  and settlement_date - prev_settlement_date <= 35
+                  and short_interest > 0 and prev_short_interest > 0
+             then ln(short_interest / prev_short_interest) end     as short_change,
+        short_as_of
 
     from joined
     window w as (partition by security_key order by date)

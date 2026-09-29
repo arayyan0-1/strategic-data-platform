@@ -3,7 +3,8 @@
   weight. A name that enters a leg is bought, and a name that leaves is sold, each at
   half its spread, so the cost of a leg on a session is the sum of those half spreads
   over the count of names. The cost is paid at the close of the formation session, the
-  session of the gross return in signal_long_short. Gross and net are daily.
+  session of the gross return in signal_long_short. Gross is its ret, with no clip. Net
+  is gross less cost. Both are daily.
 
   capacity is the size of each leg at which the trade in a name of the 10th percentile
   of dollar volume, among the names traded that session, is 5% of that volume. It is a

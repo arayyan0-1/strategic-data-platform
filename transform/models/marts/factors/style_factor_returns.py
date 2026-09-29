@@ -6,6 +6,11 @@ its coefficient less the market, so the cap-weighted industry returns sum to 0. 
 style return is the return of a portfolio with unit exposure to that style and none to
 the other styles and the industries. The weight is the square root of the market cap.
 
+The var style_return_clip is the number of robust standard deviations at which the fit
+clips the returns of a session around their weighted median. 0 means no clip. The
+residual of a name (style_residuals) still uses its raw return, so a jump stays in the
+residual. r2 also uses the raw returns.
+
 A row is dated on the session that earns the return, from the close before. r2 is the
 share of the cross-section of returns that the model explains on that session.
 """
@@ -27,6 +32,9 @@ def _nulls(cols) -> str:
 
 def model(dbt, session):
     dbt.config(materialized="table")
+    clip = float(dbt.config.get("style_return_clip"))
+    if clip < 0:
+        raise ValueError(f"style_return_clip must be 0 or more. It is {clip}.")
     session.register("style_exposures", dbt.ref("style_exposures"))
     session.register("style_signals", dbt.ref("signals"))
 
@@ -49,7 +57,8 @@ def model(dbt, session):
     Z = np.column_stack([filled(p[f"z_{s}"]) for s in STYLES])
     days, market, F, G, n, r2 = cross_section_returns(
         np.asarray(p["day"]), Z, filled(p["r"]), filled(p["w"]),
-        groups=np.asarray(p["grp"]), n_groups=len(INDUSTRIES), cap=filled(p["cap"]))
+        groups=np.asarray(p["grp"]), n_groups=len(INDUSTRIES), cap=filled(p["cap"]),
+        return_clip=clip)
 
     out = {"day": days.astype(np.int64), "n_names": n.astype(np.int64), "r2": r2,
            "market": market}

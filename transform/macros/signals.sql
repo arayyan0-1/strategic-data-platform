@@ -1,6 +1,6 @@
 {# The signal battery, named once. Add a factor here and in signals. #}
 {% macro signal_columns() -%}
-reversal_1, reversal_5, momentum_12_1, vol_20, vol_60, amihud_20, beta_252, dividend_yield, overnight_ret, intraday_ret, high_52w
+reversal_1, reversal_5, momentum_12_1, vol_20, vol_60, amihud_20, beta_252, dividend_yield, overnight_ret, intraday_ret, high_52w, short_ratio, days_to_cover, short_change
 {%- endmacro %}
 
 {# The battery as a SQL list of names. #}

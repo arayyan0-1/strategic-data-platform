@@ -55,16 +55,44 @@ vars:
   link_min_returns: 20
   link_max_jump_sigma: 4.0
 
-  # The specific volatility of a name needs this many residuals of the 63 sessions
-  # before. With two residuals, a new listing showed a move of 65 standard deviations.
+  # The specific volatility of a name needs this many residuals before the session.
+  # With two residuals, a new listing showed a move of 65 standard deviations.
   spec_vol_min_obs: 21
+
+  # The forecast of the specific volatility. The weight of a residual halves every
+  # spec_vol_half_life rows. The shrinkage pulls it toward the cap-weighted mean of the size
+  # decile at the rate spec_vol_shrinkage (0 turns it off). The regime factor rescales every
+  # forecast with the recent cross-section of z squared, and the weight of a session halves
+  # every spec_vol_regime_half_life sessions. Both half-lives must be 2 or more. On the
+  # development sessions the log-likelihood of the residuals rises as the regime half-life
+  # falls to 1. A week stops one session from setting the scale of all forecasts.
+  spec_vol_half_life: 126
+  spec_vol_shrinkage: 0.1
+  spec_vol_regime_half_life: 5
 
   # beta_252 needs this many returns in its window of 252. Below 126 the spread of beta
   # across names grows from 0.6 to between 1.6 and 30, and a new listing reached 1,401.
   beta_min_obs: 126
 
+  # The style z-scores: the mean each is centered on (sqrt_cap, the regression weight, or
+  # cap, as in Barra) and the largest absolute value. The center does not change the fit
+  # or the residuals: the market and industry coefficients absorb it. With cap, the
+  # market factor is the cap-weighted market and that market has no style exposure.
+  style_center: cap
+  style_clip: 3.0
+
+  # The style fit clips the returns of each session at the weighted median plus or minus
+  # this many robust standard deviations (1.4826 times the MAD). 0 means no clip. The
+  # residual and r2 always use the raw returns, so a jump stays in the residual.
+  style_return_clip: 0.0
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
+
+  # signal_long_short.ret_winsorized clips a forward return at this quantile of its
+  # session and at the quantile 1 - this value. It is a robustness check. A portfolio
+  # does not earn it.
+  long_short_winsor: 0.01
 
   # The evaluation calendar. Development is split into eval_folds contiguous folds, and a
   # signal is judged on development. The sessions from holdout_start are the holdout: a
@@ -78,6 +106,11 @@ vars:
   monitor_z: 3.0
   monitor_pct: 0.05
   monitor_big_cap: 10000000000
+
+  # The false discovery rate for the calendar effects (market_seasonality). An effect
+  # is significant when it passes the Benjamini-Hochberg procedure at this rate among
+  # the tests of its period.
+  seasonality_fdr: 0.05
 
 seeds:
   sdp:

@@ -159,8 +159,9 @@
       <div class="panel"><h3 id="attr-n-title">By name</h3><table id="attr-names"></table></div>
     </div>
     <div class="note">The in-universe common stock through the style and industry model. Each part is in basis
-      points of the market and the parts sum to its return. The cap-weighted market has style exposure too: on a
-      day when the largest names beat the rest, size shows here. By name: the cap weight times the return; the
+      points of the market and the parts sum to its return. Each style is centered on the cap-weighted market, as in
+      Barra, so cap-weighted the styles are near zero and the market factor is the market. Equal-weighted, the styles
+      show how the average name differs: on a day when small names beat large ones, size shows here. By name: the cap weight times the return; the
       stock-specific part is in grey. The names are for the last session (1D) or the last 21 sessions.</div>
   </section>
 
@@ -298,8 +299,9 @@
         <div class="tabs" id="event-tabs"></div><div class="chart" id="event-chart"></div>
         <table id="event-table" style="margin-top:6px"></table>
         <div class="note">The mean residual of the style model summed from 5 sessions before the event. After the
-          event (day +1 on) is what a trade could earn. Events on the same days move together, so the t is too
-          high when they cluster. The holdout sessions stay out.</div></div>
+          event (day +1 on) is what a trade could earn. Events on the same date are not independent, so the
+          t is the t-statistic of the mean across event dates, and it treats the dates as independent of each
+          other. The holdout sessions stay out.</div></div>
     </div>
   </section>
 
@@ -1125,11 +1127,20 @@ function seasonality() {
                turn: turnBucket(next)};
   const rows = R.seasonality.filter(r => r.calendar === SEASON.calendar && r.period === SEASON.period && r.factor === SEASON.factor)
     .sort((a, b) => a.bucket_order - b.bucket_order);
-  bars($("season-bars"), rows.map(r => ({label: r.bucket + (r.bucket === now[SEASON.calendar] ? "  ← next session" : ""),
-    value: r.excess, t: r.t, hl: r.bucket === now[SEASON.calendar], title: `${r.n_days} days, mean ${(r.mean * 1e4).toFixed(1)} bp, t ${num(r.t, 1)}`})),
+  const pf = p => nil(p) ? "–" : p < 0.001 ? "< 0.001" : p.toFixed(3);
+  bars($("season-bars"), rows.map(r => ({label: r.bucket + (r.significant ? " ●" : "")
+      + (r.bucket === now[SEASON.calendar] ? "  ← next session" : ""),
+    value: r.excess, t: r.t, hl: r.bucket === now[SEASON.calendar], color: r.significant ? null : "var(--dim)",
+    title: `${r.n_days} days, mean ${(r.mean * 1e4).toFixed(1)} bp, t ${num(r.t, 1)}, p ${pf(r.p)}`
+      + (r.significant ? ", passes the false discovery rate" : "")})),
     (v, x) => `${bp(v, 1)} <span class="dim">t ${num(x.t, 1)}</span>`);
+  const period = R.seasonality.filter(r => r.period === SEASON.period);
+  const fdr = period.length && !nil(period[0].fdr) ? +(period[0].fdr * 100).toFixed(2) : null;
   $("season-note").textContent = "Each bar is the mean daily return in the bucket less the mean of all days, in bp. "
-    + "Many buckets are tested, so a t under 3 is weak evidence. The library lags about two months.";
+    + (fdr === null ? "" : `A dot and a colored bar mark an effect that passes a false discovery rate of ${fdr}% `
+      + `(Benjamini-Hochberg) among the ${period[0].n_tests} effects of the period, all calendars and series. `
+      + `${period.filter(r => r.significant).length} of them pass. Grey bars do not pass. `)
+    + "The library lags about two months.";
 }
 function nextSession() {
   const d = new Date((DATA.as_of || new Date().toISOString().slice(0, 10)) + "T12:00:00");
@@ -1159,11 +1170,11 @@ function events() {
     pts: R.events.filter(r => r.event === k && r.day >= 1).map(r => [r.day, r.car_post, `day ${r.day}`])})),
     {height: 220, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
      fmt: v => (v * 100).toFixed(2) + "%"});
-  $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
+  $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Dates</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
     kinds.map(([k, t]) => {
       const e0 = R.events.find(r => r.event === k && r.day === 0), e21 = R.events.find(r => r.event === k && r.day === 21);
-      return e0 ? `<tr><td class="l">${t}</td><td class="dim">${e0.n_events}</td><td>${pct(e0.car, 2)}</td>
-        <td>${pct(e21?.car_post, 2)}</td><td>${num(e21?.t_post, 1)}</td></tr>` : "";
+      return e0 ? `<tr><td class="l">${t}</td><td class="dim">${e0.n_events}</td><td class="dim">${e0.n_dates}</td>
+        <td>${pct(e0.car, 2)}</td><td>${pct(e21?.car_post, 2)}</td><td>${num(e21?.t_post, 1)}</td></tr>` : "";
     }).join("");
 }
 
@@ -1322,8 +1333,9 @@ function stockPage(P) {
         ? "Stock-specific" : x.component === "market" ? "Market" : x.component === "industry" ? "Industry" : LABEL("style", x.component))}</td>
         <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
       <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, stock-specific
-        ${pct(r.spec_vol, 1, false)} (the last 63 sessions). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
-        factor that hedges the others. For the largest names the model is noisy: the size exposure sits at its cap of 3σ.</div>`;
+        ${pct(r.spec_vol, 1, false)} (a forecast that weights recent sessions more). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
+        factor that hedges the others. Every name has a market exposure of 1, and the beta style adjusts it. For a name that
+        moves little with the market (BRK.B, AAPL, WMT, JNJ in 2026), the adjustment falls short and the factor part adds noise.</div>`;
   } else $("st-risk").innerHTML = '<div class="note">Not in the model universe.</div>';
   const relRow = (x, k) => `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td>
     <td>${num(x[k], 2)}</td><td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`;
@@ -1356,7 +1368,10 @@ function stockPage(P) {
 }
 
 function pairPage(Q) {
-  const a = Q.a || {}, b = Q.b || {}, s = Q.stats;
+  const a = Q.a || {}, b = Q.b || {}, s = Q.stats, hl = s.half_life, t = num(s.adf_t, 2);
+  const life = nil(s.adf_t) ? '<span class="dim">not estimated</span>'
+    : nil(hl) ? `<span class="dim">no mean reversion at 5% (ADF t = ${t})</span>`
+    : `${hl < 1 ? "under 1 session" : num(hl, hl < 10 ? 1 : 0) + " sessions"} <span class="dim">(ADF t = ${t})</span>`;
   let html = `<div class="top"><span class="big">${esc(a.ticker)} / ${esc(b.ticker)}</span>
     <span class="dim">${esc(a.name)} against ${esc(b.name)}</span>
     <button class="btn" onclick="location.hash='pair/${esc(b.ticker)}/${esc(a.ticker)}'">swap</button>
@@ -1367,7 +1382,7 @@ function pairPage(Q) {
     <div><span class="k">Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 1Y</span>${num(s.beta_1y, 2)}</div>
     <div><span class="k">Volatility ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(s.vol_a, 0, false)} / ${pct(s.vol_b, 0, false)}</div>
     <div><span class="k">Ratio z-score (1Y)</span>${sig(s.z_now)}</div>
-    <div><span class="k">Half-life of the ratio</span>${nil(s.half_life) ? "no mean reversion" : num(s.half_life, 0) + " sessions"}</div>
+    <div><span class="k">Half-life of the ratio</span>${life}</div>
     <div><span class="k">Stock-specific correlation</span>${num(s.resid_corr_1y, 2)}</div>
     ${Object.entries(Q.returns).map(([k, v]) => `<div><span class="k">${k.toUpperCase()} ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(v[0], 1)} / ${pct(v[1], 1)}</div>`).join("")}
   </div>
@@ -1377,7 +1392,8 @@ function pairPage(Q) {
     <div class="panel"><h3>Correlation of daily returns, 63 sessions</h3><div class="chart" id="pr-corr"></div></div>
     <div class="panel"><h3>Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 63 sessions</h3><div class="chart" id="pr-beta"></div></div>
   </div>
-  <div class="note">The half-life comes from an AR(1) fit of the log ratio over the last year. A short half-life is not a trade:
+  <div class="note">The half-life comes from an AR(1) fit of the log ratio over the last year. The ADF t tests whether the
+    ratio is a random walk. A t below -2.87 rejects that at 5%, and only then does the page show a half-life. A short half-life is not a trade:
     the ratio can trend, and a pair of one company's share classes or of an ETF and its holdings will always look tight.</div>`;
   $("ov-body").innerHTML = html;
   const D = Q.dates, S = k => D.map((d, i) => [d, Q[k][i]]);

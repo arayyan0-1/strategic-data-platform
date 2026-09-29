@@ -34,7 +34,8 @@ with splits_src as (
         count(distinct factor)                        as n_distinct_factors,
         max(factor) / min(factor)                     as factor_spread,
         false                                         as factor_is_null,
-        cast(null as double)                          as cash_amount
+        cast(null as double)                          as cash_amount,
+        cast(null as double)                          as regular_cash_amount
     from splits_src
     group by 1, 2
 
@@ -44,7 +45,8 @@ with splits_src as (
         ticker,
         cast(ex_dividend_date as date)        as event_date,
         historical_adjustment_factor          as factor,
-        cash_amount
+        cash_amount,
+        distribution_type
     from {{ ref('stg_massive__dividends') }}
     where ticker is not null
       and ex_dividend_date is not null
@@ -67,8 +69,14 @@ with splits_src as (
         count(distinct factor)                        as n_distinct_factors,
         max(factor) / nullif(min(factor), 0)          as factor_spread,
         bool_or(factor is null)                       as factor_is_null,
-        -- Per-share cash dividend on the ex-date. Feeds the dividend-yield factor.
-        max(cash_amount)                              as cash_amount
+        -- Per-share cash on the ex-date. Every row counts, specials included.
+        max(cash_amount)                              as cash_amount,
+        -- The same, from the rows that are not special. It feeds the dividend yield.
+        -- A row with no type counts as regular. The result is null when every row of
+        -- the key is special. The vendor can send one dividend twice, so it takes the
+        -- largest amount and not the sum.
+        max(cash_amount) filter (where distribution_type is distinct from 'special')
+                                                      as regular_cash_amount
     from dividends_src
     group by 1, 2
 
@@ -91,6 +99,7 @@ select
     factor_spread,
     factor_is_null,
     cash_amount,
+    regular_cash_amount,
     n_events > 1 as is_collapsed,
     -- True when this event, or any later one on the same ticker, was collapsed.
     -- The factor is cumulative, so an ambiguity travels back through earlier dates.

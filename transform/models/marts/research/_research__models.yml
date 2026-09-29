@@ -113,7 +113,14 @@ models:
     description: Mean forward return per signal and quintile over the full sample.
 
   - name: signal_long_short
-    description: Daily return of each top-less-bottom quintile long-short, and its cumulative sum.
+    description: Daily return of each top-less-bottom quintile long-short, and its cumulative sum. The return
+      is the equal-weight mean of the top bin less the mean of the bottom bin, gross of cost, with no clip.
+    columns:
+      - name: ret
+        description: The return that a portfolio earns, dated on the formation session.
+      - name: ret_winsorized
+        description: A robustness check and not a return that a portfolio earns. The same long-short with each
+          forward return clipped to the long_short_winsor quantiles of its session.
 
   - name: signal_turnover
     description: Average top-quintile turnover per signal.
@@ -132,7 +139,8 @@ models:
           - not_null
 
   - name: signal_costs
-    description: Gross, cost and net daily return of each quintile long-short, from the model spreads.
+    description: Gross, cost and net daily return of each quintile long-short, from the model spreads. Gross is
+      the unclipped return of signal_long_short.
 
   - name: spreads
     description: The bid-ask spread of each common stock from the invariance cost model of Kyle and Obizhaeva,
@@ -146,13 +154,38 @@ models:
           - not_null
 
   - name: event_study
-    description: The mean stock-specific return from 5 sessions before to 21 after four kinds of event
-      (residual shocks, splits, jumps in short interest), on the development sessions.
+    description: The mean stock-specific return from 5 sessions before to 21 after five kinds of event
+      (residual shocks, splits, jumps in short interest), on the development sessions. Each mean is the
+      mean across event dates of the mean of each date, and the t-statistic counts dates, not events.
     columns:
       - name: event
         data_tests:
           - not_null
+      - name: n_events
+        description: The count of events with a residual on this day.
+      - name: n_dates
+        description: The count of distinct event dates among those events. Events on one date are not
+          independent, so the means and the t-statistic use this count.
+      - name: car_post
+        description: The mean, across event dates, of the residual summed from day +1. The mean of each
+          date comes first.
+      - name: t_post
+        description: The t-statistic of car_post, from the spread of the date means. It treats the dates
+          as independent of each other.
 
   - name: market_seasonality
     description: Calendar effects (month, weekday, turn of the month) in the US market and the Fama-French
-      factors, from the daily library since 1963 and since 2000.
+      factors, from the daily library since 1963 and since 2000. Each effect has a p-value, and the
+      significant ones pass a false discovery rate among the tests of their period.
+    columns:
+      - name: p
+        description: The two-sided p-value of t under the normal distribution.
+      - name: n_tests
+        description: The count of effects in the period (every calendar, bucket and series).
+      - name: fdr
+        description: The false discovery rate that significant uses (the var seasonality_fdr).
+      - name: significant
+        description: True when the effect passes the Benjamini-Hochberg procedure at fdr among the
+          tests of its period. False when it does not, and when it has no t-statistic.
+        data_tests:
+          - not_null
