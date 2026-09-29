@@ -6,14 +6,17 @@
 
 with recursive episodes as (
 
-    select ticker, date, name, name_word, cik, episode_cik, episode_key, key_rule
+    select
+        ticker, date, name, name_word, cik, episode_cik, episode_key, key_rule,
+        -- The name with no spaces and no punctuation.
+        lower(regexp_replace(name, '[^A-Za-z0-9]', '', 'g')) as name_letters
     from {{ ref('int_ticker_episodes') }}
 
 ), changes as (
 
     -- A change from one FIGI key to another between two consecutive rows of a ticker.
     -- The first row of a ticker has no old key and drops out. The old CIK and name
-    -- word are the last known values, because the vendor can change the CIK inside an
+    -- are the last known values, because the vendor can change the CIK inside an
     -- episode (CBLS).
     select *
     from (
@@ -28,7 +31,9 @@ with recursive episodes as (
             last_value(cik ignore nulls) over earlier   as old_cik,
             coalesce(cik, episode_cik)                  as new_cik,
             last_value(name_word ignore nulls) over earlier as old_word,
-            name_word                                   as new_word
+            name_word                                   as new_word,
+            last_value(name_letters ignore nulls) over earlier as old_letters,
+            name_letters                                as new_letters
         from episodes
         window
             w as (partition by ticker order by date),
@@ -144,7 +149,13 @@ with recursive episodes as (
     inner join spans o on o.episode_key = c.old_key
     inner join spans n on n.episode_key = c.new_key
     where coalesce(c.old_cik = c.new_cik, false)
-      and coalesce(c.old_word = c.new_word, false)
+      -- Each name, with no spaces, starts with the first word of the other name. A join
+      -- of words passes (Exxon Mobil, ExxonMobil). A longer word fails (Gold Resource,
+      -- Goldgroup).
+      and coalesce(
+          starts_with(c.old_letters, c.new_word) and starts_with(c.new_letters, c.old_word),
+          false
+      )
       -- No gap in the bars of the ticker.
       and coalesce(s.new_session = s.old_session + 1, false)
       -- The old key stops on every ticker. A spin-off can keep the old FIGI on a new ticker.

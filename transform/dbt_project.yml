@@ -59,6 +59,10 @@ vars:
   # before. With two residuals, a new listing showed a move of 65 standard deviations.
   spec_vol_min_obs: 21
 
+  # beta_252 needs this many returns in its window of 252. Below 126 the spread of beta
+  # across names grows from 0.6 to between 1.6 and 30, and a new listing reached 1,401.
+  beta_min_obs: 126
+
   # A session with fewer in_universe names than this is dropped from the IC.
   ic_min_names: 100
 
