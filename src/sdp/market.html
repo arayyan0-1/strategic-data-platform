@@ -80,7 +80,8 @@
   <b>SDP · MARKET MONITOR</b>
   <span class="meta" id="meta">loading…</span>
   <nav>
-    <a href="#exceptions">unusual</a><a href="#crossasset">cross-asset</a><a href="#regime">regime</a>
+    <a href="#exceptions">unusual</a><a href="#crossasset">cross-asset</a><a href="#rates">rates</a>
+    <a href="#regime">regime</a>
     <a href="#factors">factors</a><a href="#movers">stock-specific</a><a href="#calendar">calendar</a>
     <a href="#research">research</a><a href="/">data status</a>
   </nav>
@@ -109,6 +110,22 @@
           <div class="note">One-month change in σ of its own history. Percentile of the level over
             two years.</div></div>
       </div>
+    </div>
+  </section>
+
+  <section id="rates"><h2>Rates, credit and volatility</h2>
+    <div class="grid2">
+      <div>
+        <div class="panel"><h3>US Treasury yield curve</h3><div class="chart" id="curve-chart"></div>
+          <div class="note" id="curve-note"></div></div>
+        <div class="panel" style="margin-top:12px"><h3>Selected, two years</h3>
+          <div class="chart" id="rates-chart"></div></div>
+      </div>
+      <div class="panel"><table id="rates-table"></table>
+        <div class="note">FRED, as known before the last session. Changes in basis points for rates
+          and spreads. Colour is the move in σ of the measure's own daily changes, red toward
+          stress. A date after a label is its last observation: FRED publishes it late, or once
+          a week, so it has no 1D move. Click rows to chart them.</div></div>
     </div>
   </section>
 
@@ -298,11 +315,21 @@ function exceptions() {
 function overview() {
   const tiles = [], rows = DATA.board ? DATA.board.rows : [];
   const by = Object.fromEntries(rows.map(r => [r.ticker, r]));
-  for (const t of ["SPY", "QQQ", "IWM", "RSP", "TLT", "HYG", "GLD", "USO", "UUP", "IBIT", "VIXY"]) {
+  for (const t of ["SPY", "QQQ", "IWM", "RSP", "TLT", "GLD", "USO", "IBIT"]) {
     const r = by[t]; if (!r) continue;
     tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(r.z_1d)}">
       <div class="k">${t} · ${esc(r.label)}</div><div class="v">${pct(r.ret_1d, 2)}</div>
       <div class="s">${sig(r.z_1d)} · ${num(r.close)} · ytd ${pct(r.ret_ytd)}</div></div>`);
+  }
+  // The measured rates, spreads and volatility, from FRED.
+  const q = Object.fromEntries((DATA.rates ? DATA.rates.rows : []).map(r => [r.measure, r]));
+  for (const k of ["t_10y", "curve_10y_2y", "real_10y", "hy_oas", "vix", "dollar"]) {
+    const r = q[k]; if (!r) continue;
+    const z = rz(r);
+    tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(z)}">
+      <div class="k">${esc(r.label)}${r.fresh ? "" : ` (${esc((r.obs_date || "").slice(5))})`}</div>
+      <div class="v">${rlevel(r, r.value)}</div>
+      <div class="s">1D ${rchg(r, r.chg_1d)}${r.unit === "pct" ? " bp" : ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
   }
   $("tiles").innerHTML = tiles.join("");
 }
@@ -342,6 +369,96 @@ function relations() {
       ${r.kind === "corr" ? `<td style="background:${zbg(r.z_21)}">${r.change_21 === null ? "–" : (r.change_21 > 0 ? "+" : "") + num(r.change_21)}</td>`
         : zcell(r.change_21, r.z_21)}<td>${sig(r.z_21)}</td>
       <td>${r.kind === "corr" ? num(r.value) : ""} ${pbar(r.pctile)}</td><td>${spark(r.series, 90, 18)}</td></tr>`).join("");
+}
+
+// The level and a change of a rates measure. A pct measure is in percent, and its change
+// shows in basis points.
+const rlevel = (r, v) => v === null || v === undefined ? "–" : r.unit === "pct" ? num(v, 2) + "%"
+  : num(v, r.unit === "ratio" ? 3 : 2);
+function rchg(r, v) {
+  if (v === null || v === undefined) return '<span class="dim">–</span>';
+  const x = r.unit === "pct" ? v * 100 : v, d = r.unit === "pct" ? 0 : r.unit === "ratio" ? 3 : 2;
+  const cls = Math.abs(x) < 1e-9 ? "dim" : (x > 0) === (r.stress === "high") ? "down" : "up";
+  return `<span class="${cls}">${x > 0 ? "+" : ""}${x.toFixed(d)}</span>`;
+}
+// The colour of a move: red toward stress, whichever way the measure moves.
+const rz = r => r.z_1d === null ? null : r.stress === "high" ? -r.z_1d : r.z_1d;
+
+// The yield curve: maturity on a log axis, one line per date. Each line is [[months, yield]].
+function curveChart(el, lines) {
+  const W = 640, H = 260, L = 44, R = 14, T = 10, B = 24;
+  const all = lines.flatMap(l => l.pts.filter(p => p[1] !== null));
+  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  const lm = Math.log(1), lM = Math.log(360);
+  let y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+  const pad = (y1 - y0) * 0.08 || 0.5; y0 = Math.floor((y0 - pad) * 4) / 4; y1 = Math.ceil((y1 + pad) * 4) / 4;
+  const X = m => L + (Math.log(m) - lm) / (lM - lm) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
+  let g = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = y0 + (y1 - y0) * i / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1b222c"/>
+      <text x="${L - 6}" y="${Y(v) + 3}" fill="#7d8894" font-size="10" text-anchor="end">${v.toFixed(2)}%</text>`;
+  }
+  if (y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
+  for (const [m, t] of [[1, "1M"], [3, "3M"], [6, "6M"], [12, "1Y"], [24, "2Y"], [36, "3Y"], [60, "5Y"],
+                        [84, "7Y"], [120, "10Y"], [240, "20Y"], [360, "30Y"]]) {
+    g += `<line x1="${X(m)}" x2="${X(m)}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
+      <text x="${X(m)}" y="${H - 7}" fill="#7d8894" font-size="10" text-anchor="middle">${t}</text>`;
+  }
+  const paths = lines.map((l, i) => {
+    const c = l.color || COLORS[i % COLORS.length], pts = l.pts.filter(p => p[1] !== null);
+    const d = pts.map((p, j) => `${j ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
+    const dots = pts.map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="${l.width > 2 ? 3 : 2}"
+      fill="${c}"><title>${esc(l.name)} ${p[2] || ""}: ${p[1].toFixed(2)}%</title></circle>`).join("");
+    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${l.width || 1.4}"
+      ${l.dash ? `stroke-dasharray="${l.dash}"` : ""}/>${dots}`;
+  }).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${paths}</svg><div class="legend">` + lines.map((l, i) =>
+    `<span><i style="background:${l.color || COLORS[i % COLORS.length]}"></i>${esc(l.name)}</span>`).join("")
+    + "</div>";
+}
+
+let RSEL = ["t_10y", "t_2y", "t_3m"];
+function rates() {
+  const Q = DATA.rates; if (!Q) return;
+  const rows = Q.rows, by = Object.fromEntries(rows.map(r => [r.measure, r]));
+  const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
+  const nominal = rows.filter(r => r.grp === "Nominal curve" && r.maturity);
+  const real = rows.filter(r => r.grp === "Real yields and inflation" && r.maturity);
+  const pts = (rs, k) => rs.map(r => [r.maturity, r[k], tenor(r.maturity)]);
+  curveChart($("curve-chart"), [
+    {name: "a year ago", pts: pts(nominal, "value_1y"), color: "#56606b", dash: "3 3"},
+    {name: "a month ago", pts: pts(nominal, "value_1m"), color: "#58a6ff"},
+    {name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4},
+    {name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"},
+  ]);
+  const s = by.curve_10y_2y, m = by.curve_10y_3m, be = by.breakeven_10y;
+  $("curve-note").innerHTML = `As of ${nominal[0]?.obs_date || "–"}. 10Y less 2Y ${s ? rlevel(s, s.value) : "–"}
+    (${s ? rchg(s, s.chg_1m) : ""} bp in a month), 10Y less 3M ${m ? rlevel(m, m.value) : "–"}. The gap between
+    the nominal and the real curve at a maturity is breakeven inflation: ${be ? rlevel(be, be.value) : "–"} at 10Y.`;
+  let html = `<tr><th>Measure</th><th>Level</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>1Y</th>
+    <th>Level vs history</th><th>2Y</th></tr>`, grp = null;
+  for (const r of rows) {
+    if (r.grp !== grp) { grp = r.grp; html += `<tr class="grp"><td colspan="9">${esc(grp)}</td></tr>`; }
+    const z = rz(r);
+    const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
+    html += `<tr class="row ${RSEL.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
+      <td class="l">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
+      <td style="background:${zbg(z)}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
+      <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
+      <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
+  }
+  $("rates-table").innerHTML = html;
+  $("rates-table").querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
+    const k = tr.dataset.m;
+    RSEL = RSEL.includes(k) ? RSEL.filter(x => x !== k) : [...RSEL, k];
+    rates();
+  });
+  const sel = RSEL.filter(k => by[k]);
+  const same = sel.every(k => by[k].unit === by[sel[0]].unit);
+  lineChart($("rates-chart"), sel.map(k => ({name: by[k].label,
+    points: by[k].dates.map((d, i) => [d, by[k].series[i]])})),
+    {height: 230, fmt: v => same && sel.length && by[sel[0]].unit === "pct" ? v.toFixed(2) + "%" : v.toFixed(2)});
 }
 
 function regime() {
@@ -386,13 +503,15 @@ const riskRow = (r, perf) => `<tr><td class="l">${esc(r.factor)}</td>${zcell(r.r
   ${zcell(r.ret_1m, r.z_1m)}<td>${sig(r.z_1m)}</td><td>${pct(perf?.ret_ytd)}</td>
   <td class="dim">${pct(r.vol_63, 1, false)}</td><td>${pbar(r.vol_pctile, "high")}</td>
   <td>${pct(r.drawdown, 1)}</td><td>${pbar(r.dd_pctile, "high")}</td>
-  <td>${num(r.corr_63)} <span class="dim">/ ${num(r.corr_252)}</span></td><td>${sig(r.crowding_z)}</td></tr>`;
+  <td>${num(r.corr_63)} <span class="dim">/ ${num(r.corr_252)}</span></td><td>${num(r.rate_corr_63)}</td>
+  <td>${sig(r.crowding_z)}</td></tr>`;
 
 function factorModel() {
   const F = DATA.factors; if (!F) return;
   const perf = Object.fromEntries(F.performance.map(r => [r.family + ":" + r.factor, r]));
   const head = `<tr><th>Factor</th><th>1D</th><th>σ</th><th>1M</th><th>σ</th><th>YTD</th><th>Vol</th>
     <th>Vol vs history</th><th>Drawdown</th><th>DD vs history</th><th>Corr to mkt 63d / 252d</th>
+    <th title="Correlation with the daily change of the 10-year Treasury yield, 63 sessions">Corr to 10Y yield</th>
     <th>Crowding</th></tr>`;
   $("risk").innerHTML = head + F.risk.filter(r => r.family === "style")
     .map(r => riskRow(r, perf["style:" + r.factor])).join("");
@@ -447,7 +566,9 @@ const FAMILIES = {
   quintile: "Top quintile less bottom quintile of each signal, equal weight, rebalanced daily. One signal at a time, so the low-risk signals (beta, volatility, dividend yield) are one bet shown many times.",
   pca: "Eigenportfolios of the trailing one-year correlation matrix of the 1,000 most liquid names, rebalanced every 21 sessions, out of sample. They catch what the styles and industries miss, with no names.",
   ff_mimic: "The Fama-French factors mimicked with the style, industry and PCA portfolios, out of sample, up to the last session.",
-  ff: "The published Fama-French factors. The library lags about two months.",
+  ff: "The published Fama-French factors, with the short- and long-term reversal factors. The library lags about two months.",
+  ff_industry: "The published Fama-French 12 industry portfolios, value weighted, each less the market. Compare them with the industry returns of the style model.",
+  q: "The q5 factors of Hou, Xue and Zhang: market, size (me), investment (ia), profitability (roe) and expected growth (eg). A new vintage about once a year, so they can lag by months.",
 };
 
 function research() {
@@ -493,7 +614,7 @@ async function load() {
   } catch (e) { $("meta").textContent = "cannot read /market.json: " + e; return; }
   $("meta").textContent = `as of ${DATA.as_of || "–"} · warehouse built ${(DATA.built || "–").slice(0, 16).replace("T", " ")} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
-  exceptions(); overview(); board(); mainChart(); relations(); regime(); breadthCharts();
+  exceptions(); overview(); board(); mainChart(); relations(); rates(); regime(); breadthCharts();
   factorModel(); movers(); calendar(); shorts(); research();
 }
 load();

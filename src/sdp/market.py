@@ -81,6 +81,17 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
             group by relation
             order by relation""")
 
+    def rates():
+        rows = _rows(wh, "select * from monitor.market_rates order by position")
+        series = {r["measure"]: r for r in _rows(wh, """
+            select measure, list(date order by date) as dates, list(value order by date) as series
+            from monitor.market_rates_history
+            group by measure""")}
+        for r in rows:
+            h = series.get(r["measure"], {})
+            r["dates"], r["series"] = h.get("dates", []), h.get("series", [])
+        return {"rows": rows}
+
     def regime():
         return _rows(wh, "select * from monitor.market_regime order by metric")
 
@@ -155,6 +166,7 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
         "exceptions": _section(errors, "exceptions", exceptions),
         "board": _section(errors, "board", board),
         "relations": _section(errors, "relations", relations),
+        "rates": _section(errors, "rates", rates),
         "regime": _section(errors, "regime", regime),
         "breadth": _section(errors, "breadth", breadth),
         "factors": _section(errors, "factors", factors),

@@ -11,6 +11,10 @@
   - corr_63 and corr_252 are the correlations with the market factor (style) over 63 and
     252 sessions. A large difference is a change in how the factor trades.
   - crowding_z comes from short interest (factor_crowding), for the styles only.
+  - rate_corr_63 is the correlation over 63 sessions with the change of the 10-year
+    Treasury yield over the same session. A row of core.rates holds the yield of the
+    close before, so the change over session D is the row after D less the row of D. The
+    last session has no change yet, so the window ends one session earlier.
 #}
 
 with r as (
@@ -23,11 +27,18 @@ with r as (
 
     select date, ret as mret from r where family = 'style' and factor = 'market'
 
+), yields as (
+
+    select date, lead(t_10y) over (order by date) - t_10y as dy_10y
+    from {{ ref('rates') }}
+
 ), roll as (
 
     select
         r.*,
         m.mret,
+        corr(r.ret, y.dy_10y) over (partition by r.family, r.factor order by r.date
+            rows between 62 preceding and current row)                  as rate_corr_63,
         stddev_samp(r.ret) over (partition by r.family, r.factor order by r.date
             rows between 63 preceding and 1 preceding)                   as sd_prev,
         stddev_samp(r.ret) over (partition by r.family, r.factor order by r.date
@@ -41,6 +52,7 @@ with r as (
         row_number() over (partition by r.family, r.factor order by r.date desc) as back
     from r
     left join mkt m using (date)
+    left join yields y using (date)
 
 ), dd as (
 
@@ -92,6 +104,7 @@ select
     h.max_drawdown,
     l.corr_63,
     l.corr_252,
+    l.rate_corr_63,
     c.crowding,
     c.crowding_z,
     c.crowding_date

@@ -5,18 +5,28 @@
   daily returns. change_21 is the change over 21 sessions (a return for a ratio, a
   difference for a correlation). z_21 is change_21 over its own standard deviation in
   the window. pctile is the share of the window with a lower or equal value.
+
+  Credit spreads, the VIX term structure and the dollar are measured, not proxied, in
+  market_rates. stock_yield_corr is the correlation of SPY with the change of the
+  10-year Treasury yield: negative when bad growth news drives yields, positive when
+  inflation and rate news drive them (2022).
 #}
 
 with px as (
 
     select ticker, date, adj_close as px from {{ ref('market_history') }}
 
+), yields as (
+
+    -- A row of core.rates holds the yield of the close before, so the change over
+    -- session D is the row after D less the row of D.
+    select date, lead(t_10y) over (order by date) - t_10y as dy_10y
+    from {{ ref('rates') }}
+
 ), defs(relation, label, kind, a, b) as (
 
     values
         ('stock_bond_corr', 'Stocks vs bonds, 63-day correlation (SPY, TLT)', 'corr', 'SPY', 'TLT'),
-        ('credit', 'Credit: high yield over Treasuries (HYG / IEF)', 'ratio', 'HYG', 'IEF'),
-        ('vix_curve', 'VIX curve: short over mid futures (VIXY / VIXM)', 'ratio', 'VIXY', 'VIXM'),
         ('copper_gold', 'Growth: copper over gold (CPER / GLD)', 'ratio', 'CPER', 'GLD'),
         ('beta_lowvol', 'Risk appetite: high beta over low volatility (SPHB / SPLV)', 'ratio', 'SPHB', 'SPLV'),
         ('small_large', 'Size: small over large caps (IWM / SPY)', 'ratio', 'IWM', 'SPY'),
@@ -25,7 +35,6 @@ with px as (
         ('semis_market', 'Semiconductors over the market (SMH / SPY)', 'ratio', 'SMH', 'SPY'),
         ('banks_market', 'Regional banks over the market (KRE / SPY)', 'ratio', 'KRE', 'SPY'),
         ('equal_cap', 'Equal over cap weight (RSP / SPY)', 'ratio', 'RSP', 'SPY'),
-        ('dollar', 'US dollar (UUP)', 'level', 'UUP', 'UUP'),
         ('gold_stocks', 'Gold over stocks (GLD / SPY)', 'ratio', 'GLD', 'SPY')
 
 ), pairs as (
@@ -44,10 +53,18 @@ with px as (
         case kind
             when 'corr' then corr(ra, rb) over (partition by relation order by date
                                                 rows between 62 preceding and current row)
-            when 'level' then pa / first_value(pa) over (partition by relation order by date)
             else (pa / pb) / first_value(pa / pb) over (partition by relation order by date)
         end as value
     from pairs
+
+    union all
+
+    select 'stock_yield_corr', 'Stocks vs Treasury yields, 63-day correlation (SPY, 10-year yield)',
+           'corr', s.date,
+           corr(s.r, y.dy_10y) over (order by s.date rows between 62 preceding and current row)
+    from (select date, ln(px / lag(px) over (order by date)) as r
+          from px where ticker = 'SPY') s
+    join yields y using (date)
 
 ), finite as (
 

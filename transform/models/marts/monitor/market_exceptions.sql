@@ -4,7 +4,8 @@
   the limit and 3 at the extreme. The limits are the vars monitor_z, monitor_pct and
   monitor_big_cap. direction is 1 for a move up or a calm reading, and -1 for a move down
   or a warning (a crowded factor, a high-volatility regime, the stress end of a
-  measure). An ETF with less than 2% volatility a year (T-bills) makes each
+  measure, a rise in a yield, a spread or volatility). An ETF with less than 2%
+  volatility a year (T-bills) makes each
   accrual look like a large move in sigma, so it is left out. An industry return is
   relative to the market and can trend for years, so its drawdown is not an exception.
 #}
@@ -97,6 +98,17 @@ with names as (
            case when (stress = 'high') = (pctile > 0.5) then -1 else 1 end
     from {{ ref('market_regime') }}
     where pctile >= 1 - {{ pct }} or pctile <= {{ pct }}
+
+    union all
+    select 'rates', measure,
+           case when unit = 'pct'
+                then printf('%s %+.0f bp to %.2f%%, %+.1f sigma', label, 100 * chg_1d, value, z_1d)
+                else printf('%s %+.2f to %.2f, %+.1f sigma', label, chg_1d, value, z_1d) end,
+           abs(z_1d),
+           case when stress = 'high' then -sign(z_1d) else sign(z_1d) end
+    from {{ ref('market_rates') }}
+    -- A weekly index or a policy rate moves in steps, so one step is a huge sigma.
+    where grp not in ('Funding', 'Conditions') and abs(z_1d) >= {{ z }}
 
     union all
     select 'relation', relation,
