@@ -11,16 +11,42 @@
   body { margin:0; background:var(--bg); color:var(--ink);
          font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   a { color:var(--blue); text-decoration:none; }
+  a.tk { color:var(--ink); font-weight:700; }
+  a.tk:hover { color:var(--amber); text-decoration:underline; }
   header { position:sticky; top:0; z-index:5; background:#070a0f; border-bottom:1px solid var(--line);
-           display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; padding:8px 16px; }
-  header b { color:var(--amber); letter-spacing:.08em; }
-  header nav a { margin-right:12px; color:var(--dim); }
+           padding:6px 16px; }
+  header .bar { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; }
+  header b.brand { color:var(--amber); letter-spacing:.08em; }
+  header nav { display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:4px; }
+  header nav a { color:var(--dim); font-size:12px; }
   header nav a:hover { color:var(--ink); }
   .meta { color:var(--dim); }
+  .cmd { position:relative; flex:1 1 320px; max-width:520px; }
+  .cmd input { width:100%; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+               border-radius:3px; padding:4px 8px; font:inherit; }
+  .cmd input:focus { outline:none; border-color:var(--amber); }
+  #cmd-list { position:absolute; top:100%; left:0; right:0; z-index:20; background:#0e131b;
+              border:1px solid var(--line); border-top:none; max-height:420px; overflow:auto; }
+  #cmd-list div { padding:3px 8px; cursor:pointer; display:flex; gap:10px; }
+  #cmd-list div.on, #cmd-list div:hover { background:var(--hl); }
+  #cmd-list .k { color:var(--amber); min-width:70px; }
+  #cmd-list .t { color:var(--dim); margin-left:auto; font-size:11px; }
+  #sources span { font-size:11px; margin-right:10px; white-space:nowrap; }
+  #sources i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; }
+  .btn { background:var(--panel); color:var(--dim); border:1px solid var(--line); font:inherit; font-size:11px;
+         padding:2px 8px; border-radius:3px; cursor:pointer; }
+  .btn:hover { color:var(--ink); }
+  #layout-menu { position:absolute; right:16px; top:40px; z-index:21; background:#0e131b; border:1px solid var(--line);
+                 padding:8px 10px; min-width:220px; }
+  #layout-menu div { margin:3px 0; }
   main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
   section { margin:18px 0 26px; }
+  section.collapsed > :not(h2) { display:none !important; }
   h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
-       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; }
+       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; display:flex; align-items:center; }
+  h2 .ctl { margin-left:auto; display:flex; gap:2px; }
+  h2 .ctl button { background:none; border:none; color:var(--dim); cursor:pointer; font:inherit; padding:0 4px; }
+  h2 .ctl button:hover { color:var(--ink); }
   h3 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);
        margin:0 0 6px; font-weight:600; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
@@ -29,7 +55,9 @@
   .tile .v { font-size:18px; margin-top:2px; }
   .tile .s { color:var(--dim); font-size:11px; }
   .grid2 { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:14px; }
+  .grid2e { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
   .grid3 { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:12px; }
+  .stack > * + * { margin-top:12px; }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:10px; min-width:0;
            overflow-x:auto; }
   #crossasset .grid2 { grid-template-columns:minmax(0,1.75fr) minmax(0,1fr); }
@@ -43,7 +71,7 @@
               text-transform:uppercase; border-bottom:1px solid var(--line); }
   tr.row:hover { background:var(--hl); cursor:pointer; }
   tr.sel { background:var(--hl); }
-  .up { color:var(--up); } .down { color:var(--down); } .dim { color:var(--dim); }
+  .up { color:var(--up); } .down { color:var(--down); } .dim { color:var(--dim); } .amber { color:var(--amber); }
   .name { color:var(--dim); display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis;
           vertical-align:bottom; }
   #mover-lists .name { max-width:105px; }
@@ -53,14 +81,16 @@
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
                  font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
-  .bars .b { display:grid; grid-template-columns:190px 1fr 64px; align-items:center; gap:6px; margin:2px 0; }
+  .tabs .sep { display:inline-block; width:10px; }
+  .bars .b { display:grid; grid-template-columns:190px 1fr 86px; align-items:center; gap:6px; margin:2px 0; }
   .bars .track { position:relative; height:10px; }
   .bars .track span { position:absolute; top:0; height:10px; }
   .bars .axis { position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--line); }
+  .bars .b.hl .name { color:var(--amber); }
   .heat td { text-align:center; font-size:11px; padding:3px 4px; }
   .note { color:var(--dim); font-size:11px; margin-top:6px; }
   .err { color:var(--down); }
-  @media (max-width:900px) { .grid2 { grid-template-columns:1fr; } }
+  @media (max-width:900px) { .grid2, .grid2e { grid-template-columns:1fr; } }
   .exc { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:6px; }
   .ex { display:grid; grid-template-columns:118px 1fr 38px; gap:8px; align-items:center;
         background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 10px;
@@ -68,44 +98,88 @@
   .ex.pos { border-left-color:var(--up); } .ex.neg { border-left-color:var(--down); }
   .ex .area { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
   .ex .score { text-align:right; color:var(--amber); }
+  .ex.link { cursor:pointer; } .ex.link:hover { background:var(--hl); }
   .pbar { position:relative; display:inline-block; width:70px; height:6px; background:#1b222c;
           border-radius:3px; vertical-align:middle; margin-right:6px; }
   .pbar i { position:absolute; top:-2px; width:4px; height:10px; margin-left:-2px; border-radius:2px; }
+  .zbar { position:relative; display:inline-block; width:160px; height:10px; background:#161c26; vertical-align:middle; }
+  .zbar .axis { position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:#3a4450; }
+  .zbar span { position:absolute; top:1px; height:8px; }
+  .zbar i { position:absolute; top:-2px; width:3px; height:14px; margin-left:-1px; }
   details summary { cursor:pointer; margin:4px 0; }
+  #heatmap svg text { pointer-events:none; }
+  #heatmap svg rect.n { cursor:pointer; stroke:#0b0e14; stroke-width:1; }
+  #heatmap svg rect.n:hover { stroke:var(--amber); stroke-width:2; }
+  #overlay { position:fixed; inset:0; z-index:30; background:rgba(5,8,12,.94); overflow:auto; }
+  #overlay .inner { max-width:1400px; margin:0 auto; padding:14px 16px 60px; }
+  #overlay .top { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 16px; border-bottom:1px solid var(--line);
+                  padding-bottom:8px; margin-bottom:12px; }
+  #overlay .top .big { font-size:22px; color:var(--amber); font-weight:700; }
+  #overlay .top .close { margin-left:auto; }
+  .kv { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; }
+  .kv div { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:5px 8px; }
+  .kv .k { color:var(--dim); font-size:11px; display:block; }
+  .stackbar { display:flex; height:16px; border-radius:3px; overflow:hidden; margin:4px 0 8px; }
+  .stackbar span { height:100%; }
+  .inline input { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:3px;
+                  font:inherit; padding:2px 6px; width:90px; }
 </style>
-
 </head>
 <body>
 <header>
-  <b>SDP · MARKET MONITOR</b>
-  <span class="meta" id="meta">loading…</span>
-  <nav>
-    <a href="#exceptions">unusual</a><a href="#crossasset">cross-asset</a><a href="#rates">rates</a>
-    <a href="#regime">regime</a>
-    <a href="#factors">factors</a><a href="#movers">stock-specific</a><a href="#calendar">calendar</a>
-    <a href="#research">research</a><a href="/">data status</a>
-  </nav>
+  <div class="bar">
+    <b class="brand">SDP · MARKET MONITOR</b>
+    <div class="cmd"><input id="cmd" autocomplete="off" spellcheck="false"
+      placeholder="Ticker, a pair (XOM/CVX), a measure or a section. Press / to focus.">
+      <div id="cmd-list" hidden></div></div>
+    <span class="meta" id="meta">loading…</span>
+    <button class="btn" id="layout-btn" title="Show hidden sections, or reset the layout">layout</button>
+  </div>
+  <div id="sources" class="meta" style="margin-top:3px"></div>
+  <nav id="nav"></nav>
+  <div id="layout-menu" hidden></div>
 </header>
 <main>
   <div id="errors" class="err"></div>
 
-  <section id="exceptions"><h2>What is unusual today</h2>
+  <section id="exceptions" data-nav="unusual"><h2>What is unusual today</h2>
     <div class="exc" id="exc"></div>
-    <div class="note">Moves in units of their own risk (σ) and levels at the edge of their own
-      history. Nothing here is a trade signal. It says where to look first.</div>
+    <div class="note">Moves of 3σ or more in units of their own risk, and levels at the edge of their own
+      history. A stock-specific move needs a cap of $10B and scores half its σ. Nothing here is a trade
+      signal. It says where to look first. Click an item with a ticker to open it.</div>
   </section>
 
-  <section id="overview"><div class="tiles" id="tiles"></div></section>
+  <section id="overview" data-nav="overview"><h2>Overview</h2><div class="tiles" id="tiles"></div></section>
 
-  <section id="crossasset"><h2>Cross-asset</h2>
+  <section id="attribution" data-nav="what moved"><h2>What moved the market</h2>
+    <div class="tabs" id="attr-tabs"></div>
+    <div class="grid3">
+      <div class="panel"><h3 id="attr-f-title">By factor</h3><div class="bars" id="attr-factors"></div></div>
+      <div class="panel"><h3>By industry</h3><div class="bars" id="attr-industries"></div></div>
+      <div class="panel"><h3 id="attr-n-title">By name</h3><table id="attr-names"></table></div>
+    </div>
+    <div class="note">The in-universe common stock through the style and industry model. Each part is in basis
+      points of the market and the parts sum to its return. The cap-weighted market has style exposure too: on a
+      day when the largest names beat the rest, size shows here. By name: the cap weight times the return; the
+      stock-specific part is in grey. The names are for the last session (1D) or the last 21 sessions.</div>
+  </section>
+
+  <section id="heat" data-nav="heat map"><h2>Heat map: the 500 largest names</h2>
+    <div class="tabs" id="hm-tabs"></div>
+    <div class="panel"><div id="heatmap"></div></div>
+    <div class="note">Area is the market cap. Colour is the return, full at the limit in the tab, or the
+      stock-specific move in σ. Grouped by the Fama-French 12 industries. Click a name to open it.</div>
+  </section>
+
+  <section id="crossasset" data-nav="cross-asset"><h2>Cross-asset</h2>
     <div class="grid2">
       <div class="panel"><table id="board"></table>
         <div class="note">Colour is the move in σ of the ETF's own daily risk over 63 sessions.
-          Click rows to chart them.</div></div>
-      <div>
+          Click rows to chart them. ↗ opens the ETF.</div></div>
+      <div class="stack">
         <div class="panel"><h3>Selected, rebased to 0% one year ago</h3>
           <div class="chart" id="main-chart"></div></div>
-        <div class="panel" style="margin-top:12px"><h3>Relationships</h3>
+        <div class="panel"><h3>Relationships</h3>
           <table id="relations"></table>
           <div class="note">One-month change in σ of its own history. Percentile of the level over
             two years.</div></div>
@@ -113,28 +187,67 @@
     </div>
   </section>
 
-  <section id="rates"><h2>Rates, credit and volatility</h2>
+  <section id="rates" data-nav="rates"><h2>Rates, credit and volatility</h2>
     <div class="grid2">
-      <div>
-        <div class="panel"><h3>US Treasury yield curve</h3><div class="chart" id="curve-chart"></div>
+      <div class="stack">
+        <div class="panel"><h3>US Treasury yield curve</h3>
+          <div class="tabs inline" id="curve-tabs"></div>
+          <div class="chart" id="curve-chart"></div>
           <div class="note" id="curve-note"></div></div>
-        <div class="panel" style="margin-top:12px"><h3>Selected, two years</h3>
-          <div class="chart" id="rates-chart"></div></div>
+        <div class="panel"><h3>Level, slope and curvature (principal components of daily moves)</h3>
+          <div class="chart" id="pca-chart"></div><table id="pca-table" style="margin-top:6px"></table>
+          <div class="chart" id="pca-loadings" style="margin-top:8px"></div>
+          <div class="note" id="pca-note"></div></div>
+        <div class="panel"><h3>Credit spreads by rating (OAS)</h3><div class="chart" id="ladder-chart"></div>
+          <div class="note">ICE BofA option-adjusted spreads on a log scale. FRED serves three years, so the
+            history starts in 2023-09.</div></div>
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
       </div>
       <div class="panel"><table id="rates-table"></table>
         <div class="note">FRED, as known before the last session. Changes in basis points for rates
           and spreads. Colour is the move in σ of the measure's own daily changes, red toward
           stress. A date after a label is its last observation: FRED publishes it late, or once
-          a week, so it has no 1D move. Click rows to chart them.</div></div>
+          a week, so it has no 1D move. The forwards use the simple approximation from the
+          constant-maturity yields. Click rows to chart them.</div></div>
     </div>
   </section>
 
-  <section id="regime"><h2>Regime (in-universe US common stock)</h2>
+  <section id="funding" data-nav="funding"><h2>Funding and liquidity</h2>
+    <div class="grid2">
+      <div class="stack">
+        <div class="panel"><h3>Overnight rates inside the policy corridor, one year</h3>
+          <div class="chart" id="corridor-chart"></div>
+          <div class="note">IORB is the ceiling that matters for banks, the ON RRP rate the floor. SOFR above IORB,
+            or a wide 99th percentile, is repo pressure: quarter-ends, tax dates and settlement of coupons.</div></div>
+        <div class="panel"><h3>Funding spreads, one year (bp)</h3><div class="chart" id="spreads-chart"></div></div>
+        <div class="panel"><h3>The Federal Reserve balance sheet, two years ($bn)</h3>
+          <div class="chart" id="fedbs-chart"></div>
+          <div class="note">Net liquidity is the assets of the Fed less the Treasury General Account and the
+            overnight reverse repo: a popular gauge of the liquidity that the Fed supplies, and its link to stock
+            prices is loose. The balance sheet is weekly (Wednesday).</div></div>
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="funding-chart"></div></div>
+      </div>
+      <div class="panel"><table id="funding-table"></table>
+        <div class="note">The policy rates move in steps and the balance sheet once a week, so they are not
+          exceptions. The funding spreads are. Click rows to chart them.</div></div>
+    </div>
+  </section>
+
+  <section id="fx" data-nav="fx and commodities"><h2>Currencies and commodities</h2>
+    <div class="grid2">
+      <div class="panel"><h3>Selected, two years, rebased</h3><div class="chart" id="fx-chart"></div>
+        <div class="note">FRED noon rates from New York and spot prices. Changes are in percent. The board
+          above has the ETFs, which trade to the close.</div></div>
+      <div class="panel"><table id="fx-table"></table></div>
+    </div>
+  </section>
+
+  <section id="regime" data-nav="regime"><h2>Regime (in-universe US common stock)</h2>
     <div class="panel"><table id="regime-table"></table></div>
     <div class="grid3" id="breadth-charts" style="margin-top:12px"></div>
   </section>
 
-  <section id="factors"><h2>Factors: style and industry model</h2>
+  <section id="factors" data-nav="factors"><h2>Factors: style and industry model</h2>
     <div class="note">One weighted regression per session on eight styles and the Fama-French
       12 industries, as in a Barra model. Each style return is a portfolio with unit exposure
       to that style and none to the others. σ is the factor's own daily risk.</div>
@@ -146,25 +259,52 @@
     </div>
   </section>
 
-  <section id="movers"><h2>Stock-specific moves (liquid names, last session)</h2>
+  <section id="signals" data-nav="signals"><h2>Signals today: the extremes of each signal</h2>
+    <div class="tabs" id="sig-tabs"></div>
+    <div class="note" id="sig-note"></div>
+    <div class="grid2e" style="margin-top:8px">
+      <div class="panel"><h3>Highest 10</h3><table id="sig-top"></table></div>
+      <div class="panel"><h3>Lowest 10</h3><table id="sig-bottom"></table></div>
+    </div>
+  </section>
+
+  <section id="movers" data-nav="stock-specific"><h2>Stock-specific moves (liquid names, last session)</h2>
     <div class="note">The part of each return that the market, the industry and the styles do not
       explain, in σ of the name's own residual risk. News lives here.</div>
     <div class="grid2" id="mover-lists" style="margin-top:8px"></div>
   </section>
 
-  <section id="calendar"><h2>Material corporate actions ahead</h2>
+  <section id="calendar" data-nav="calendar"><h2>Material corporate actions ahead</h2>
     <div class="panel"><table id="cal"></table></div>
     <div class="note">Splits, special dividends and payments of 1% or more, for names with $20M or
       more of dollar volume.</div></section>
 
-  <section id="shorts"><h2>Short interest</h2><div class="note" id="si-note"></div>
-    <div class="grid2" style="margin-top:8px">
+  <section id="shorts" data-nav="short interest"><h2>Short interest</h2><div class="note" id="si-note"></div>
+    <div class="grid3" style="margin-top:8px">
+      <div class="panel"><h3>Short across the universe, share of cap</h3><div class="chart" id="si-share"></div></div>
+      <div class="panel"><h3>Median days to cover, and names at 10 days or more</h3><div class="chart" id="si-dtc-chart"></div></div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
       <div class="panel"><h3>Most days to cover</h3><table id="si-dtc"></table></div>
       <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up"></table></div>
     </div></section>
 
-  <section id="research"><h2>Research: other factor families</h2>
-    <details><summary class="dim">Quintile long-shorts with costs, PCA, Fama-French and its mimics</summary>
+  <section id="calendars" data-nav="seasonality"><h2>Seasonality and event studies</h2>
+    <div class="grid2e">
+      <div class="panel"><h3>Calendar effects since 1963 (daily French library)</h3>
+        <div class="tabs" id="season-tabs"></div><div class="bars" id="season-bars"></div>
+        <div class="note" id="season-note"></div></div>
+      <div class="panel"><h3>Stock-specific return around events (development sessions)</h3>
+        <div class="tabs" id="event-tabs"></div><div class="chart" id="event-chart"></div>
+        <table id="event-table" style="margin-top:6px"></table>
+        <div class="note">The mean residual of the style model summed from 5 sessions before the event. After the
+          event (day +1 on) is what a trade could earn. Events on the same days move together, so the t is too
+          high when they cluster. The holdout sessions stay out.</div></div>
+    </div>
+  </section>
+
+  <section id="research" data-nav="research"><h2>Research: other factor families</h2>
+    <details><summary class="dim">Quintile long-shorts with costs, PCA, Fama-French, q and the mimics</summary>
       <div class="tabs" id="fam-tabs" style="margin-top:10px"></div>
       <div class="note" id="fam-note"></div>
       <div class="grid2" style="margin-top:8px">
@@ -179,28 +319,42 @@
             its volume, the median over the last year. Daily rebalancing is the worst case: a slow
             signal rebalanced monthly trades far less.</div></div>
         <div class="panel"><h3 id="heat-title">Correlation with the published Fama-French factors</h3>
-          <div id="heat"></div></div>
+          <div id="heatcorr"></div></div>
       </div>
     </details>
   </section>
 </main>
+<div id="overlay" hidden><div class="inner" id="ov-body"></div></div>
 <script>
 const COLORS = ["#58a6ff","#e3b341","#3fb950","#f85149","#bc8cff","#39c5cf","#ff9bce","#d29922",
                 "#8b949e","#7ee787","#ffa657","#a5d6ff","#f778ba"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nil = v => v === null || v === undefined || (typeof v === "number" && !isFinite(v));
 function pct(v, d = 1, sign = true) {
-  if (v === null || v === undefined) return '<span class="dim">–</span>';
+  if (nil(v)) return '<span class="dim">–</span>';
   const s = (v * 100).toFixed(d) + "%";
   return `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${sign && v > 0 ? "+" : ""}${s}</span>`;
 }
-const num = (v, d = 2) => v === null || v === undefined ? "–" : Number(v).toLocaleString(undefined,
+const bp = (v, d = 1) => nil(v) ? '<span class="dim">–</span>'
+  : `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${v > 0 ? "+" : ""}${(v * 1e4).toFixed(d)}</span>`;
+const num = (v, d = 2) => nil(v) ? "–" : Number(v).toLocaleString(undefined,
   {minimumFractionDigits: d, maximumFractionDigits: d});
-const big = v => v === null || v === undefined ? "–" : v >= 1e9 ? (v / 1e9).toFixed(1) + "B"
+const big = v => nil(v) ? "–" : v >= 1e12 ? (v / 1e12).toFixed(2) + "T" : v >= 1e9 ? (v / 1e9).toFixed(1) + "B"
   : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(0) + "K" : String(Math.round(v));
+const tk = t => t ? `<a class="tk" href="#stock/${encodeURIComponent(t)}">${esc(t)}</a>` : "";
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private window */ } },
+};
+async function getJSON(url) {
+  const r = await fetch(url), j = await r.json();
+  if (!r.ok) throw new Error(j.error || (j.errors || []).join(" ") || r.statusText);
+  return j;
+}
 
 function spark(vals, w = 72, h = 18) {
-  const v = (vals || []).filter(x => x !== null);
+  const v = (vals || []).filter(x => !nil(x));
   if (v.length < 2) return "";
   const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
   const pts = v.map((x, i) => `${(i / (v.length - 1) * w).toFixed(1)},${(h - (x - lo) / r * h).toFixed(1)}`);
@@ -209,14 +363,16 @@ function spark(vals, w = 72, h = 18) {
     stroke-width="1.2" points="${pts.join(" ")}"/></svg>`;
 }
 
-// A line chart with a shared time axis, grid, labels and a hover readout.
+// A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
+// dashed lines at fixed values.
 function lineChart(el, series, o = {}) {
   const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
-  const all = series.flatMap(s => s.points.filter(p => p[1] !== null));
+  const all = series.flatMap(s => s.points.filter(p => !nil(p[1])));
   if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
   const ts = all.map(p => +new Date(p[0])), vs = all.map(p => p[1]);
   let x0 = Math.min(...ts), x1 = Math.max(...ts), y0 = Math.min(...vs), y1 = Math.max(...vs);
   if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+  for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
   if (y0 === y1) { y0 -= 1; y1 += 1; }
   const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
   const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
@@ -228,6 +384,7 @@ function lineChart(el, series, o = {}) {
           <text x="${L - 6}" y="${y + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
   }
   if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
+  for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
   for (const t of [x0, (x0 + x1) / 2, x1]) {
     const d = new Date(t).toISOString().slice(0, 10);
     g += `<text x="${X(t)}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="middle">${d}</text>`;
@@ -236,10 +393,11 @@ function lineChart(el, series, o = {}) {
     const c = s.color || COLORS[i % COLORS.length];
     let d = "", pen = false;
     for (const [t, v] of s.points) {
-      if (v === null) { pen = false; continue; }
+      if (nil(v)) { pen = false; continue; }
       d += `${pen ? "L" : "M"}${X(+new Date(t)).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
     }
-    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${s.width || 1.4}"/>`;
+    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${s.width || 1.4}"
+      ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/>`;
   }).join("");
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
     stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
@@ -247,7 +405,7 @@ function lineChart(el, series, o = {}) {
   const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
   const legend = t => leg.innerHTML = series.map((s, i) => {
     let p = null;
-    for (const q of s.points) { if (q[1] === null) continue; if (t === null || +new Date(q[0]) <= t) p = q; else break; }
+    for (const q of s.points) { if (nil(q[1])) continue; if (t === null || +new Date(q[0]) <= t) p = q; else break; }
     return `<span><i style="background:${s.color || COLORS[i % COLORS.length]}"></i>${esc(s.name)}
       ${p ? f(p[1]) : "–"}</span>`;
   }).join("") + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
@@ -262,52 +420,261 @@ function lineChart(el, series, o = {}) {
   svg.addEventListener("mouseleave", () => { cx.setAttribute("visibility", "hidden"); legend(null); });
 }
 
-function bars(el, items, d = 1) {
-  const m = Math.max(...items.map(x => Math.abs(x.value ?? 0)), 1e-9);
+// A chart on a numeric or categorical x axis. Each series is {name, pts: [[x, y, title]]}.
+// o.xticks is [[x, label]], o.log draws y on a log scale, o.xlog x on a log scale.
+function xyChart(el, series, o = {}) {
+  const W = 640, H = o.height || 240, L = 48, R = 14, T = 10, B = 24;
+  const all = series.flatMap(s => s.pts.filter(p => !nil(p[1]) && (!o.log || p[1] > 0)));
+  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  const fy = o.log ? Math.log : v => v, fx = o.xlog ? Math.log : v => v;
+  const xs = [...all.map(p => p[0]), ...(o.xticks || []).map(t => t[0])];
+  let x0 = fx(Math.min(...xs)), x1 = fx(Math.max(...xs));
+  let y0 = Math.min(...all.map(p => fy(p[1]))), y1 = Math.max(...all.map(p => fy(p[1])));
+  for (const h of o.hlines || []) { y0 = Math.min(y0, fy(h)); y1 = Math.max(y1, fy(h)); }
+  if (y0 === y1) { y0 -= 1; y1 += 1; }
+  const pad = (y1 - y0) * 0.08; y0 -= pad; y1 += pad;
+  const X = x => L + (fx(x) - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - fy(v)) / (y1 - y0) * (H - T - B);
+  const f = o.fmt || (v => v.toFixed(2));
+  let g = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = o.log ? Math.exp(y0 + (y1 - y0) * i / 4) : y0 + (y1 - y0) * i / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1b222c"/>
+      <text x="${L - 6}" y="${Y(v) + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
+  }
+  if (!o.log && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
+  for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
+  for (const v of o.vlines || []) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}" stroke="#56606b" stroke-dasharray="4 3"/>`;
+  for (const [x, t] of o.xticks || []) {
+    g += `<line x1="${X(x)}" x2="${X(x)}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
+      <text x="${X(x)}" y="${H - 7}" fill="#7d8894" font-size="10" text-anchor="middle">${esc(t)}</text>`;
+  }
+  const paths = series.map((s, i) => {
+    const c = s.color || COLORS[i % COLORS.length], pts = s.pts.filter(p => !nil(p[1]) && (!o.log || p[1] > 0));
+    const d = pts.map((p, j) => `${j ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
+    const dots = o.dots === false ? "" : pts.map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}"
+      r="${s.width > 2 ? 3 : 2}" fill="${c}"><title>${esc(s.name)} ${esc(p[2] || "")}: ${f(p[1])}</title></circle>`).join("");
+    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${s.width || 1.4}"
+      ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/>${dots}`;
+  }).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${paths}</svg><div class="legend">` + series.map((s, i) =>
+    `<span><i style="background:${s.color || COLORS[i % COLORS.length]}"></i>${esc(s.name)}</span>`).join("") + "</div>";
+}
+
+function bars(el, items, fmt = v => pct(v, 1)) {
+  const m = Math.max(...items.map(x => Math.abs(x.value ?? 0)), 1e-12);
   el.innerHTML = items.map(x => {
     const w = Math.abs(x.value ?? 0) / m * 50, pos = (x.value ?? 0) >= 0;
-    return `<div class="b"><span class="name" title="${esc(x.title || x.label)}">${esc(x.label)}</span>
+    return `<div class="b ${x.hl ? "hl" : ""}"><span class="name" title="${esc(x.title || x.label)}">${esc(x.label)}</span>
       <span class="track"><span class="axis"></span><span style="left:${pos ? 50 : 50 - w}%;width:${w}%;
-      background:${pos ? "var(--up)" : "var(--down)"}"></span></span><span>${pct(x.value, d)}</span></div>`;
+      background:${x.color || (pos ? "var(--up)" : "var(--down)")}"></span></span><span>${fmt(x.value, x)}</span></div>`;
   }).join("");
 }
 
-const pp = (rows, key, scale = 1) => rows.map(r => [r.date, r[key] === null ? null : r[key] * scale]);
+function tabs(el, items, on, pick) {
+  el.innerHTML = items.map(([k, t]) => k === "|" ? '<span class="sep"></span>'
+    : `<button class="${k === on ? "on" : ""}" data-k="${esc(k)}">${esc(t)}</button>`).join("");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => pick(b.dataset.k));
+}
+
+const pp = (rows, key, scale = 1) => rows.map(r => [r.date, nil(r[key]) ? null : r[key] * scale]);
 const rebase = (dates, vals) => {
-  const b = vals.find(v => v !== null);
-  return dates.map((d, i) => [d, vals[i] === null || !b ? null : vals[i] / b - 1]);
+  const b = vals.find(v => !nil(v));
+  return dates.map((d, i) => [d, nil(vals[i]) || !b ? null : vals[i] / b - 1]);
 };
 
 // A background whose strength grows with the size of the move in σ, full at 3σ.
 function zbg(z) {
-  if (z === null || z === undefined || !isFinite(z)) return "transparent";
+  if (nil(z)) return "transparent";
   const a = Math.min(Math.abs(z) / 3, 1) * 0.55;
   return z > 0 ? `rgba(63,185,80,${a})` : `rgba(248,81,73,${a})`;
 }
-const zcell = (v, z, d = 1) => `<td style="background:${zbg(z)}" title="${z === null || z === undefined
-  ? "" : (z > 0 ? "+" : "") + Number(z).toFixed(1) + "σ"}">${pct(v, d)}</td>`;
-const sig = z => z === null || z === undefined ? '<span class="dim">–</span>'
+const zcell = (v, z, d = 1) => `<td style="background:${zbg(z)}" title="${nil(z) ? ""
+  : (z > 0 ? "+" : "") + Number(z).toFixed(1) + "σ"}">${pct(v, d)}</td>`;
+const sig = z => nil(z) ? '<span class="dim">–</span>'
   : `<span class="${Math.abs(z) >= 2 ? (z > 0 ? "up" : "down") : "dim"}">${z > 0 ? "+" : ""}${Number(z).toFixed(1)}σ</span>`;
 function pbar(p, stress) {
-  if (p === null || p === undefined) return "";
+  if (nil(p)) return "";
   const hot = stress === "high" ? p : stress === "low" ? 1 - p : Math.abs(p - 0.5) * 2;
   const c = hot >= 0.95 ? "var(--down)" : hot >= 0.8 ? "var(--amber)" : "var(--blue)";
   return `<span class="pbar"><i style="left:${(p * 100).toFixed(0)}%;background:${c}"></i></span>
     <span class="dim">p${(p * 100).toFixed(0)}</span>`;
 }
+// A diverging colour for a value against a limit: red below 0, green above.
+function divColor(v, lim) {
+  if (nil(v)) return "#1b222c";
+  const t = Math.max(-1, Math.min(1, v / lim)), a = Math.abs(t);
+  const [r, g, b] = t > 0 ? [63, 185, 80] : [248, 81, 73], base = [27, 34, 44];
+  return `rgb(${Math.round(base[0] + (r - base[0]) * a)},${Math.round(base[1] + (g - base[1]) * a)},${Math.round(base[2] + (b - base[2]) * a)})`;
+}
 
 let DATA = null, SELECTED = ["SPY", "QQQ", "IWM", "TLT", "GLD"], FAMILY = "quintile";
+const LABEL = (family, factor) => (DATA && DATA.labels && DATA.labels[family + ":" + factor]) || factor;
+const INDUSTRY = {nodur: "Consumer nondurables", durbl: "Consumer durables", manuf: "Manufacturing",
+  enrgy: "Energy", chems: "Chemicals", buseq: "Business equipment", telcm: "Telecom", utils: "Utilities",
+  shops: "Shops", hlth: "Health care", money: "Finance", other: "Other", unknown: "No industry yet"};
 
+// ---------------------------------------------------------------- layout and navigation
+const SECTIONS = [...document.querySelectorAll("main > section")].map(s => s.id);
+function layout() { return store.get("sdp.layout", {order: [], collapsed: [], hidden: []}); }
+function applyLayout() {
+  const L = layout(), main = document.querySelector("main");
+  const order = [...L.order.filter(id => SECTIONS.includes(id)), ...SECTIONS.filter(id => !L.order.includes(id))];
+  for (const id of order) main.appendChild($(id));
+  for (const id of SECTIONS) {
+    $(id).classList.toggle("collapsed", L.collapsed.includes(id));
+    $(id).hidden = L.hidden.includes(id);
+  }
+  $("nav").innerHTML = order.filter(id => !L.hidden.includes(id))
+    .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("") + '<a href="/">data status</a>';
+  const hidden = SECTIONS.filter(id => L.hidden.includes(id));
+  $("layout-menu").innerHTML = (hidden.length ? "<div class='dim'>Hidden sections:</div>" + hidden.map(id =>
+    `<div><a href="#" data-show="${id}">show ${esc($(id).dataset.nav || id)}</a></div>`).join("")
+    : "<div class='dim'>No hidden sections.</div>") + `<div style="margin-top:8px"><a href="#" id="layout-reset">reset the layout</a></div>`;
+  $("layout-menu").querySelectorAll("[data-show]").forEach(a => a.onclick = e => {
+    e.preventDefault(); const M = layout(); M.hidden = M.hidden.filter(x => x !== a.dataset.show); store.set("sdp.layout", M); applyLayout();
+  });
+  $("layout-reset").onclick = e => { e.preventDefault(); store.set("sdp.layout", {order: [], collapsed: [], hidden: []}); applyLayout(); };
+}
+function layoutControls() {
+  for (const id of SECTIONS) {
+    const h2 = $(id).querySelector("h2");
+    h2.insertAdjacentHTML("beforeend", `<span class="ctl"><button data-a="up" title="Move up">↑</button>
+      <button data-a="down" title="Move down">↓</button><button data-a="fold" title="Fold">▾</button>
+      <button data-a="hide" title="Hide">×</button></span>`);
+    h2.querySelectorAll("button").forEach(b => b.onclick = () => {
+      const L = layout(), cur = [...document.querySelectorAll("main > section")].map(s => s.id);
+      const i = cur.indexOf(id);
+      if (b.dataset.a === "up" && i > 0) [cur[i - 1], cur[i]] = [cur[i], cur[i - 1]];
+      if (b.dataset.a === "down" && i < cur.length - 1) [cur[i + 1], cur[i]] = [cur[i], cur[i + 1]];
+      if (b.dataset.a === "fold") L.collapsed = L.collapsed.includes(id) ? L.collapsed.filter(x => x !== id) : [...L.collapsed, id];
+      if (b.dataset.a === "hide") L.hidden = [...L.hidden, id];
+      L.order = cur; store.set("sdp.layout", L); applyLayout();
+    });
+  }
+  $("layout-btn").onclick = () => { $("layout-menu").hidden = !$("layout-menu").hidden; };
+}
+function reveal(id) {
+  const L = layout();
+  if (L.collapsed.includes(id) || L.hidden.includes(id)) {
+    L.collapsed = L.collapsed.filter(x => x !== id); L.hidden = L.hidden.filter(x => x !== id);
+    store.set("sdp.layout", L); applyLayout();
+  }
+  closeOverlay();
+  $(id).scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+// ---------------------------------------------------------------- the command bar
+let INDEX = null, CMD = [], CMD_ON = 0;
+async function loadIndex() {
+  if (INDEX) return;
+  try { INDEX = (await getJSON("/market/search.json")).rows; } catch { INDEX = []; }
+}
+// Rank: an exact ticker or a pair, then what starts with the query, then (from three
+// characters) what contains it. Tickers come most traded first.
+function suggest(q) {
+  const s = q.trim(), u = s.toUpperCase(), lo = s.toLowerCase(), out = [];
+  if (!s) return out;
+  const add = (score, item) => out.push({...item, score, n: out.length});
+  const words = t => t.toLowerCase().split(/[\s,()/-]+/);
+  const starts = t => words(t).some(w => w.startsWith(lo)), has = t => lo.length >= 3 && t.toLowerCase().includes(lo);
+  let pair = s.match(/^([A-Za-z0-9.\-]+)\s*(?:\/|\s+vs\.?\s+|,)\s*([A-Za-z0-9.\-]+)$/i);
+  // Two words that are both tickers are a pair too: "spy tlt".
+  const two = s.match(/^([A-Za-z0-9.\-]+)\s+([A-Za-z0-9.\-]+)$/);
+  if (!pair && two && INDEX && [two[1], two[2]].every(t => INDEX.some(r => r[0] === t.toUpperCase()))) pair = two;
+  if (pair) add(0, {kind: "pair", a: pair[1].toUpperCase(), b: pair[2].toUpperCase(),
+    label: `${pair[1].toUpperCase()} / ${pair[2].toUpperCase()}`, detail: "pair: ratio, z-score, beta"});
+  for (const id of SECTIONS) {
+    const t = ($(id).dataset.nav || id) + " " + $(id).querySelector("h2").firstChild.textContent;
+    if (starts(t) || has(t)) add(starts(t) ? 1 : 4, {kind: "section", id, label: $(id).dataset.nav || id, detail: "section"});
+  }
+  for (const r of (DATA && DATA.rates ? DATA.rates.rows : [])) {
+    const t = r.label + " " + r.measure;
+    if (starts(t) || has(t)) add(starts(t) ? 2 : 5, {kind: "measure", m: r.measure, label: r.label, detail: r.grp});
+  }
+  let nStart = 0, nName = 0;
+  for (const r of INDEX || []) {
+    const item = {kind: "ticker", t: r[0], label: r[0], detail: `${r[1] || ""} · ${r[2] || ""}${r[3] ? " · " + big(r[3]) : ""}`};
+    if (r[0] === u) add(0, item);
+    else if (r[0].startsWith(u) && nStart < 8) { add(3, item); nStart++; }
+    else if (lo.length >= 3 && (r[1] || "").toLowerCase().includes(lo) && nName < 8) { add(6, item); nName++; }
+  }
+  return out.sort((a, b) => a.score - b.score || a.n - b.n).slice(0, 16);
+}
+function showSuggestions() {
+  CMD = suggest($("cmd").value); CMD_ON = 0;
+  const L = $("cmd-list");
+  if (!CMD.length) { L.hidden = true; return; }
+  L.innerHTML = CMD.map((c, i) => `<div data-i="${i}" class="${i === CMD_ON ? "on" : ""}"><span class="k">${esc(c.label)}</span>
+    <span class="d">${esc(c.detail)}</span><span class="t">${c.kind}</span></div>`).join("");
+  L.hidden = false;
+  L.querySelectorAll("div[data-i]").forEach(d => d.onmousedown = e => { e.preventDefault(); runCommand(CMD[+d.dataset.i]); });
+}
+function runCommand(c) {
+  if (!c) return;
+  $("cmd").value = ""; $("cmd-list").hidden = true; $("cmd").blur();
+  if (c.kind === "ticker") location.hash = `stock/${c.t}`;
+  else if (c.kind === "pair") location.hash = `pair/${c.a}/${c.b}`;
+  else if (c.kind === "section") reveal(c.id);
+  else if (c.kind === "measure") {
+    const r = DATA.rates.rows.find(x => x.measure === c.m), panel = PANELS.find(p => p.groups.includes(r.grp));
+    if (!panel.sel.includes(c.m)) panel.sel.push(c.m);
+    rates(); reveal(panel.section);
+  }
+}
+function setupCommand() {
+  const inp = $("cmd");
+  inp.addEventListener("focus", () => { loadIndex().then(() => { if (document.activeElement === inp) showSuggestions(); }); });
+  inp.addEventListener("input", showSuggestions);
+  inp.addEventListener("blur", () => setTimeout(() => { $("cmd-list").hidden = true; }, 100));
+  inp.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); if (!CMD.length) return;
+      CMD_ON = (CMD_ON + (e.key === "ArrowDown" ? 1 : CMD.length - 1)) % CMD.length;
+      $("cmd-list").querySelectorAll("div[data-i]").forEach((d, i) => d.classList.toggle("on", i === CMD_ON));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (!CMD.length && /^[A-Za-z0-9.\-]+$/.test(inp.value.trim())) runCommand({kind: "ticker", t: inp.value.trim().toUpperCase()});
+      else runCommand(CMD[CMD_ON]);
+    } else if (e.key === "Escape") { inp.value = ""; $("cmd-list").hidden = true; inp.blur(); }
+  });
+  document.addEventListener("keydown", e => {
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+    if (e.key === "/" && !typing) { e.preventDefault(); inp.focus(); }
+    if (e.key === "Escape" && !$("overlay").hidden && !typing) closeOverlay();
+  });
+}
+
+// ---------------------------------------------------------------- the header
+function sources() {
+  const S = DATA.sources || [];
+  const today = new Date();
+  $("sources").innerHTML = S.map(s => {
+    const age = s.last_date ? Math.round((today - new Date(s.last_date)) / 864e5) : null;
+    const c = age === null ? "var(--dim)" : age > s.max_age_days * 1.5 ? "var(--down)" : age > s.max_age_days ? "var(--amber)" : "var(--up)";
+    return `<span title="${esc(s.note)}${s.pulled ? " · pulled " + s.pulled : ""}"><i style="background:${c}"></i>${esc(s.source)} ${esc(s.last_date || "–")}</span>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------- the sections
 let ALL_EXC = false;
 function exceptions() {
   const E = DATA.exceptions;
   if (!E) return;
   if (!E.length) { $("exc").innerHTML = '<div class="note">Nothing beyond the limits today.</div>'; return; }
   const shown = ALL_EXC ? E : E.slice(0, 12);
-  $("exc").innerHTML = shown.map(e => `<div class="ex ${e.direction > 0 ? "pos" : "neg"}">
+  $("exc").innerHTML = shown.map(e => {
+    const link = e.area === "stock-specific" ? `stock/${e.subject}` : e.area === "cross-asset" ? `stock/${e.subject}`
+      : e.area === "rates" ? "rates" : e.area === "relation" ? "crossasset" : ["factor", "factor risk", "crowding"].includes(e.area) ? "factors"
+      : e.area === "regime" ? "regime" : "";
+    return `<div class="ex link ${e.direction > 0 ? "pos" : "neg"}" data-go="${esc(link)}">
     <span class="area">${esc(e.area)}</span><span class="msg">${esc(e.message)}</span>
-    <span class="score">${Number(e.score).toFixed(1)}</span></div>`).join("") + (E.length > 12
+    <span class="score">${Number(e.score).toFixed(1)}</span></div>`;
+  }).join("") + (E.length > 12
     ? `<a href="#" id="exc-more" class="note">${ALL_EXC ? "show the top 12" : `show all ${E.length}`}</a>` : "");
+  $("exc").querySelectorAll(".ex[data-go]").forEach(d => d.onclick = () => {
+    const g = d.dataset.go; if (!g) return;
+    if (g.startsWith("stock/")) location.hash = g; else reveal(g);
+  });
   const more = $("exc-more");
   if (more) more.onclick = ev => { ev.preventDefault(); ALL_EXC = !ALL_EXC; exceptions(); };
 }
@@ -315,23 +682,109 @@ function exceptions() {
 function overview() {
   const tiles = [], rows = DATA.board ? DATA.board.rows : [];
   const by = Object.fromEntries(rows.map(r => [r.ticker, r]));
-  for (const t of ["SPY", "QQQ", "IWM", "RSP", "TLT", "GLD", "USO", "IBIT"]) {
+  for (const t of ["SPY", "QQQ", "IWM", "VT", "TLT", "GLD", "USO", "IBIT"]) {
     const r = by[t]; if (!r) continue;
     tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(r.z_1d)}">
-      <div class="k">${t} · ${esc(r.label)}</div><div class="v">${pct(r.ret_1d, 2)}</div>
+      <div class="k">${tk(t)} · ${esc(r.label)}</div><div class="v">${pct(r.ret_1d, 2)}</div>
       <div class="s">${sig(r.z_1d)} · ${num(r.close)} · ytd ${pct(r.ret_ytd)}</div></div>`);
   }
   // The measured rates, spreads and volatility, from FRED.
   const q = Object.fromEntries((DATA.rates ? DATA.rates.rows : []).map(r => [r.measure, r]));
-  for (const k of ["t_10y", "curve_10y_2y", "real_10y", "hy_oas", "vix", "dollar"]) {
+  for (const k of ["t_10y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd"]) {
     const r = q[k]; if (!r) continue;
-    const z = rz(r);
-    tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(z)}">
+    tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(rz(r))}">
       <div class="k">${esc(r.label)}${r.fresh ? "" : ` (${esc((r.obs_date || "").slice(5))})`}</div>
       <div class="v">${rlevel(r, r.value)}</div>
-      <div class="s">1D ${rchg(r, r.chg_1d)}${r.unit === "pct" ? " bp" : ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
+      <div class="s">1D ${rchg(r, r.chg_1d)}${UNIT_SUFFIX[r.unit] || ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
   }
   $("tiles").innerHTML = tiles.join("");
+}
+
+let ATTR = {span: "1d", weighting: "cap"};
+function attribution() {
+  const A = DATA.attribution; if (!A) return;
+  tabs($("attr-tabs"), [["1d", "1D"], ["1w", "1W"], ["1m", "1M"], ["3m", "3M"], ["1y", "1Y"], ["|"],
+    ["cap", "cap weight"], ["equal", "equal weight"]], null, k => {
+      if (["cap", "equal"].includes(k)) ATTR.weighting = k; else ATTR.span = k; attribution();
+    });
+  $("attr-tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", [ATTR.span, ATTR.weighting].includes(b.dataset.k)));
+  const rows = A.spans.filter(r => r.span === ATTR.span && r.weighting === ATTR.weighting);
+  const f = rows.filter(r => r.kind === "factor"), total = f.reduce((s, r) => s + r.contribution, 0);
+  const order = ["market", "industries", "size", "liquidity", "beta", "momentum", "reversal", "volatility",
+    "dividend_yield", "high_52w", "specific"];
+  const name = c => c === "industries" ? "Industries together" : c === "specific" ? "Stock-specific" : LABEL("style", c);
+  $("attr-f-title").innerHTML = `By factor · the market ${pct(total, 2)}`;
+  bars($("attr-factors"), order.map(c => f.find(r => r.component === c)).filter(Boolean)
+    .map(r => ({label: name(r.component), value: r.contribution})), v => bp(v, 1));
+  bars($("attr-industries"), rows.filter(r => r.kind === "industry").sort((a, b) => b.contribution - a.contribution)
+    .map(r => ({label: INDUSTRY[r.component] || r.component, value: r.contribution})), v => bp(v, 1));
+  const span = ATTR.span === "1d" ? "1d" : "1m";
+  const N = A.contributors.filter(r => r.span === span);
+  $("attr-n-title").textContent = `By name, ${span === "1d" ? "last session" : "last 21 sessions"} (bp, cap weight)`;
+  const row = r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 22))}</span></td>
+    <td>${pct(r.ret, 1)}</td><td>${bp(r.contribution, 1)}</td><td class="dim">${(r.specific * 1e4).toFixed(1)}</td></tr>`;
+  $("attr-names").innerHTML = `<tr><th>Name</th><th>Return</th><th>Contrib.</th><th>Specific</th></tr>` +
+    N.filter(r => r.side === "up").slice(0, 8).map(row).join("") + `<tr class="grp"><td colspan="4">Down</td></tr>` +
+    N.filter(r => r.side === "down").slice(0, 8).map(row).join("");
+}
+
+// A squarified treemap: each item gets x, y, w, h in the box, with an area in proportion to v.
+function squarify(items, x, y, w, h) {
+  const out = [], total = items.reduce((s, a) => s + a.v, 0);
+  if (!total || w <= 0 || h <= 0) return out;
+  let rest = items.map(a => ({...a, area: a.v * w * h / total}));
+  while (rest.length) {
+    const side = Math.min(w, h);
+    const worst = r => {
+      const s = r.reduce((a, b) => a + b.area, 0), mx = Math.max(...r.map(a => a.area)), mn = Math.min(...r.map(a => a.area));
+      return Math.max(side * side * mx / (s * s), s * s / (side * side * mn));
+    };
+    let row = [rest[0]], i = 1;
+    while (i < rest.length && worst([...row, rest[i]]) <= worst(row)) row.push(rest[i++]);
+    const s = row.reduce((a, b) => a + b.area, 0);
+    if (w >= h) {
+      const cw = s / h; let cy = y;
+      for (const a of row) { const ch = a.area / cw; out.push({...a, x, y: cy, w: cw, h: ch}); cy += ch; }
+      x += cw; w -= cw;
+    } else {
+      const rh = s / w; let cx = x;
+      for (const a of row) { const cw = a.area / rh; out.push({...a, x: cx, y, w: cw, h: rh}); cx += cw; }
+      y += rh; h -= rh;
+    }
+    rest = rest.slice(i);
+  }
+  return out;
+}
+let HM = "ret_1d";
+function heatmap() {
+  const R = DATA.heatmap; if (!R) return;
+  const modes = [["ret_1d", "1D", 0.03], ["ret_1w", "1W", 0.06], ["ret_1m", "1M", 0.12], ["ret_ytd", "YTD", 0.4],
+                 ["resid_z", "stock-specific σ", 3]];
+  tabs($("hm-tabs"), modes.map(m => [m[0], m[1]]), HM, k => { HM = k; heatmap(); });
+  const lim = modes.find(m => m[0] === HM)[2];
+  const W = 1200, H = 560, groups = {};
+  for (const r of R) (groups[r.industry_name || "No industry yet"] ||= []).push(r);
+  const inds = Object.entries(groups).map(([k, v]) => ({k, v: v.reduce((s, r) => s + r.cap, 0), names: v}))
+    .sort((a, b) => b.v - a.v);
+  let svg = "";
+  for (const g of squarify(inds, 0, 0, W, H)) {
+    const head = g.h > 40 && g.w > 60 ? 14 : 0;
+    svg += `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" fill="#0b0e14"/>`;
+    if (head) svg += `<text x="${g.x + 4}" y="${g.y + 11}" fill="#e3b341" font-size="10">${esc(g.k.toUpperCase())}</text>`;
+    const cells = squarify(g.names.map(r => ({...r, v: r.cap})).sort((a, b) => b.v - a.v), g.x + 1, g.y + head + 1, g.w - 2, g.h - head - 2);
+    for (const c of cells) {
+      const v = c[HM], fs = Math.max(8, Math.min(16, Math.min(c.w / 4, c.h / 2.4)));
+      const val = HM === "resid_z" ? (nil(v) ? "" : (v > 0 ? "+" : "") + v.toFixed(1) + "σ") : (nil(v) ? "" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "%");
+      svg += `<rect class="n" data-t="${esc(c.ticker)}" x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" width="${Math.max(c.w, 0).toFixed(1)}"
+        height="${Math.max(c.h, 0).toFixed(1)}" fill="${divColor(v, lim)}"><title>${esc(c.ticker)} ${esc(c.name)}: ${val}, cap ${big(c.cap)}</title></rect>`;
+      if (c.w > 26 && c.h > 14) svg += `<text x="${(c.x + c.w / 2).toFixed(1)}" y="${(c.y + c.h / 2 + (c.h > 28 ? -1 : fs / 3)).toFixed(1)}"
+        fill="#e8edf2" font-size="${fs.toFixed(0)}" text-anchor="middle" font-weight="700">${esc(c.ticker)}</text>`;
+      if (c.w > 34 && c.h > 28) svg += `<text x="${(c.x + c.w / 2).toFixed(1)}" y="${(c.y + c.h / 2 + fs * 0.9).toFixed(1)}"
+        fill="#d6dde6" font-size="${Math.max(8, fs * 0.7).toFixed(0)}" text-anchor="middle">${val}</text>`;
+    }
+  }
+  $("heatmap").innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%">${svg}</svg>`;
+  $("heatmap").querySelectorAll("rect.n").forEach(r => r.onclick = () => { location.hash = `stock/${r.dataset.t}`; });
 }
 
 function board() {
@@ -342,13 +795,14 @@ function board() {
   for (const r of rows) {
     if (r.asset_group !== grp) { grp = r.asset_group; html += `<tr class="grp"><td colspan="12">${esc(grp)}</td></tr>`; }
     html += `<tr class="row ${SELECTED.includes(r.ticker) ? "sel" : ""}" data-t="${r.ticker}">
-      <td class="l"><b>${r.ticker}</b> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
+      <td class="l"><b>${r.ticker}</b> <a href="#stock/${r.ticker}" title="Open ${r.ticker}">↗</a> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
       ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1w, r.z_1w)}${zcell(r.ret_1m, r.z_1m)}
       <td>${pct(r.ret_3m)}</td><td>${pct(r.ret_ytd)}</td><td>${pct(r.ret_1y)}</td><td>${pct(r.off_52w_high)}</td>
       <td class="dim">${pct(r.vol_20, 0, false)}</td><td>${spark(r.series)}</td></tr>`;
   }
   $("board").innerHTML = html;
-  $("board").querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
+  $("board").querySelectorAll("tr.row").forEach(tr => tr.onclick = e => {
+    if (e.target.tagName === "A") return;
     const t = tr.dataset.t;
     SELECTED = SELECTED.includes(t) ? SELECTED.filter(x => x !== t) : [...SELECTED, t];
     board(); mainChart();
@@ -366,104 +820,174 @@ function relations() {
   const R = DATA.relations; if (!R) return;
   $("relations").innerHTML = `<tr><th>Relation</th><th>1M</th><th>σ</th><th>Level</th><th>2Y</th></tr>` +
     R.map(r => `<tr><td class="l" style="white-space:normal;min-width:170px">${esc(r.label)}</td>
-      ${r.kind === "corr" ? `<td style="background:${zbg(r.z_21)}">${r.change_21 === null ? "–" : (r.change_21 > 0 ? "+" : "") + num(r.change_21)}</td>`
+      ${r.kind === "corr" ? `<td style="background:${zbg(r.z_21)}">${nil(r.change_21) ? "–" : (r.change_21 > 0 ? "+" : "") + num(r.change_21)}</td>`
         : zcell(r.change_21, r.z_21)}<td>${sig(r.z_21)}</td>
       <td>${r.kind === "corr" ? num(r.value) : ""} ${pbar(r.pctile)}</td><td>${spark(r.series, 90, 18)}</td></tr>`).join("");
 }
 
-// The level and a change of a rates measure. A pct measure is in percent, and its change
-// shows in basis points.
-const rlevel = (r, v) => v === null || v === undefined ? "–" : r.unit === "pct" ? num(v, 2) + "%"
-  : num(v, r.unit === "ratio" ? 3 : 2);
+// The level and a change of a FRED measure. pct: percent, with changes in bp. usd_b: billions
+// of dollars. fx and price: the change is a log return, shown in percent.
+const UNIT_SUFFIX = {pct: " bp", usd_b: " bn", fx: "%", price: "%"};
+function rlevel(r, v) {
+  if (nil(v)) return "–";
+  if (r.unit === "pct") return num(v, 2) + "%";
+  if (r.unit === "usd_b") return num(v, 0);
+  if (r.unit === "fx") return num(v, v > 20 ? 2 : 4);
+  if (r.unit === "price") return num(v, v > 1000 ? 0 : 2);
+  return num(v, r.unit === "ratio" ? 3 : 2);
+}
 function rchg(r, v) {
-  if (v === null || v === undefined) return '<span class="dim">–</span>';
-  const x = r.unit === "pct" ? v * 100 : v, d = r.unit === "pct" ? 0 : r.unit === "ratio" ? 3 : 2;
-  const cls = Math.abs(x) < 1e-9 ? "dim" : (x > 0) === (r.stress === "high") ? "down" : "up";
+  if (nil(v)) return '<span class="dim">–</span>';
+  const x = r.unit === "pct" ? v * 100 : ["fx", "price"].includes(r.unit) ? v * 100 : v;
+  const d = r.unit === "pct" ? 0 : r.unit === "usd_b" ? 0 : ["fx", "price"].includes(r.unit) ? (Math.abs(x) < 1 ? 2 : 1)
+    : r.unit === "ratio" ? 3 : 2;
+  const cls = Math.abs(x) < 1e-9 ? "dim" : r.stress === "none" ? (x > 0 ? "up" : "down")
+    : (x > 0) === (r.stress === "high") ? "down" : "up";
   return `<span class="${cls}">${x > 0 ? "+" : ""}${x.toFixed(d)}</span>`;
 }
 // The colour of a move: red toward stress, whichever way the measure moves.
-const rz = r => r.z_1d === null ? null : r.stress === "high" ? -r.z_1d : r.z_1d;
+const rz = r => nil(r.z_1d) ? null : r.stress === "high" ? -r.z_1d : r.z_1d;
 
-// The yield curve: maturity on a log axis, one line per date. Each line is [[months, yield]].
-function curveChart(el, lines) {
-  const W = 640, H = 260, L = 44, R = 14, T = 10, B = 24;
-  const all = lines.flatMap(l => l.pts.filter(p => p[1] !== null));
-  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
-  const lm = Math.log(1), lM = Math.log(360);
-  let y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
-  const pad = (y1 - y0) * 0.08 || 0.5; y0 = Math.floor((y0 - pad) * 4) / 4; y1 = Math.ceil((y1 + pad) * 4) / 4;
-  const X = m => L + (Math.log(m) - lm) / (lM - lm) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
-  let g = "";
-  for (let i = 0; i <= 4; i++) {
-    const v = y0 + (y1 - y0) * i / 4;
-    g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1b222c"/>
-      <text x="${L - 6}" y="${Y(v) + 3}" fill="#7d8894" font-size="10" text-anchor="end">${v.toFixed(2)}%</text>`;
-  }
-  if (y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
-  for (const [m, t] of [[1, "1M"], [3, "3M"], [6, "6M"], [12, "1Y"], [24, "2Y"], [36, "3Y"], [60, "5Y"],
-                        [84, "7Y"], [120, "10Y"], [240, "20Y"], [360, "30Y"]]) {
-    g += `<line x1="${X(m)}" x2="${X(m)}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
-      <text x="${X(m)}" y="${H - 7}" fill="#7d8894" font-size="10" text-anchor="middle">${t}</text>`;
-  }
-  const paths = lines.map((l, i) => {
-    const c = l.color || COLORS[i % COLORS.length], pts = l.pts.filter(p => p[1] !== null);
-    const d = pts.map((p, j) => `${j ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
-    const dots = pts.map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="${l.width > 2 ? 3 : 2}"
-      fill="${c}"><title>${esc(l.name)} ${p[2] || ""}: ${p[1].toFixed(2)}%</title></circle>`).join("");
-    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${l.width || 1.4}"
-      ${l.dash ? `stroke-dasharray="${l.dash}"` : ""}/>${dots}`;
-  }).join("");
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${paths}</svg><div class="legend">` + lines.map((l, i) =>
-    `<span><i style="background:${l.color || COLORS[i % COLORS.length]}"></i>${esc(l.name)}</span>`).join("")
-    + "</div>";
+// The yield curve: maturity on a log axis, one line per date. Each line is [[months, yield, label]].
+const TENORS = [[1, "1M"], [3, "3M"], [6, "6M"], [12, "1Y"], [24, "2Y"], [36, "3Y"], [60, "5Y"], [84, "7Y"],
+                [120, "10Y"], [240, "20Y"], [360, "30Y"]];
+const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
+
+// Three tables of FRED measures, each with its groups, its selection and its chart.
+const PANELS = [
+  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"],
+   groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"]},
+  {section: "funding", table: "funding-table", chart: "funding-chart", sel: ["reserves", "rrp", "tga"],
+   groups: ["Policy and money markets", "Funding spreads", "Fed balance sheet"]},
+  {section: "fx", table: "fx-table", chart: "fx-chart", sel: ["eurusd", "usdjpy", "gbpusd"],
+   groups: ["Currencies", "Commodities"]},
+];
+function measureSeries(k) {
+  const Q = DATA.rates, r = Q.rows.find(x => x.measure === k);
+  return Q.dates.map((d, i) => [d, r.series[i] ?? null]);
 }
-
-let RSEL = ["t_10y", "t_2y", "t_3m"];
-function rates() {
-  const Q = DATA.rates; if (!Q) return;
-  const rows = Q.rows, by = Object.fromEntries(rows.map(r => [r.measure, r]));
-  const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
-  const nominal = rows.filter(r => r.grp === "Nominal curve" && r.maturity);
-  const real = rows.filter(r => r.grp === "Real yields and inflation" && r.maturity);
-  const pts = (rs, k) => rs.map(r => [r.maturity, r[k], tenor(r.maturity)]);
-  curveChart($("curve-chart"), [
-    {name: "a year ago", pts: pts(nominal, "value_1y"), color: "#56606b", dash: "3 3"},
-    {name: "a month ago", pts: pts(nominal, "value_1m"), color: "#58a6ff"},
-    {name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4},
-    {name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"},
-  ]);
-  const s = by.curve_10y_2y, m = by.curve_10y_3m, be = by.breakeven_10y;
-  $("curve-note").innerHTML = `As of ${nominal[0]?.obs_date || "–"}. 10Y less 2Y ${s ? rlevel(s, s.value) : "–"}
-    (${s ? rchg(s, s.chg_1m) : ""} bp in a month), 10Y less 3M ${m ? rlevel(m, m.value) : "–"}. The gap between
-    the nominal and the real curve at a maturity is breakeven inflation: ${be ? rlevel(be, be.value) : "–"} at 10Y.`;
+function measureChart(el, sel, height = 230) {
+  const by = Object.fromEntries(DATA.rates.rows.map(r => [r.measure, r]));
+  sel = sel.filter(k => by[k]);
+  const units = [...new Set(sel.map(k => by[k].unit))];
+  const priced = units.every(u => ["fx", "price"].includes(u)) && units.length;
+  const series = sel.map(k => {
+    const pts = measureSeries(k);
+    return {name: by[k].label, points: priced ? rebase(pts.map(p => p[0]), pts.map(p => p[1])) : pts};
+  });
+  const fmt = priced ? v => (v * 100).toFixed(0) + "%" : units.length === 1 && units[0] === "pct" ? v => v.toFixed(2) + "%"
+    : units.length === 1 && units[0] === "usd_b" ? v => v.toFixed(0) : v => v.toFixed(2);
+  lineChart(el, series, {height, zero: priced, fmt});
+}
+function measureTable(P) {
+  const rows = DATA.rates.rows.filter(r => P.groups.includes(r.grp));
   let html = `<tr><th>Measure</th><th>Level</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>1Y</th>
     <th>Level vs history</th><th>2Y</th></tr>`, grp = null;
   for (const r of rows) {
     if (r.grp !== grp) { grp = r.grp; html += `<tr class="grp"><td colspan="9">${esc(grp)}</td></tr>`; }
-    const z = rz(r);
     const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
-    html += `<tr class="row ${RSEL.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
+    html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
       <td class="l">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
-      <td style="background:${zbg(z)}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
+      <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
       <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
       <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
   }
-  $("rates-table").innerHTML = html;
-  $("rates-table").querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
+  $(P.table).innerHTML = html;
+  $(P.table).querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
     const k = tr.dataset.m;
-    RSEL = RSEL.includes(k) ? RSEL.filter(x => x !== k) : [...RSEL, k];
-    rates();
+    P.sel = P.sel.includes(k) ? P.sel.filter(x => x !== k) : [...P.sel, k];
+    measureTable(P);
   });
-  const sel = RSEL.filter(k => by[k]);
-  const same = sel.every(k => by[k].unit === by[sel[0]].unit);
-  lineChart($("rates-chart"), sel.map(k => ({name: by[k].label,
-    points: by[k].dates.map((d, i) => [d, by[k].series[i]])})),
-    {height: 230, fmt: v => same && sel.length && by[sel[0]].unit === "pct" ? v.toFixed(2) + "%" : v.toFixed(2)});
+  measureChart($(P.chart), P.sel);
+}
+
+let CURVE = {real: true, breakeven: false, date: null};
+function rates() {
+  const Q = DATA.rates; if (!Q) return;
+  const rows = Q.rows, by = Object.fromEntries(rows.map(r => [r.measure, r]));
+  const nominal = rows.filter(r => r.grp === "Nominal curve" && r.maturity);
+  const real = rows.filter(r => r.measure.startsWith("real_") && r.maturity);
+  const bev = rows.filter(r => r.measure.startsWith("breakeven_") && r.maturity);
+  const pts = (rs, k) => rs.map(r => [r.maturity, r[k], tenor(r.maturity)]);
+  const at = d => { let i = -1; for (let j = 0; j < Q.dates.length; j++) if (Q.dates[j] <= d) i = j; return i; };
+  const lines = [
+    {name: "a year ago", pts: pts(nominal, "value_1y"), color: "#56606b", dash: "3 3"},
+    {name: "a month ago", pts: pts(nominal, "value_1m"), color: "#58a6ff"},
+  ];
+  if (CURVE.date) {
+    const i = at(CURVE.date);
+    if (i >= 0) lines.push({name: Q.dates[i], pts: nominal.map(r => [r.maturity, r.series[i], tenor(r.maturity)]), color: "#bc8cff"});
+  }
+  lines.push({name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4});
+  if (CURVE.real) lines.push({name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"});
+  if (CURVE.breakeven) lines.push({name: "breakeven, now", pts: pts(bev, "value"), color: "#f778ba", dash: "2 2"});
+  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%", height: 260});
+  $("curve-tabs").innerHTML = `<button class="${CURVE.real ? "on" : ""}" data-k="real">real</button>
+    <button class="${CURVE.breakeven ? "on" : ""}" data-k="breakeven">breakeven</button>
+    <span class="dim" style="margin:0 6px">compare with</span><input type="date" id="curve-date"
+    min="${Q.dates[0] || ""}" max="${Q.dates[Q.dates.length - 1] || ""}" value="${CURVE.date || ""}" style="width:140px">`;
+  $("curve-tabs").querySelectorAll("button").forEach(b => b.onclick = () => { CURVE[b.dataset.k] = !CURVE[b.dataset.k]; rates(); });
+  $("curve-date").onchange = e => { CURVE.date = e.target.value || null; rates(); };
+  const s = by.curve_10y_2y, m = by.curve_10y_3m, be = by.breakeven_10y, pol = by.policy_priced_1y, tp = by.term_premium_10y;
+  $("curve-note").innerHTML = `As of ${nominal[0]?.obs_date || "–"}. 10Y less 2Y ${s ? rlevel(s, s.value) : "–"}
+    (${s ? rchg(s, s.chg_1m) : ""} bp in a month), 10Y less 3M ${m ? rlevel(m, m.value) : "–"}. Breakeven inflation
+    ${be ? rlevel(be, be.value) : "–"} at 10Y. The 6-month rate 6 months ahead is ${pol ? rchg(pol, pol.value) : "–"} bp
+    from the 3-month bill (a term premium sits in it too). Kim-Wright term premium ${tp ? rlevel(tp, tp.value) : "–"} at 10Y.`;
+  for (const P of PANELS) measureTable(P);
+  curveFactors(); ladder(); funding();
+}
+
+function curveFactors() {
+  const C = DATA.curve; if (!C || !C.factors.length) return;
+  const col = {level: "#e3b341", slope: "#58a6ff", curvature: "#bc8cff"};
+  lineChart($("pca-chart"), C.factors.map(f => ({name: f.name, color: col[f.name], points: f.dates.map((d, i) => [d, f.values[i]])})),
+    {height: 200, zero: true, fmt: v => v.toFixed(0) + " bp"});
+  const share = Object.fromEntries(C.pca.map(r => [r.name, r.var_share]));
+  $("pca-table").innerHTML = `<tr><th>Component</th><th>Last move (bp)</th><th>σ</th><th>Share of daily variance</th></tr>` +
+    C.factors.map(f => `<tr><td class="l">${esc(f.name)}</td><td>${nil(f.move) ? "–" : (f.move > 0 ? "+" : "") + f.move.toFixed(1)}</td>
+      <td>${sig(f.z_1d)}</td><td class="dim">${pct(share[f.name], 1, false)}</td></tr>`).join("");
+  xyChart($("pca-loadings"), ["level", "slope", "curvature"].map(n => ({name: n + " loading", color: col[n],
+    pts: C.pca.filter(r => r.name === n).map(r => [r.maturity, r.loading, tenor(r.maturity)])})),
+    {xlog: true, xticks: TENORS.slice(1), height: 150, fmt: v => v.toFixed(2)});
+  $("pca-note").textContent = `Principal components of the daily changes from 3 months to 30 years over ${C.pca[0]?.n_days || "–"} sessions.
+    Level moves every yield, slope the long end against the short end, curvature the belly against the wings.
+    Each line is the sum of the daily moves over two years, in bp of a unit move.`;
+}
+
+function ladder() {
+  const Q = DATA.rates; if (!Q) return;
+  const by = Object.fromEntries(Q.rows.map(r => [r.measure, r]));
+  const rungs = [["oas_aaa", "AAA"], ["oas_aa", "AA"], ["oas_a", "A"], ["oas_bbb", "BBB"], ["oas_bb", "BB"], ["oas_b", "B"], ["oas_ccc", "CCC"]]
+    .filter(([k]) => by[k]);
+  const pts = key => rungs.map(([k, l], i) => [i, by[k][key], l]);
+  xyChart($("ladder-chart"), [
+    {name: "a year ago", pts: pts("value_1y"), color: "#56606b", dash: "3 3"},
+    {name: "a month ago", pts: pts("value_1m"), color: "#58a6ff"},
+    {name: "now", pts: pts("value"), color: "#e3b341", width: 2.4},
+  ], {log: true, xticks: rungs.map(([, l], i) => [i, l]), fmt: v => v.toFixed(2) + "%", height: 220});
+}
+
+function funding() {
+  const Q = DATA.rates; if (!Q) return;
+  const last = Q.dates.length, cut = Math.max(0, last - 252);
+  const ser = (k, name, color, scale = 1, dash) => ({name, color, dash, points: measureSeries(k).slice(cut)
+    .map(([d, v]) => [d, nil(v) ? null : v * scale])});
+  lineChart($("corridor-chart"), [ser("iorb", "IORB", "#f85149", 1, "4 3"), ser("rrp_rate", "ON RRP rate", "#3fb950", 1, "4 3"),
+    ser("sofr", "SOFR", "#e3b341"), ser("effr", "EFFR", "#58a6ff"), ser("tgcr", "TGCR", "#bc8cff"),
+    ser("sofr_p99", "SOFR 99th pct", "#ffa657", 1, "2 2")], {height: 230, fmt: v => v.toFixed(2) + "%"});
+  lineChart($("spreads-chart"), [ser("sofr_iorb", "SOFR − IORB", "#e3b341", 100), ser("effr_iorb", "EFFR − IORB", "#58a6ff", 100),
+    ser("sofr_tail", "SOFR 99th − SOFR", "#ffa657", 100), ser("tgcr_rrp", "TGCR − RRP rate", "#bc8cff", 100),
+    ser("cp_bill", "CP 3M − bill 3M", "#39c5cf", 100), ser("bill_effr", "bill 3M − EFFR", "#7ee787", 100)],
+    {height: 200, zero: true, fmt: v => v.toFixed(0)});
+  const all = k => ({...ser(k, "", ""), points: measureSeries(k)});
+  lineChart($("fedbs-chart"), [["reserves", "reserves", "#58a6ff"], ["rrp", "ON RRP", "#3fb950"], ["tga", "TGA", "#f85149"],
+    ["net_liquidity", "net liquidity", "#e3b341"]].map(([k, n, c]) => ({...all(k), name: n, color: c})),
+    {height: 220, fmt: v => v.toFixed(0)});
 }
 
 function regime() {
   const G = DATA.regime; if (!G) return;
-  const fmt = (m, v) => v === null ? "–" : ["pct_above_ma50", "pct_above_ma200", "absorption", "style_r2_21",
+  const fmt = (m, v) => nil(v) ? "–" : ["pct_above_ma50", "pct_above_ma200", "absorption", "style_r2_21",
     "up_volume_share_21"].includes(m) ? pct(v, 0, false) : ["dispersion_21", "resid_dispersion_21",
     "ew_vol_21", "median_spread"].includes(m) ? pct(v, 2, false) : num(v, m === "net_highs" ? 0 : 2);
   $("regime-table").innerHTML = `<tr><th>Measure</th><th>Now</th><th>Against its history</th><th>z</th>
@@ -476,7 +1000,7 @@ function breadthCharts() {
   const b = DATA.breadth || [];
   if (!b.length) return;
   const cut = b.length > 252 ? b.slice(-252) : b, dates = cut.map(r => r.date);
-  const panels = ["Equal weight vs dollar-volume weight (rebased)", "Share above the 50 and 200-day average",
+  const panels = ["Equal weight vs cap weight (rebased)", "Share above the 50 and 200-day average",
     "52-week highs and lows", "Dispersion: all of the return vs stock-specific (21d)",
     "Correlation, absorption and the model's share", "Median bid-ask spread"];
   $("breadth-charts").innerHTML = panels.map((t, i) =>
@@ -496,10 +1020,7 @@ function breadthCharts() {
   lineChart($("bc5"), [{name: "median spread", points: pp(cut, "median_spread")}], {fmt: p2});
 }
 
-const INDUSTRY = {nodur: "Consumer nondurables", durbl: "Consumer durables", manuf: "Manufacturing",
-  enrgy: "Energy", chems: "Chemicals", buseq: "Business equipment", telcm: "Telecom", utils: "Utilities",
-  shops: "Shops", hlth: "Health care", money: "Finance", other: "Other"};
-const riskRow = (r, perf) => `<tr><td class="l">${esc(r.factor)}</td>${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>
+const riskRow = (r, perf) => `<tr><td class="l">${esc(r.label || r.factor)}</td>${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>
   ${zcell(r.ret_1m, r.z_1m)}<td>${sig(r.z_1m)}</td><td>${pct(perf?.ret_ytd)}</td>
   <td class="dim">${pct(r.vol_63, 1, false)}</td><td>${pbar(r.vol_pctile, "high")}</td>
   <td>${pct(r.drawdown, 1)}</td><td>${pbar(r.dd_pctile, "high")}</td>
@@ -516,16 +1037,34 @@ function factorModel() {
   $("risk").innerHTML = head + F.risk.filter(r => r.family === "style")
     .map(r => riskRow(r, perf["style:" + r.factor])).join("");
   lineChart($("style-chart"), F.curves.filter(c => c.family === "style" && c.factor !== "market")
-    .map(c => ({name: c.factor, points: c.dates.map((d, i) => [d, c.levels[i]])})),
+    .map(c => ({name: LABEL("style", c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
     {height: 260, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
   const ind = F.risk.filter(r => r.family === "industry");
-  bars($("ind-bars"), ind.filter(r => r.ret_1m !== null).sort((a, b) => b.ret_1m - a.ret_1m)
-    .map(r => ({label: INDUSTRY[r.factor] || r.factor, value: r.ret_1m})));
+  bars($("ind-bars"), ind.filter(r => !nil(r.ret_1m)).sort((a, b) => b.ret_1m - a.ret_1m)
+    .map(r => ({label: r.label || INDUSTRY[r.factor] || r.factor, value: r.ret_1m})));
   $("ind-table").innerHTML = `<tr><th>Industry</th><th>1D</th><th>σ</th><th>1M</th><th>σ</th><th>YTD</th>
-    <th>Vol</th><th>DD vs history</th></tr>` + ind.map(r => `<tr><td class="l">${esc(INDUSTRY[r.factor] || r.factor)}</td>
+    <th>Vol</th><th>DD vs history</th></tr>` + ind.map(r => `<tr><td class="l">${esc(r.label || r.factor)}</td>
     ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1m, r.z_1m)}<td>${sig(r.z_1m)}</td>
     <td>${pct(perf["industry:" + r.factor]?.ret_ytd)}</td><td class="dim">${pct(r.vol_63, 1, false)}</td>
     <td>${pbar(r.dd_pctile, "high")}</td></tr>`).join("");
+}
+
+let SIGNAL = "momentum_12_1";
+function signalsView() {
+  const S = DATA.signals; if (!S) return;
+  const names = [...new Set(S.names.map(r => r.signal))];
+  if (!names.includes(SIGNAL)) SIGNAL = names[0];
+  tabs($("sig-tabs"), names.map(n => [n, LABEL("quintile", n)]), SIGNAL, k => { SIGNAL = k; signalsView(); });
+  const ic = S.ic.find(r => r.signal === SIGNAL && r.target === "residual" && r.horizon === 21);
+  $("sig-note").innerHTML = ic ? `Over the development sessions, the rank IC of ${esc(LABEL("quintile", SIGNAL))} with the stock-specific
+    return of the next 21 sessions is ${num(ic.mean_ic, 4)} (Newey-West t ${num(ic.t_nw, 1)}, the same sign in ${ic.folds_same_sign ?? "–"} of 4 folds):
+    ${ic.mean_ic > 0 ? "the highest names have earned more" : "the lowest names have earned more"}. A t under 3 is weak evidence.` : "";
+  const rows = S.names.filter(r => r.signal === SIGNAL);
+  const t = rs => `<tr><th>Name</th><th>Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + rs.map(r =>
+    `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 26))}</span></td>
+     <td class="l dim">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`).join("");
+  $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high));
+  $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high));
 }
 
 function movers() {
@@ -533,7 +1072,7 @@ function movers() {
   const spec = [["residual_up", "Largest stock-specific gains"], ["residual_down", "Largest stock-specific losses"]];
   $("mover-lists").innerHTML = spec.filter(([k]) => M[k]).map(([k, t]) => `<div class="panel"><h3>${t}</h3><table>
     <tr><th>Ticker</th><th>Industry</th><th>Cap</th><th>Return</th><th>Factors</th><th>Specific</th><th>σ</th>
-    <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l"><b>${r.ticker}</b>
+    <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
       <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim">${esc(r.industry_name || "")}</td>
       <td class="dim">${big(r.cap)}</td><td>${pct(r.ret, 1)}</td><td>${pct(r.factor_part, 1)}</td>
       <td style="background:${zbg(r.resid_z)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_z)}</td>
@@ -543,7 +1082,7 @@ function movers() {
 function calendar() {
   const C = DATA.calendar; if (!C) return;
   $("cal").innerHTML = `<tr><th>Date</th><th>Ticker</th><th>Name</th><th>Type</th><th>Event</th><th>Detail</th>
-    <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l"><b>${r.ticker}</b></td>
+    <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
     <td class="l name">${esc((r.name || "").slice(0, 40))}</td><td class="l dim">${esc(r.type || "")}</td>
     <td class="l">${r.kind}</td><td class="l">${r.kind === "split" ? `${r.split_to}-for-${r.split_from} ${esc(r.detail || "")}`
       : `$${num(r.cash_amount, 4)} ${esc(r.detail || "")}`}</td><td>${r.kind === "dividend" ? pct(r.dividend_yield, 2, false) : ""}</td>
@@ -556,69 +1095,313 @@ function shorts() {
     : "FINRA publishes about eight sessions after settlement, so a backtest must not use this settlement yet.")
     + " Names with $10M or more of short interest. Crowding by factor is in the factor table.";
   const t = rows => `<tr><th>Ticker</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
-    rows.map(r => `<tr><td class="l"><b>${r.ticker}</b> <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
+    rows.map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
       <td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
       <td class="dim">${big(r.short_value)}</td></tr>`).join("");
   $("si-dtc").innerHTML = t(S.days_to_cover); $("si-up").innerHTML = t(S.increase);
+  const H = DATA.short_history || [];
+  const P = H.map(r => ({...r, date: r.settlement_date}));
+  lineChart($("si-share"), [{name: "short value / cap", points: pp(P, "short_share_of_cap")}], {height: 180, fmt: v => (v * 100).toFixed(2) + "%"});
+  lineChart($("si-dtc-chart"), [{name: "median days to cover", points: pp(P, "median_days_to_cover")},
+    {name: "names ≥ 10 days (÷100)", points: pp(P, "n_days_to_cover_10", 0.01)}], {height: 180, fmt: v => v.toFixed(1)});
+}
+
+let SEASON = {calendar: "month", period: "since 1963", factor: "market"};
+function seasonality() {
+  const R = DATA.research; if (!R) return;
+  const facs = [["market", "Market"], ["smb", "Size (SMB)"], ["hml", "Value (HML)"], ["rmw", "Profitability (RMW)"],
+    ["cma", "Investment (CMA)"], ["mom", "Momentum (Mom)"]];
+  tabs($("season-tabs"), [["month", "month"], ["weekday", "weekday"], ["turn", "turn of month"], ["|"],
+    ["since 1963", "since 1963"], ["since 2000", "since 2000"], ["|"], ...facs], null, k => {
+      if (["month", "weekday", "turn"].includes(k)) SEASON.calendar = k;
+      else if (k.startsWith("since")) SEASON.period = k; else SEASON.factor = k;
+      seasonality();
+    });
+  $("season-tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", Object.values(SEASON).includes(b.dataset.k)));
+  const next = nextSession();
+  const now = {month: next.toLocaleString("en", {month: "short"}), weekday: next.toLocaleString("en", {weekday: "short"}),
+               turn: turnBucket(next)};
+  const rows = R.seasonality.filter(r => r.calendar === SEASON.calendar && r.period === SEASON.period && r.factor === SEASON.factor)
+    .sort((a, b) => a.bucket_order - b.bucket_order);
+  bars($("season-bars"), rows.map(r => ({label: r.bucket + (r.bucket === now[SEASON.calendar] ? "  ← next session" : ""),
+    value: r.excess, t: r.t, hl: r.bucket === now[SEASON.calendar], title: `${r.n_days} days, mean ${(r.mean * 1e4).toFixed(1)} bp, t ${num(r.t, 1)}`})),
+    (v, x) => `${bp(v, 1)} <span class="dim">t ${num(x.t, 1)}</span>`);
+  $("season-note").textContent = "Each bar is the mean daily return in the bucket less the mean of all days, in bp. "
+    + "Many buckets are tested, so a t under 3 is weak evidence. The library lags about two months.";
+}
+function nextSession() {
+  const d = new Date((DATA.as_of || new Date().toISOString().slice(0, 10)) + "T12:00:00");
+  do d.setDate(d.getDate() + 1); while ([0, 6].includes(d.getDay()));
+  return d;
+}
+function turnBucket(d) {
+  let before = 0, after = 0;
+  const x = new Date(d);
+  for (x.setDate(1); x < d; x.setDate(x.getDate() + 1)) if (![0, 6].includes(x.getDay())) before++;
+  const y = new Date(d);
+  for (y.setDate(y.getDate() + 1); y.getMonth() === d.getMonth(); y.setDate(y.getDate() + 1)) if (![0, 6].includes(y.getDay())) after++;
+  return before < 3 ? `day +${before + 1}` : after < 3 ? `day -${after + 1}` : "middle";
+}
+
+let EVENTS = ["shock_up", "shock_down", "short_jump"];
+function events() {
+  const R = DATA.research; if (!R) return;
+  const kinds = [["shock_up", "shock up ≥3σ"], ["shock_down", "shock down ≥3σ"], ["split_forward", "forward split"],
+    ["split_reverse", "reverse split"], ["short_jump", "short interest +50%"]];
+  $("event-tabs").innerHTML = kinds.map(([k, t]) => `<button class="${EVENTS.includes(k) ? "on" : ""}" data-k="${k}">${t}</button>`).join("");
+  $("event-tabs").querySelectorAll("button").forEach(b => b.onclick = () => {
+    const k = b.dataset.k; EVENTS = EVENTS.includes(k) ? EVENTS.filter(x => x !== k) : [...EVENTS, k]; events();
+  });
+  const col = {shock_up: "#3fb950", shock_down: "#f85149", split_forward: "#58a6ff", split_reverse: "#bc8cff", short_jump: "#e3b341"};
+  xyChart($("event-chart"), EVENTS.map(k => ({name: kinds.find(x => x[0] === k)[1], color: col[k],
+    pts: R.events.filter(r => r.event === k && r.day >= 1).map(r => [r.day, r.car_post, `day ${r.day}`])})),
+    {height: 220, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
+     fmt: v => (v * 100).toFixed(2) + "%"});
+  $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
+    kinds.map(([k, t]) => {
+      const e0 = R.events.find(r => r.event === k && r.day === 0), e21 = R.events.find(r => r.event === k && r.day === 21);
+      return e0 ? `<tr><td class="l">${t}</td><td class="dim">${e0.n_events}</td><td>${pct(e0.car, 2)}</td>
+        <td>${pct(e21?.car_post, 2)}</td><td>${num(e21?.t_post, 1)}</td></tr>` : "";
+    }).join("");
 }
 
 const FAMILIES = {
-  quintile: "Top quintile less bottom quintile of each signal, equal weight, rebalanced daily. One signal at a time, so the low-risk signals (beta, volatility, dividend yield) are one bet shown many times.",
-  pca: "Eigenportfolios of the trailing one-year correlation matrix of the 1,000 most liquid names, rebalanced every 21 sessions, out of sample. They catch what the styles and industries miss, with no names.",
-  ff_mimic: "The Fama-French factors mimicked with the style, industry and PCA portfolios, out of sample, up to the last session.",
-  ff: "The published Fama-French factors, with the short- and long-term reversal factors. The library lags about two months.",
-  ff_industry: "The published Fama-French 12 industry portfolios, value weighted, each less the market. Compare them with the industry returns of the style model.",
-  q: "The q5 factors of Hou, Xue and Zhang: market, size (me), investment (ia), profitability (roe) and expected growth (eg). A new vintage about once a year, so they can lag by months.",
+  quintile: ["signal long-shorts", "Top quintile less bottom quintile of each signal, equal weight, rebalanced daily. One signal at a time, so the low-risk signals (beta, volatility, dividend yield) are one bet shown many times."],
+  pca: ["PCA", "Eigenportfolios of the trailing one-year correlation matrix of the 1,000 most liquid names, rebalanced every 21 sessions, out of sample. They catch what the styles and industries miss, with no names."],
+  ff_mimic: ["Fama-French mimics", "The Fama-French factors mimicked with the style, industry and PCA portfolios, out of sample, up to the last session."],
+  ff: ["Fama-French", "The published Fama-French factors, with the short- and long-term reversal factors. The library lags about two months."],
+  ff_industry: ["FF industries", "The published Fama-French 12 industry portfolios, value weighted, each less the market. Compare them with the industry returns of the style model."],
+  q: ["q-factors", "The q5 factors of Hou, Xue and Zhang: market, size, investment, profitability and expected growth. A new vintage about once a year, so they can lag by months."],
 };
 
 function research() {
   const F = DATA.factors; if (!F) return;
-  $("fam-tabs").innerHTML = Object.keys(FAMILIES).map(f =>
-    `<button class="${f === FAMILY ? "on" : ""}" data-f="${f}">${f.replace("_", " ")}</button>`).join("");
-  $("fam-tabs").querySelectorAll("button").forEach(b => b.onclick = () => { FAMILY = b.dataset.f; research(); });
-  $("fam-note").textContent = FAMILIES[FAMILY];
+  tabs($("fam-tabs"), Object.entries(FAMILIES).map(([k, v]) => [k, v[0]]), FAMILY, k => { FAMILY = k; research(); });
+  $("fam-note").textContent = FAMILIES[FAMILY][1];
   const perf = F.performance.filter(r => r.family === FAMILY);
   $("perf").innerHTML = `<tr><th>Factor</th><th>1D</th><th>1W</th><th>1M</th><th>3M</th><th>YTD</th><th>1Y</th>
     <th>Vol 1Y</th><th>Sharpe 1Y</th><th>Sharpe all</th><th>Max DD</th><th>Last</th></tr>` + perf.map(r =>
-    `<tr><td class="l">${esc(r.factor)}</td><td>${pct(r.ret_1d, 2)}</td><td>${pct(r.ret_1w)}</td><td>${pct(r.ret_1m)}</td>
+    `<tr><td class="l">${esc(r.label || r.factor)}</td><td>${pct(r.ret_1d, 2)}</td><td>${pct(r.ret_1w)}</td><td>${pct(r.ret_1m)}</td>
      <td>${pct(r.ret_3m)}</td><td>${pct(r.ret_ytd)}</td><td>${pct(r.ret_1y)}</td><td class="dim">${pct(r.vol_1y, 1, false)}</td>
      <td>${num(r.sharpe_1y)}</td><td>${num(r.sharpe_all)}</td><td>${pct(r.max_drawdown, 0)}</td>
      <td class="dim">${r.last_date}</td></tr>`).join("");
   lineChart($("fam-chart"), F.curves.filter(c => c.family === FAMILY)
-    .map(c => ({name: c.factor, points: c.dates.map((d, i) => [d, c.levels[i]])})),
+    .map(c => ({name: LABEL(c.family, c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
     {height: 260, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
   $("costs").innerHTML = `<tr><th>Signal</th><th>Sharpe gross</th><th>Sharpe net</th><th>Gross / yr</th>
-    <th>Cost / yr</th><th>Turnover / day</th><th>Capacity / leg</th></tr>` + F.costs.map(r => `<tr><td class="l">${esc(r.signal)}</td>
+    <th>Cost / yr</th><th>Turnover / day</th><th>Capacity / leg</th></tr>` + F.costs.map(r => `<tr><td class="l">${esc(LABEL("quintile", r.signal))}</td>
     <td>${num(r.sharpe_gross)}</td><td><b>${num(r.sharpe_net)}</b></td><td>${pct(r.gross_ann)}</td>
     <td class="down">${pct(-r.cost_ann)}</td><td class="dim">${pct(r.turnover, 0, false)}</td>
     <td class="dim">$${big(r.capacity)}</td></tr>`).join("");
   const cols = ["mkt_rf", "smb", "hml", "rmw", "cma", "mom"];
+  const short = c => (LABEL("ff", c).match(/\(([^)]+)\)/) || [0, c])[1];
   const fams = FAMILY === "ff" ? ["style"] : [FAMILY];
   const rowsF = F.performance.filter(r => fams.includes(r.family)).map(r => [r.family, r.factor]);
   const cell = (fa, a, b) => (F.correlation.find(c => c.family_a === fa && c.factor_a === a
     && c.family_b === "ff" && c.factor_b === b) || {}).corr;
-  const color = v => v === undefined || v === null ? "transparent"
+  const color = v => nil(v) ? "transparent"
     : v > 0 ? `rgba(63,185,80,${Math.min(Math.abs(v), 1) * 0.85})` : `rgba(248,81,73,${Math.min(Math.abs(v), 1) * 0.85})`;
-  $("heat-title").textContent = `Correlation of ${fams[0].replace("_", " ")} factors with the published Fama-French factors`;
-  $("heat").innerHTML = `<table class="heat"><tr><th></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr>` +
-    rowsF.map(([fa, a]) => `<tr><td class="l">${esc(a)}</td>${cols.map(b => {
+  $("heat-title").textContent = `Correlation of the ${FAMILIES[fams[0]] ? FAMILIES[fams[0]][0] : fams[0]} factors with the published Fama-French factors`;
+  $("heatcorr").innerHTML = `<table class="heat"><tr><th></th>${cols.map(c => `<th title="${esc(LABEL("ff", c))}">${esc(short(c))}</th>`).join("")}</tr>` +
+    rowsF.map(([fa, a]) => `<tr><td class="l">${esc(LABEL(fa, a))}</td>${cols.map(b => {
       const v = cell(fa, a, b);
-      return `<td style="background:${color(v)}">${v === undefined || v === null ? "" : v.toFixed(2)}</td>`;
+      return `<td style="background:${color(v)}">${nil(v) ? "" : v.toFixed(2)}</td>`;
     }).join("")}</tr>`).join("") + `</table><div class="note">Daily returns over the last two years, on the
     sessions that both have.</div>`;
 }
 
+// ---------------------------------------------------------------- the stock and pair pages
+function openOverlay(html) {
+  $("ov-body").innerHTML = html; $("overlay").hidden = false; document.body.style.overflow = "hidden";
+  $("overlay").scrollTop = 0;
+}
+function closeOverlay() {
+  if ($("overlay").hidden) return;
+  $("overlay").hidden = true; document.body.style.overflow = "";
+  if (/^#(stock|pair)\//.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+}
+async function route() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const s = h.match(/^stock\/([A-Za-z0-9.\-]+)$/), p = h.match(/^pair\/([A-Za-z0-9.\-]+)\/([A-Za-z0-9.\-]+)$/);
+  if (!s && !p) { closeOverlay(); return; }
+  openOverlay(`<div class="top"><span class="big">${esc(s ? s[1].toUpperCase() : p[1].toUpperCase() + " / " + p[2].toUpperCase())}</span>
+    <span class="dim">loading…</span><button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>`);
+  try {
+    if (s) stockPage(await getJSON(`/market/stock.json?t=${encodeURIComponent(s[1])}`));
+    else pairPage(await getJSON(`/market/pair.json?a=${encodeURIComponent(p[1])}&b=${encodeURIComponent(p[2])}`));
+  } catch (e) {
+    $("ov-body").querySelector(".dim").outerHTML = `<span class="err">${esc(e.message)}</span>`;
+  }
+}
+
+function zbar(z, marks = []) {
+  const X = v => Math.max(0, Math.min(100, 50 + v / 3 * 50));
+  const w = nil(z) ? 0 : Math.abs(X(z) - 50);
+  return `<span class="zbar"><span class="axis"></span><span style="left:${nil(z) ? 50 : Math.min(50, X(z))}%;width:${w}%;
+    background:${(z || 0) >= 0 ? "var(--up)" : "var(--down)"}"></span>${marks.filter(m => !nil(m[0])).map(([v, c, t]) =>
+    `<i style="left:${X(v)}%;background:${c}" title="${esc(t)}"></i>`).join("")}</span>`;
+}
+
+function stockPage(P) {
+  const h = P.head, st = P.stats, e = P.exposures, r = P.risk;
+  const tickers = (h.tickers || "").split(" > ").length > 1 ? ` · tickers ${esc(h.tickers)}` : "";
+  let html = `<div class="top"><span class="big">${esc(h.ticker)}</span><span>${esc(h.name)}</span>
+    <span class="dim">${esc(h.type || "")} · ${esc(h.primary_exchange || "")} · ${esc(h.industry_name || "no industry")}${h.sic_description ? " · " + esc(h.sic_description) : ""}${tickers}</span>
+    <span class="inline dim">pair with <input id="pair-with" placeholder="ticker"></span>
+    <button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>`;
+  html += `<div class="kv">
+    <div><span class="k">Close ${esc(h.last_session || "")}</span>${num(h.close)}</div>
+    <div><span class="k">Market cap</span>${big(h.market_cap)}</div>
+    <div><span class="k">Dollar volume (20d)</span>${big(h.adv)}</div>
+    <div><span class="k">In the universe</span>${h.in_universe ? "yes" : "<span class='dim'>no</span>"}</div>
+    ${["1d", "1w", "1m", "3m", "6m", "ytd", "1y"].map(k => `<div><span class="k">${k.toUpperCase()}</span>${pct(st["ret_" + k], 1)}</div>`).join("")}
+    <div><span class="k">Volatility 1M / 1Y</span>${pct(st.vol_1m, 0, false)} / ${pct(st.vol_1y, 0, false)}</div>
+    <div><span class="k">Model volatility</span>${r ? pct(r.vol, 0, false) : "–"}</div>
+    <div><span class="k">Max drawdown 1Y</span>${pct(st.max_drawdown_1y, 1)}</div>
+    <div><span class="k">vs 1Y high / low</span>${pct(st.off_high_1y, 1)} / ${pct(st.over_low_1y, 0)}</div>
+    <div><span class="k">Skew / excess kurtosis</span>${num(st.skew, 2)} / ${num(st.kurtosis, 1)}</div>
+    <div><span class="k">Days up, 1Y</span>${pct(st.share_up, 0, false)}</div>
+    <div><span class="k">Model spread (half)</span>${P.cost ? (P.cost.spread * 1e4).toFixed(1) + " bp" : "–"}</div>
+  </div>`;
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Where the return came from, one year (sum of daily parts)</h3>
+      <div class="chart" id="st-cum"></div></div>
+    <div class="panel"><h3>Return attribution</h3><div class="tabs" id="st-attr-tabs"></div><div class="bars" id="st-attr"></div>
+      <div class="note">The exposures of each session before, times the factor returns. The parts sum to the return.</div></div></div>`;
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Style exposures (z-scores)</h3><table id="st-expo"></table>
+      <div class="note">The bar is the exposure now. <span class="amber">▮</span> the median of its industry, <span style="color:#58a6ff">▮</span> a year ago.</div></div>
+    <div class="panel"><h3>Risk: the share of the variance from each source</h3><div id="st-risk"></div></div></div>`;
+  html += `<div class="grid3" style="margin-top:12px">
+    <div class="panel"><h3>Moves with it: stock-specific part, one year</h3><table id="st-rel-spec"></table>
+      <div class="note">The correlation of the residuals of the model, each clipped at 3σ. Among 2,000 names over a year, chance
+        alone gives values up to about 0.25.</div></div>
+    <div class="panel"><h3>Moves with it: total return, one year</h3><table id="st-rel-tot"></table></div>
+    <div class="panel"><h3>Industry peers nearest in size</h3><table id="st-peers"></table></div></div>`;
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Signals on the last session</h3><table id="st-sig"></table>
+      <div class="note">Decile 10 is the highest value in the universe. IC is the rank IC with the stock-specific return of the next
+        21 sessions over the development sessions, with its Newey-West t.</div></div>
+    <div class="panel"><h3>Short interest</h3><div class="chart" id="st-si"></div><table id="st-si-t"></table></div></div>`;
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest stock-specific moves (3σ or more)</h3><table id="st-shocks"></table></div>
+    <div class="panel"><h3>Corporate actions, three years and ahead</h3><table id="st-actions"></table></div></div>`;
+  $("ov-body").innerHTML = html;
+  $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
+
+  const C = P.cumulative;
+  if (C.dates.length) lineChart($("st-cum"), [
+    {name: "total", color: "#e3b341", width: 2, points: C.dates.map((d, i) => [d, C.total[i]])},
+    {name: "factors", color: "#58a6ff", points: C.dates.map((d, i) => [d, C.total[i] - C.specific[i]])},
+    {name: "stock-specific", color: "#bc8cff", points: C.dates.map((d, i) => [d, C.specific[i]])},
+  ], {height: 240, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  else lineChart($("st-cum"), [{name: "price, rebased", points: rebase(P.prices.dates, P.prices.px)}],
+    {height: 240, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  let span = "1y";
+  const attr = () => {
+    const a = P.attribution.find(x => x.span === span);
+    tabs($("st-attr-tabs"), P.attribution.map(x => [x.span, x.span.toUpperCase()]), span, k => { span = k; attr(); });
+    if (!a) { $("st-attr").innerHTML = '<div class="note">Not in the model universe.</div>'; return; }
+    const parts = [["ret", "Total"], ["market", "Market"], ["industry", "Industry"], ...["size", "liquidity", "beta", "momentum",
+      "reversal", "volatility", "dividend_yield", "high_52w"].map(s => [s, LABEL("style", s)]), ["specific", "Stock-specific"]];
+    bars($("st-attr"), parts.map(([k, l]) => ({label: l, value: a[k], color: k === "ret" ? "var(--amber)" : undefined})), v => pct(v, 1));
+  };
+  attr();
+  if (e) {
+    const styles = ["size", "liquidity", "beta", "momentum", "reversal", "volatility", "dividend_yield", "high_52w"];
+    $("st-expo").innerHTML = `<tr><th>Style</th><th>z</th><th></th><th>Industry median</th><th>A year ago</th></tr>` + styles.map(s =>
+      `<tr><td class="l">${esc(LABEL("style", s))}</td><td>${num(e["z_" + s], 2)}</td><td>${zbar(e["z_" + s],
+        [[P.industry_median?.["z_" + s], "var(--amber)", "industry median"], [P.exposures_1y?.["z_" + s], "#58a6ff", "a year ago"]])}</td>
+       <td class="dim">${num(P.industry_median?.["z_" + s], 2)}</td><td class="dim">${num(P.exposures_1y?.["z_" + s], 2)}</td></tr>`).join("");
+  } else $("st-expo").innerHTML = '<tr><td class="dim">Not in the model universe (the model covers in-universe common stock).</td></tr>';
+  if (r) {
+    const cols = {market: "#e3b341", industry: "#58a6ff", specific: "#56606b"};
+    const parts = r.parts.filter(x => Math.abs(x.var_share) > 0.002).sort((a, b) => b.var_share - a.var_share);
+    $("st-risk").innerHTML = `<div class="stackbar">${parts.filter(x => x.var_share > 0).map((x, i) =>
+      `<span style="width:${(x.var_share * 100).toFixed(1)}%;background:${cols[x.component] || COLORS[(i + 4) % COLORS.length]}"
+        title="${esc(x.component)} ${(x.var_share * 100).toFixed(1)}%"></span>`).join("")}</div>
+      <table><tr><th>Source</th><th>Share of variance</th></tr>${parts.map(x => `<tr><td class="l">${esc(x.component === "specific"
+        ? "Stock-specific" : x.component === "market" ? "Market" : x.component === "industry" ? "Industry" : LABEL("style", x.component))}</td>
+        <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
+      <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, stock-specific
+        ${pct(r.spec_vol, 1, false)} (the last 63 sessions). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
+        factor that hedges the others. For the largest names the model is noisy: the size exposure sits at its cap of 3σ.</div>`;
+  } else $("st-risk").innerHTML = '<div class="note">Not in the model universe.</div>';
+  const relRow = (x, k) => `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td>
+    <td>${num(x[k], 2)}</td><td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`;
+  const relHead = `<tr><th>Name</th><th>Corr</th><th>1M</th><th></th></tr>`;
+  $("st-rel-spec").innerHTML = relHead + P.related.filter(x => x.kind === "specific").map(x => relRow(x, "resid_corr")).join("");
+  $("st-rel-tot").innerHTML = relHead + P.related.filter(x => x.kind === "total").map(x => relRow(x, "ret_corr")).join("");
+  $("st-peers").innerHTML = `<tr><th>Name</th><th>Cap</th><th>1M</th><th></th></tr>` + P.peers.map(x =>
+    `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td><td class="dim">${big(x.market_cap)}</td>
+     <td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`).join("");
+  $("st-sig").innerHTML = `<tr><th>Signal</th><th>Value</th><th>Decile</th><th>Rank</th><th>IC</th><th>t</th></tr>` + P.signals.map(x =>
+    `<tr><td class="l">${esc(x.label || x.signal)}</td><td>${num(x.value, 4)}</td>
+     <td style="background:${zbg((x.decile - 5.5) / 1.5)}">${x.decile ?? "–"}</td><td class="dim">${x.rank_high ?? "–"} of ${x.n_names ?? "–"}</td>
+     <td>${num(x.mean_ic, 4)}</td><td class="dim">${num(x.t_nw, 1)}</td></tr>`).join("");
+  const SI = [...P.short_interest].reverse();
+  if (SI.length) {
+    lineChart($("st-si"), [{name: "short interest, % of shares", points: SI.map(x => [x.settlement_date, nil(x.share_of_shares) ? null : x.share_of_shares * 100])},
+      {name: "days to cover", points: SI.map(x => [x.settlement_date, x.days_to_cover])}], {height: 170, fmt: v => v.toFixed(1)});
+    $("st-si-t").innerHTML = `<tr><th>Settlement</th><th>Public</th><th>Short</th><th>% shares</th><th>Days</th><th>Value</th></tr>` +
+      P.short_interest.slice(0, 6).map(x => `<tr><td class="l">${x.settlement_date}</td><td class="dim">${x.effective_date || ""}</td>
+        <td>${big(x.short_interest)}</td><td>${pct(x.share_of_shares, 2, false)}</td><td>${num(x.days_to_cover, 1)}</td>
+        <td class="dim">${big(x.short_value)}</td></tr>`).join("");
+  } else $("st-si").innerHTML = '<div class="note">No short interest.</div>';
+  $("st-shocks").innerHTML = `<tr><th>Date</th><th>Return</th><th>Specific</th><th>σ</th></tr>` + (P.shocks.map(x =>
+    `<tr><td class="l">${x.date}</td><td>${pct(x.ret, 1)}</td><td style="background:${zbg(x.resid_z)}">${pct(x.resid, 1)}</td>
+     <td>${sig(x.resid_z)}</td></tr>`).join("") || '<tr><td class="dim">None.</td></tr>');
+  $("st-actions").innerHTML = `<tr><th>Date</th><th>Ticker</th><th>Kind</th><th>Detail</th></tr>` + (P.actions.map(x =>
+    `<tr><td class="l">${x.event_date}${x.event_date > (h.last_session || "") ? ' <span class="amber">ahead</span>' : ""}</td><td class="l">${esc(x.ticker)}</td>
+     <td class="l">${esc(x.kind)}</td><td class="l">${x.kind === "split" ? (x.ratio < 1 ? `${num(1 / x.ratio, 2)}-for-1` : `1-for-${num(x.ratio, 2)}`)
+      : `$${num(x.cash_amount, 4)}`}</td></tr>`).join("") || '<tr><td class="dim">None.</td></tr>');
+}
+
+function pairPage(Q) {
+  const a = Q.a || {}, b = Q.b || {}, s = Q.stats;
+  let html = `<div class="top"><span class="big">${esc(a.ticker)} / ${esc(b.ticker)}</span>
+    <span class="dim">${esc(a.name)} against ${esc(b.name)}</span>
+    <button class="btn" onclick="location.hash='pair/${esc(b.ticker)}/${esc(a.ticker)}'">swap</button>
+    <span class="inline dim"><a href="#stock/${esc(a.ticker)}">${esc(a.ticker)}</a> · <a href="#stock/${esc(b.ticker)}">${esc(b.ticker)}</a></span>
+    <button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>`;
+  html += `<div class="kv">
+    <div><span class="k">Correlation, 1Y</span>${num(s.corr_1y, 2)}</div>
+    <div><span class="k">Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 1Y</span>${num(s.beta_1y, 2)}</div>
+    <div><span class="k">Volatility ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(s.vol_a, 0, false)} / ${pct(s.vol_b, 0, false)}</div>
+    <div><span class="k">Ratio z-score (1Y)</span>${sig(s.z_now)}</div>
+    <div><span class="k">Half-life of the ratio</span>${nil(s.half_life) ? "no mean reversion" : num(s.half_life, 0) + " sessions"}</div>
+    <div><span class="k">Stock-specific correlation</span>${num(s.resid_corr_1y, 2)}</div>
+    ${Object.entries(Q.returns).map(([k, v]) => `<div><span class="k">${k.toUpperCase()} ${esc(a.ticker)} / ${esc(b.ticker)}</span>${pct(v[0], 1)} / ${pct(v[1], 1)}</div>`).join("")}
+  </div>
+  <div class="grid2e" style="margin-top:12px">
+    <div class="panel"><h3>Ratio ${esc(a.ticker)} / ${esc(b.ticker)}, rebased</h3><div class="chart" id="pr-ratio"></div></div>
+    <div class="panel"><h3>Ratio z-score against its trailing year</h3><div class="chart" id="pr-z"></div></div>
+    <div class="panel"><h3>Correlation of daily returns, 63 sessions</h3><div class="chart" id="pr-corr"></div></div>
+    <div class="panel"><h3>Beta of ${esc(a.ticker)} on ${esc(b.ticker)}, 63 sessions</h3><div class="chart" id="pr-beta"></div></div>
+  </div>
+  <div class="note">The half-life comes from an AR(1) fit of the log ratio over the last year. A short half-life is not a trade:
+    the ratio can trend, and a pair of one company's share classes or of an ETF and its holdings will always look tight.</div>`;
+  $("ov-body").innerHTML = html;
+  const D = Q.dates, S = k => D.map((d, i) => [d, Q[k][i]]);
+  lineChart($("pr-ratio"), [{name: "ratio", color: "#e3b341", points: S("ratio").map(([d, v]) => [d, v - 1])}], {height: 200, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  lineChart($("pr-z"), [{name: "z", color: "#58a6ff", points: S("z")}], {height: 200, zero: true, hlines: [2, -2], fmt: v => v.toFixed(1)});
+  lineChart($("pr-corr"), [{name: "corr 63d", color: "#3fb950", points: S("corr_63")}], {height: 180, zero: true, fmt: v => v.toFixed(2)});
+  lineChart($("pr-beta"), [{name: "beta 63d", color: "#bc8cff", points: S("beta_63")}], {height: 180, zero: true, hlines: [1], fmt: v => v.toFixed(2)});
+}
+
+// ---------------------------------------------------------------- load
+function safe(fn) {
+  try { fn(); } catch (e) { console.error(fn.name, e); $("errors").innerHTML += `<div>${esc(fn.name)}: ${esc(e.message)}</div>`; }
+}
 async function load() {
   try {
-    DATA = await (await fetch("/market.json")).json();
-  } catch (e) { $("meta").textContent = "cannot read /market.json: " + e; return; }
-  $("meta").textContent = `as of ${DATA.as_of || "–"} · warehouse built ${(DATA.built || "–").slice(0, 16).replace("T", " ")} UTC`;
+    DATA = await getJSON("/market.json");
+  } catch (e) { $("meta").textContent = "cannot read /market.json: " + e.message; return; }
+  $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${(DATA.built || "–").slice(0, 16).replace("T", " ")} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
-  exceptions(); overview(); board(); mainChart(); relations(); rates(); regime(); breadthCharts();
-  factorModel(); movers(); calendar(); shorts(); research();
+  for (const f of [sources, exceptions, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
+    breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
 }
-load();
-setInterval(load, 5 * 60 * 1000);
+layoutControls(); applyLayout(); setupCommand();
+load().then(route);
+window.addEventListener("hashchange", route);
+setInterval(() => { if ($("overlay").hidden) load(); }, 5 * 60 * 1000);
 </script>
 </body>
 </html>
