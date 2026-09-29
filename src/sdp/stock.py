@@ -25,6 +25,7 @@ import numpy as np
 
 from sdp import dal
 from sdp.market import _clean
+from sdp.risk import ew_cov
 
 TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,11}$")
 STYLES = ("size", "liquidity", "beta", "momentum", "reversal", "volatility",
@@ -32,6 +33,12 @@ STYLES = ("size", "liquidity", "beta", "momentum", "reversal", "volatility",
 INDUSTRIES = ("nodur", "durbl", "manuf", "enrgy", "chems", "buseq", "telcm", "utils",
               "shops", "hlth", "money", "other", "unknown")
 WINDOWS = (("1d", 1), ("1w", 5), ("1m", 21), ("3m", 63), ("6m", 126), ("1y", 252))
+# The covariance of the factor returns halves the weight of a session every
+# FACTOR_HALF_LIFE sessions. The effective sample is then about 120 sessions, more than
+# five times the 22 factors. The oldest of the FACTOR_WINDOW sessions has under 0.1% of the
+# weight of the newest.
+FACTOR_HALF_LIFE = 42
+FACTOR_WINDOW = 504
 CACHE_SIZE = 64
 
 _lock = threading.Lock()
@@ -118,12 +125,13 @@ def _price_stats(px: np.ndarray, dates: list) -> dict:
 
 def _risk(wh: duckdb.DuckDBPyConnection, expo: dict, spec_vol: float | None) -> dict | None:
     """Split the variance of the stock into the market, its industry, each style and the
-    specific part (Euler: exposure times the covariance row). Annualized."""
+    specific part (Euler: exposure times the covariance row). Annualized. The covariance
+    of the factors weights recent sessions more (FACTOR_HALF_LIFE)."""
     names = ["market", *STYLES, *(f"ind_{i}" for i in INDUSTRIES)]
     F = np.array(wh.execute(f"""
         select {", ".join(f"coalesce({c}, 0)" for c in names)}
         from factors.style_factor_returns
-        order by date desc limit 252""").fetchall(), dtype=float)
+        order by date desc limit {FACTOR_WINDOW}""").fetchall(), dtype=float)[::-1]
     if len(F) < 60 or spec_vol is None:
         return None
     x = np.zeros(len(names))
@@ -132,7 +140,7 @@ def _risk(wh: duckdb.DuckDBPyConnection, expo: dict, spec_vol: float | None) -> 
         x[1 + j] = expo.get(f"z_{s}") or 0.0
     ind = f"ind_{(expo.get('industry') or 'Unknown').lower()}"
     x[names.index(ind)] = 1.0
-    omega = np.cov(F, rowvar=False)
+    omega = ew_cov(F, FACTOR_HALF_LIFE)
     parts = x * (omega @ x) * 252
     spec = spec_vol ** 2 * 252
     total = parts.sum() + spec

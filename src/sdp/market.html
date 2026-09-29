@@ -1323,7 +1323,7 @@ function stockPage(P) {
         ? "Stock-specific" : x.component === "market" ? "Market" : x.component === "industry" ? "Industry" : LABEL("style", x.component))}</td>
         <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
       <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, stock-specific
-        ${pct(r.spec_vol, 1, false)} (the last 63 sessions). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
+        ${pct(r.spec_vol, 1, false)} (a forecast that weights recent sessions more). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
         factor that hedges the others. Every name has a market exposure of 1, and the beta style adjusts it. For a name that
         moves little with the market (BRK.B, AAPL, WMT, JNJ in 2026), the adjustment falls short and the factor part adds noise.</div>`;
   } else $("st-risk").innerHTML = '<div class="note">Not in the model universe.</div>';

@@ -55,9 +55,20 @@ vars:
   link_min_returns: 20
   link_max_jump_sigma: 4.0
 
-  # The specific volatility of a name needs this many residuals of the 63 sessions
-  # before. With two residuals, a new listing showed a move of 65 standard deviations.
+  # The specific volatility of a name needs this many residuals before the session.
+  # With two residuals, a new listing showed a move of 65 standard deviations.
   spec_vol_min_obs: 21
+
+  # The forecast of the specific volatility. The weight of a residual halves every
+  # spec_vol_half_life rows. The shrinkage pulls it toward the cap-weighted mean of the size
+  # decile at the rate spec_vol_shrinkage (0 turns it off). The regime factor rescales every
+  # forecast with the recent cross-section of z squared, and the weight of a session halves
+  # every spec_vol_regime_half_life sessions. Both half-lives must be 2 or more. On the
+  # development sessions the log-likelihood of the residuals rises as the regime half-life
+  # falls to 1. A week stops one session from setting the scale of all forecasts.
+  spec_vol_half_life: 126
+  spec_vol_shrinkage: 0.1
+  spec_vol_regime_half_life: 5
 
   # beta_252 needs this many returns in its window of 252. Below 126 the spread of beta
   # across names grows from 0.6 to between 1.6 and 30, and a new listing reached 1,401.

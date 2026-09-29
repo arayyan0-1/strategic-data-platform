@@ -32,7 +32,8 @@ models:
 
   - name: style_residuals
     description: The return of each in-universe name split into market, industry and style parts and a
-      stock-specific residual, with the residual in units of its own volatility.
+      stock-specific residual, with the residual in units of its forecast volatility. The forecast
+      reads only the sessions before the row.
     columns:
       - name: security_key
         data_tests:
@@ -40,6 +41,22 @@ models:
       - name: resid
         data_tests:
           - not_null
+      - name: own_vol
+        description: The root mean square of the residuals of the name before the session, weighted so
+          that the weight halves every spec_vol_half_life rows. Null with fewer than spec_vol_min_obs
+          residuals.
+      - name: vol_regime
+        description: The factor for the volatility regime, the same for all names on a session. It is the
+          square root of the weighted mean, over the sessions before, of the cross-section mean of the
+          squared residual in units of the forecast without the factor. It is 1 when no session before
+          has a forecast.
+        data_tests:
+          - not_null
+      - name: spec_vol
+        description: The forecast of the volatility of the residual for the session. It is own_vol pulled
+          toward the cap-weighted mean of its size decile, times vol_regime.
+      - name: resid_z
+        description: The residual in units of spec_vol.
 
   - name: pca_factor_returns
     description: The top five eigenportfolios of the trailing correlation matrix, held out of sample.

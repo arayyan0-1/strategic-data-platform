@@ -9,7 +9,7 @@ import duckdb
 import numpy as np
 import pytest
 
-from sdp import stock, transform
+from sdp import risk, stock, transform
 from sdp.config import settings
 from tests.test_market import _get
 
@@ -117,6 +117,18 @@ def test_the_risk_shares_sum_to_one(warehouse):
     risk = stock.view("profile", "AAA")["risk"]
     assert sum(x["var_share"] for x in risk["parts"]) == pytest.approx(1.0)
     assert risk["vol"] == pytest.approx(math.hypot(risk["factor_vol"], risk["spec_vol"]))
+
+
+def test_the_factor_risk_weights_recent_sessions_more(warehouse):
+    con = duckdb.connect(str(settings.warehouse_path), read_only=True)
+    market = np.array([r[0] for r in con.execute(
+        "select market from factors.style_factor_returns order by date").fetchall()])
+    con.close()
+    window = market[-stock.FACTOR_WINDOW:, None]
+    expected = math.sqrt(risk.ew_cov(window, stock.FACTOR_HALF_LIFE)[0, 0] * 252)
+    got = stock.view("profile", "AAA")["risk"]["factor_vol"]
+    assert got == pytest.approx(expected)
+    assert got != pytest.approx(math.sqrt(market[-252:].var(ddof=1) * 252), rel=1e-6)
 
 
 def test_the_attribution_parts_sum_to_the_return(warehouse):

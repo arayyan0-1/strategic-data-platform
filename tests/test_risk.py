@@ -180,3 +180,26 @@ def test_exposure_cov_accepts_one_factor():
     F = np.array([[0.01], [-0.01], [0.02]])
     S = risk.exposure_cov(X, F, np.full(4, 1e-4))
     assert np.allclose(S - np.diag(np.full(4, 1e-4)), np.var(F, ddof=1))
+
+
+def test_ew_cov_with_a_very_long_half_life_is_the_sample_covariance():
+    X = returns(3, 80, 5)
+    np.testing.assert_allclose(risk.ew_cov(X, 1e12), risk.sample_cov(X), rtol=1e-6)
+
+
+def test_ew_cov_matches_the_weighted_variance_written_out():
+    x = np.array([1.0, -2.0, 0.5, 3.0])
+    w = 0.5 ** (np.array([3, 2, 1, 0]) / 2)
+    m = (w * x).sum() / w.sum()
+    expected = (w * (x - m) ** 2).sum() / (w.sum() - (w ** 2).sum() / w.sum())
+    np.testing.assert_allclose(risk.ew_cov(x[:, None], 2.0), [[expected]], rtol=1e-12)
+
+
+def test_ew_cov_gives_the_newest_rows_more_weight():
+    rng = np.random.default_rng(5)
+    quiet = 0.01 * rng.standard_normal((200, 3))
+    loud = 0.03 * rng.standard_normal((200, 3))
+    X = np.vstack([quiet, loud])
+    assert np.trace(risk.ew_cov(X, 20)) > np.trace(risk.sample_cov(X))
+    assert np.trace(risk.ew_cov(X[::-1], 20)) < np.trace(risk.sample_cov(X))
+    assert_spd(risk.ew_cov(X, 20))
