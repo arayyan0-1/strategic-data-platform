@@ -299,8 +299,9 @@
         <div class="tabs" id="event-tabs"></div><div class="chart" id="event-chart"></div>
         <table id="event-table" style="margin-top:6px"></table>
         <div class="note">The mean residual of the style model summed from 5 sessions before the event. After the
-          event (day +1 on) is what a trade could earn. Events on the same days move together, so the t is too
-          high when they cluster. The holdout sessions stay out.</div></div>
+          event (day +1 on) is what a trade could earn. Events on the same date are not independent, so the
+          t is the t-statistic of the mean across event dates, and it treats the dates as independent of each
+          other. The holdout sessions stay out.</div></div>
     </div>
   </section>
 
@@ -1126,11 +1127,20 @@ function seasonality() {
                turn: turnBucket(next)};
   const rows = R.seasonality.filter(r => r.calendar === SEASON.calendar && r.period === SEASON.period && r.factor === SEASON.factor)
     .sort((a, b) => a.bucket_order - b.bucket_order);
-  bars($("season-bars"), rows.map(r => ({label: r.bucket + (r.bucket === now[SEASON.calendar] ? "  ← next session" : ""),
-    value: r.excess, t: r.t, hl: r.bucket === now[SEASON.calendar], title: `${r.n_days} days, mean ${(r.mean * 1e4).toFixed(1)} bp, t ${num(r.t, 1)}`})),
+  const pf = p => nil(p) ? "–" : p < 0.001 ? "< 0.001" : p.toFixed(3);
+  bars($("season-bars"), rows.map(r => ({label: r.bucket + (r.significant ? " ●" : "")
+      + (r.bucket === now[SEASON.calendar] ? "  ← next session" : ""),
+    value: r.excess, t: r.t, hl: r.bucket === now[SEASON.calendar], color: r.significant ? null : "var(--dim)",
+    title: `${r.n_days} days, mean ${(r.mean * 1e4).toFixed(1)} bp, t ${num(r.t, 1)}, p ${pf(r.p)}`
+      + (r.significant ? ", passes the false discovery rate" : "")})),
     (v, x) => `${bp(v, 1)} <span class="dim">t ${num(x.t, 1)}</span>`);
+  const period = R.seasonality.filter(r => r.period === SEASON.period);
+  const fdr = period.length && !nil(period[0].fdr) ? +(period[0].fdr * 100).toFixed(2) : null;
   $("season-note").textContent = "Each bar is the mean daily return in the bucket less the mean of all days, in bp. "
-    + "Many buckets are tested, so a t under 3 is weak evidence. The library lags about two months.";
+    + (fdr === null ? "" : `A dot and a colored bar mark an effect that passes a false discovery rate of ${fdr}% `
+      + `(Benjamini-Hochberg) among the ${period[0].n_tests} effects of the period, all calendars and series. `
+      + `${period.filter(r => r.significant).length} of them pass. Grey bars do not pass. `)
+    + "The library lags about two months.";
 }
 function nextSession() {
   const d = new Date((DATA.as_of || new Date().toISOString().slice(0, 10)) + "T12:00:00");
@@ -1160,11 +1170,11 @@ function events() {
     pts: R.events.filter(r => r.event === k && r.day >= 1).map(r => [r.day, r.car_post, `day ${r.day}`])})),
     {height: 220, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
      fmt: v => (v * 100).toFixed(2) + "%"});
-  $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
+  $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Dates</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
     kinds.map(([k, t]) => {
       const e0 = R.events.find(r => r.event === k && r.day === 0), e21 = R.events.find(r => r.event === k && r.day === 21);
-      return e0 ? `<tr><td class="l">${t}</td><td class="dim">${e0.n_events}</td><td>${pct(e0.car, 2)}</td>
-        <td>${pct(e21?.car_post, 2)}</td><td>${num(e21?.t_post, 1)}</td></tr>` : "";
+      return e0 ? `<tr><td class="l">${t}</td><td class="dim">${e0.n_events}</td><td class="dim">${e0.n_dates}</td>
+        <td>${pct(e0.car, 2)}</td><td>${pct(e21?.car_post, 2)}</td><td>${num(e21?.t_post, 1)}</td></tr>` : "";
     }).join("");
 }
 

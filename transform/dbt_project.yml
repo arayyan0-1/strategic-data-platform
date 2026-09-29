@@ -107,6 +107,11 @@ vars:
   monitor_pct: 0.05
   monitor_big_cap: 10000000000
 
+  # The false discovery rate for the calendar effects (market_seasonality). An effect
+  # is significant when it passes the Benjamini-Hochberg procedure at this rate among
+  # the tests of its period.
+  seasonality_fdr: 0.05
+
 seeds:
   sdp:
     +schema: reference

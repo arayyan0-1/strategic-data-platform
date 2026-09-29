@@ -154,13 +154,38 @@ models:
           - not_null
 
   - name: event_study
-    description: The mean stock-specific return from 5 sessions before to 21 after four kinds of event
-      (residual shocks, splits, jumps in short interest), on the development sessions.
+    description: The mean stock-specific return from 5 sessions before to 21 after five kinds of event
+      (residual shocks, splits, jumps in short interest), on the development sessions. Each mean is the
+      mean across event dates of the mean of each date, and the t-statistic counts dates, not events.
     columns:
       - name: event
         data_tests:
           - not_null
+      - name: n_events
+        description: The count of events with a residual on this day.
+      - name: n_dates
+        description: The count of distinct event dates among those events. Events on one date are not
+          independent, so the means and the t-statistic use this count.
+      - name: car_post
+        description: The mean, across event dates, of the residual summed from day +1. The mean of each
+          date comes first.
+      - name: t_post
+        description: The t-statistic of car_post, from the spread of the date means. It treats the dates
+          as independent of each other.
 
   - name: market_seasonality
     description: Calendar effects (month, weekday, turn of the month) in the US market and the Fama-French
-      factors, from the daily library since 1963 and since 2000.
+      factors, from the daily library since 1963 and since 2000. Each effect has a p-value, and the
+      significant ones pass a false discovery rate among the tests of their period.
+    columns:
+      - name: p
+        description: The two-sided p-value of t under the normal distribution.
+      - name: n_tests
+        description: The count of effects in the period (every calendar, bucket and series).
+      - name: fdr
+        description: The false discovery rate that significant uses (the var seasonality_fdr).
+      - name: significant
+        description: True when the effect passes the Benjamini-Hochberg procedure at fdr among the
+          tests of its period. False when it does not, and when it has no t-statistic.
+        data_tests:
+          - not_null
