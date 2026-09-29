@@ -49,13 +49,14 @@ with base as (
 ), sec_divs as (
 
     -- A dividend belongs to the security that held its ticker on the last session on
-    -- or before the ex-date. A ticker change thus keeps the dividend history.
-    select b.security_key, ca.event_date, ca.cash_amount
+    -- or before the ex-date. A ticker change thus keeps the dividend history. A key with
+    -- only special rows has no regular amount, so it drops out.
+    select b.security_key, ca.event_date, ca.regular_cash_amount
     from (
-        select ticker, event_date, cash_amount
+        select ticker, event_date, regular_cash_amount
         from {{ ref('int_corporate_actions') }}
         where kind = 'dividend'
-          and cash_amount > 0
+          and regular_cash_amount > 0
     ) ca
     asof join base b
         on b.ticker = ca.ticker
@@ -63,12 +64,12 @@ with base as (
 
 ), divs as (
 
-    -- Trailing 12 months of cash dividends per security, per session. Nominal cash
-    -- on the ex-date over the unadjusted price. A split inside the 12-month window
+    -- Trailing 12 months of regular cash dividends per security, per session. Nominal
+    -- cash on the ex-date over the unadjusted price. A split inside the 12-month window
     -- is a rare, small distortion. Non-payers get 0.
     select
         b.security_key, b.date,
-        sum(d.cash_amount) as div_ttm
+        sum(d.regular_cash_amount) as div_ttm
     from base b
     left join sec_divs d
         on d.security_key = b.security_key
@@ -157,7 +158,7 @@ with base as (
             partition by security_key order by date
             rows between 251 preceding and current row), 0)       as high_52w,
 
-        -- trailing 12-month dividend yield (nominal cash over unadjusted price)
+        -- trailing 12-month regular dividend yield (nominal cash over unadjusted price)
         div_ttm / nullif(close, 0)                                as dividend_yield,
 
         -- Short interest, from the last settlement that FINRA has published: the share of

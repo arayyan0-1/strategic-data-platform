@@ -96,6 +96,14 @@ models:
                 values:
                   - split
                   - dividend
+      - name: cash_amount
+        description: The largest per-share cash amount of the rows of a dividend key, special rows
+          included. Null for a split.
+      - name: regular_cash_amount
+        description: The largest per-share cash amount of the rows of a dividend key that are not
+          special. A row with no type counts as regular. Null for a split, and null when every row of
+          the key is special. The dividend yield uses it. The price adjustment does not, because a
+          special dividend also lowers the price.
 
   - name: int_prices_adjusted
     description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins. At
