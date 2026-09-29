@@ -141,7 +141,8 @@ models:
           - not_null
 
   - name: int_universe
-    description: The universe per date, from an instrument filter and a liquidity filter.
+    description: The universe per date, from an instrument filter and a liquidity filter. The liquidity
+      window and the seasoning count run over the primary line of each security.
     columns:
       - name: date
         data_tests:
@@ -156,6 +157,17 @@ models:
         description: The line that every series of the security reads on this session.
         data_tests:
           - not_null
+      - name: adv
+        description: The mean dollar volume of the security over the liquidity window, which ends at the
+          session before. Null on the first session of the security and on a line that is not the
+          primary line.
+      - name: days_in_window
+        description: The count of sessions with a dollar volume in that window. Null on a line that is
+          not the primary line.
+      - name: bars_seen
+        description: The count of sessions of the security up to and including this one. A new security
+          starts at 1, also on a ticker that another security used. Null on a line that is not the
+          primary line.
       - name: market_cap
         description: The market cap of the share class, from the newest month-end of ticker details, moved
           with the split-adjusted price. Null when the month-end is over 70 days old.
