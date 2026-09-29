@@ -67,3 +67,6 @@ quintile,overnight_ret,Overnight return
 quintile,intraday_ret,Intraday return
 quintile,high_52w,Near 52-week high
 quintile,dividend_yield,Dividend yield
+quintile,short_ratio,Short interest share of shares
+quintile,days_to_cover,Days to cover
+quintile,short_change,Change in short interest
