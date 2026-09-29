@@ -74,8 +74,8 @@ vars:
 
   # The market monitor lists an item as an exception beyond these limits: a move of
   # monitor_z standard deviations, a percentile in the outer monitor_pct of its
-  # history, and a stock-specific move of twice monitor_z for a cap of monitor_big_cap.
-  monitor_z: 2.0
+  # history, and a stock-specific move of monitor_z for a cap of monitor_big_cap.
+  monitor_z: 3.0
   monitor_pct: 0.05
   monitor_big_cap: 10000000000
 

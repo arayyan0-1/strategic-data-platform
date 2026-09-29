@@ -6,3 +6,6 @@ seeds:
 
   - name: monitor_etfs
     description: The ETFs of the cross-asset board of the monitor, with their group, label and position.
+
+  - name: factor_labels
+    description: A readable label for each factor of each family, and for each signal (the quintile family).

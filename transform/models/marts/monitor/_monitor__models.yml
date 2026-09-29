@@ -1,6 +1,15 @@
 version: 2
 
 models:
+  - name: market_attribution
+    description: The return of the cap-weighted and the equal-weighted in-universe market per session over a
+      year, split into the market factor, the industries, each style and the stock-specific part, and
+      again by industry.
+    columns:
+      - name: component
+        data_tests:
+          - not_null
+
   - name: market_board
     description: The cross-asset ETF board, from the monitor_etfs seed.
     columns:
@@ -25,8 +34,29 @@ models:
     description: Splits and ex-dividend dates of the next 45 days, for the tickers that traded on the
       last session.
 
+  - name: market_contributors
+    description: The names that moved the cap-weighted in-universe market most over the last session and
+      the last 21 sessions, with the stock-specific part of each contribution.
+
+  - name: market_curve_factors
+    description: Level, slope and curvature of the Treasury curve per session over two years, from the
+      loadings of market_curve_pca, with the daily move in sigma.
+
+  - name: market_curve_pca
+    description: The loadings of the first three principal components of the daily changes of the Treasury
+      curve (level, slope, curvature) and the share of the variance each explains.
+
   - name: market_exceptions
     description: What is unusual on the last session, one row per item, with a score in standard deviations.
+
+  - name: market_heatmap
+    description: The 500 largest in-universe names on the last session with their industry, cap, returns over
+      four spans and the stock-specific move in sigma.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+          - unique
 
   - name: market_history
     description: The total-adjusted close of each monitor ETF over the last two years.
@@ -35,9 +65,10 @@ models:
     description: The in-universe names that moved most on the last session, in ranked lists.
 
   - name: market_rates
-    description: The Treasury curve, real yields, inflation expectations, funding rates, credit
-      spreads, volatility and financial conditions on the last session, from FRED, with the changes,
-      the daily move in sigma, the percentile of the level and the curve a month and a year before.
+    description: The FRED measures on the last session (the Treasury curves, credit by rating, money markets
+      and funding spreads, the Federal Reserve balance sheet, volatility, conditions, currencies and
+      commodities), with the date of each observation, the changes, the daily move in sigma, the
+      percentile of the level and the level a month and a year before.
     columns:
       - name: measure
         data_tests:
@@ -54,6 +85,14 @@ models:
     description: Cross-asset relations (ratios and correlations of the monitor ETFs, and the correlation
       of stocks with Treasury yields) over two years, with the 21-session change, its z-score and the
       percentile.
+
+  - name: market_short_interest_history
+    description: Short interest across the in-universe names per settlement, in dollars, as a share of the
+      cap and in days to cover.
+
+  - name: market_sources
+    description: The last date of each source of the warehouse, the pull behind it, and the age at which it
+      is late.
 
   - name: market_short_interest
     description: Short interest of the in-universe names at the last settlement, beside the settlement

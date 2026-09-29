@@ -144,3 +144,15 @@ models:
       - name: date
         data_tests:
           - not_null
+
+  - name: event_study
+    description: The mean stock-specific return from 5 sessions before to 21 after four kinds of event
+      (residual shocks, splits, jumps in short interest), on the development sessions.
+    columns:
+      - name: event
+        data_tests:
+          - not_null
+
+  - name: market_seasonality
+    description: Calendar effects (month, weekday, turn of the month) in the US market and the Fama-French
+      factors, from the daily library since 1963 and since 2000.

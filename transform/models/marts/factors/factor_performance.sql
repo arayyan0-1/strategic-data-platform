@@ -53,6 +53,7 @@ with r as (
 select
     r.family,
     r.factor,
+    coalesce(any_value(l.label), r.factor)                                as label,
     min(r.date)                                                           as first_date,
     max(r.date)                                                           as last_date,
     count(*)                                                              as n_days,
@@ -70,4 +71,5 @@ select
     any_value(d.max_drawdown)                                             as max_drawdown
 from r
 join drawdown d using (family, factor)
+left join {{ ref('factor_labels') }} l using (family, factor)
 group by r.family, r.factor
