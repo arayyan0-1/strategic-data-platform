@@ -42,27 +42,36 @@ LQD,Rates and credit,Investment grade,55
 HYG,Rates and credit,High yield,56
 EMB,Rates and credit,EM sovereign debt,57
 GLD,Commodities,Gold,60
-SLV,Commodities,Silver,61
-CPER,Commodities,Copper,62
-USO,Commodities,Crude oil,63
-UNG,Commodities,Natural gas,64
-DBC,Commodities,Broad commodities,65
-EFA,International,Developed ex-US,70
-VGK,International,Europe,71
-EWJ,International,Japan,72
-EEM,International,Emerging markets,73
-FXI,International,China large-cap,74
-MCHI,International,China,75
-INDA,International,India,76
-EWZ,International,Brazil,77
-EWY,International,South Korea,78
-EWT,International,Taiwan,79
-UUP,Currencies,US dollar,80
-FXE,Currencies,Euro,81
-FXY,Currencies,Japanese yen,82
-IBIT,Crypto,Bitcoin,90
-ETHA,Crypto,Ether,91
-BITO,Crypto,Bitcoin futures,92
-VIXY,Volatility,VIX futures,95
-UVXY,Volatility,VIX futures 1.5x,96
-VIXM,Volatility,VIX mid-term futures,97
+GDX,Commodities,Gold miners,61
+SLV,Commodities,Silver,62
+CPER,Commodities,Copper,63
+USO,Commodities,Crude oil (WTI),64
+BNO,Commodities,Crude oil (Brent),65
+UNG,Commodities,Natural gas,66
+DBC,Commodities,Broad commodities,67
+VT,International,All world,68
+EFA,International,Developed ex-US,69
+VGK,International,Europe,70
+EWU,International,United Kingdom,71
+EWG,International,Germany,72
+EWJ,International,Japan,73
+EEM,International,Emerging markets,74
+FXI,International,China large-cap,75
+MCHI,International,China,76
+INDA,International,India,77
+EWZ,International,Brazil,78
+EWY,International,South Korea,79
+EWT,International,Taiwan,80
+UUP,Currencies,US dollar,81
+FXE,Currencies,Euro,82
+FXY,Currencies,Japanese yen,83
+FXB,Currencies,British pound,84
+FXF,Currencies,Swiss franc,85
+FXC,Currencies,Canadian dollar,86
+FXA,Currencies,Australian dollar,87
+IBIT,Crypto,Bitcoin,88
+ETHA,Crypto,Ether,89
+BITO,Crypto,Bitcoin futures,90
+VIXY,Volatility,VIX futures,91
+UVXY,Volatility,VIX futures 1.5x,92
+VIXM,Volatility,VIX mid-term futures,93

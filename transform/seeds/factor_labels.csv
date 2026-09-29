@@ -1,0 +1,69 @@
+family,factor,label
+style,market,Market
+style,size,Size
+style,liquidity,Liquidity
+style,beta,Beta
+style,momentum,Momentum
+style,reversal,Short-term reversal
+style,volatility,Volatility
+style,dividend_yield,Dividend yield
+style,high_52w,Near 52-week high
+industry,nodur,Consumer nondurables
+industry,durbl,Consumer durables
+industry,manuf,Manufacturing
+industry,enrgy,Energy
+industry,chems,Chemicals
+industry,buseq,Business equipment
+industry,telcm,Telecom
+industry,utils,Utilities
+industry,shops,Shops
+industry,hlth,Health care
+industry,money,Finance
+industry,other,Other
+ff_industry,nodur,Consumer nondurables (NoDur)
+ff_industry,durbl,Consumer durables (Durbl)
+ff_industry,manuf,Manufacturing (Manuf)
+ff_industry,enrgy,Energy (Enrgy)
+ff_industry,chems,Chemicals (Chems)
+ff_industry,buseq,Business equipment (BusEq)
+ff_industry,telcm,Telecom (Telcm)
+ff_industry,utils,Utilities (Utils)
+ff_industry,shops,Shops (Shops)
+ff_industry,hlth,Health care (Hlth)
+ff_industry,money,Finance (Money)
+ff_industry,other,Other (Other)
+ff,mkt_rf,Market (Mkt-RF)
+ff,smb,Size (SMB)
+ff,hml,Value (HML)
+ff,rmw,Profitability (RMW)
+ff,cma,Investment (CMA)
+ff,mom,Momentum (Mom)
+ff,st_rev,Short-term reversal (ST_Rev)
+ff,lt_rev,Long-term reversal (LT_Rev)
+ff_mimic,mkt_rf,Market (Mkt-RF) mimic
+ff_mimic,smb,Size (SMB) mimic
+ff_mimic,hml,Value (HML) mimic
+ff_mimic,rmw,Profitability (RMW) mimic
+ff_mimic,cma,Investment (CMA) mimic
+ff_mimic,mom,Momentum (Mom) mimic
+q,mkt,Market (MKT)
+q,me,Size (ME)
+q,ia,Investment (I/A)
+q,roe,Profitability (ROE)
+q,eg,Expected growth (EG)
+pca,pc1,Eigenportfolio 1 (PC1)
+pca,pc2,Eigenportfolio 2 (PC2)
+pca,pc3,Eigenportfolio 3 (PC3)
+pca,pc4,Eigenportfolio 4 (PC4)
+pca,pc5,Eigenportfolio 5 (PC5)
+quintile,reversal_1,Reversal 1 day
+quintile,reversal_5,Reversal 5 days
+quintile,momentum_12_1,Momentum 12-1 months
+quintile,vol_20,Volatility 20 days
+quintile,vol_60,Volatility 60 days
+quintile,amihud_20,Illiquidity (Amihud 20 days)
+quintile,beta_252,Beta 252 days
+quintile,overnight_ret,Overnight return
+quintile,intraday_ret,Intraday return
+quintile,high_52w,Near 52-week high
+quintile,dividend_yield,Dividend yield

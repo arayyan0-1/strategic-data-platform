@@ -114,11 +114,15 @@ with base as (
             partition by security_key order by date
             rows between 19 preceding and current row)            as amihud_20,
 
-        -- market beta over one year, to the cap-weighted market of the universe
-        covar_pop(ret_1, mkt_ret) over (partition by security_key order by date
-            rows between 251 preceding and current row)
-          / nullif(var_pop(mkt_ret) over (partition by security_key order by date
-            rows between 251 preceding and current row), 0)       as beta_252,
+        -- market beta over one year, to the cap-weighted market of the universe. Null
+        -- with fewer than beta_min_obs returns: a beta from a short history is noise.
+        case when count(ret_1 + mkt_ret) over (partition by security_key order by date
+                  rows between 251 preceding and current row) >= {{ var('beta_min_obs') }}
+             then covar_pop(ret_1, mkt_ret) over (partition by security_key order by date
+                      rows between 251 preceding and current row)
+                / nullif(var_pop(mkt_ret) over (partition by security_key order by date
+                      rows between 251 preceding and current row), 0)
+        end                                                       as beta_252,
 
         overnight_ret,
         intraday_ret,

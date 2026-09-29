@@ -5,28 +5,19 @@
   monitor_big_cap. direction is 1 for a move up or a calm reading, and -1 for a move down
   or a warning (a crowded factor, a high-volatility regime, the stress end of a
   measure, a rise in a yield, a spread or volatility). An ETF with less than 2%
-  volatility a year (T-bills) makes each
-  accrual look like a large move in sigma, so it is left out. An industry return is
-  relative to the market and can trend for years, so its drawdown is not an exception.
+  volatility a year (T-bills) makes each accrual look like a large move in sigma, so it
+  is left out. An industry return is relative to the market and can trend for years, so
+  its drawdown is not an exception. A stock-specific move scores half its sigma, because
+  the residual volatility is too low for the tails.
 #}
 {% set z = var('monitor_z') %}
 {% set pct = var('monitor_pct') %}
 
-with names as (
+with risk as (
 
-    -- The name of each industry factor. Other has no SIC range in the seed.
-    select distinct lower(industry) as factor, industry_name as name
-    from {{ ref('ff12_industries') }}
-    union all
-    select 'other', 'Other'
-
-), risk as (
-
-    select r.*,
-           case when r.family = 'industry' then coalesce(n.name, r.factor) || ' (industry)'
-                else r.factor end as label
-    from {{ ref('factor_risk') }} r
-    left join names n on r.family = 'industry' and n.factor = r.factor
+    select * replace (case when family = 'industry' then label || ' (industry)'
+                           else label end as label)
+    from {{ ref('factor_risk') }}
 
 ), items as (
 
@@ -45,14 +36,14 @@ with names as (
 
     union all
     select 'factor', family || ': ' || factor,
-           printf('%s factor %+.2f%% today, %+.1f sigma', label, 100 * ret_1d, z_1d),
+           printf('%s %+.2f%% today, %+.1f sigma', label, 100 * ret_1d, z_1d),
            abs(z_1d), sign(z_1d)
     from risk
     where family in ('style', 'industry') and abs(z_1d) >= {{ z }}
 
     union all
     select 'factor', family || ': ' || factor,
-           printf('%s factor %+.1f%% over a month, %+.1f sigma', label, 100 * ret_1m, z_1m),
+           printf('%s %+.1f%% over a month, %+.1f sigma', label, 100 * ret_1m, z_1m),
            abs(z_1m), sign(z_1m)
     from risk
     where family in ('style', 'industry') and abs(z_1m) >= {{ z }}
@@ -68,26 +59,26 @@ with names as (
     union all
     select 'factor risk', family || ': ' || factor,
            printf('%s drawdown %.1f%%, deeper than %.0f%% of its history',
-                  factor, 100 * drawdown, 100 * dd_pctile),
+                  label, 100 * drawdown, 100 * dd_pctile),
            2 + (dd_pctile - (1 - {{ pct }})) / {{ pct }}, -1
-    from {{ ref('factor_risk') }}
+    from risk
     where family = 'style' and factor <> 'market'
       and dd_pctile >= 1 - {{ pct }} and drawdown < -0.05
 
     union all
     select 'crowding', factor,
            printf('%s crowded: short interest leans on its short leg, %+.1f sigma',
-                  factor, crowding_z),
+                  label, crowding_z),
            crowding_z, -1
-    from {{ ref('factor_risk') }}
+    from risk
     where crowding_z >= {{ z }}
 
     union all
     select 'factor risk', family || ': ' || factor,
            printf('%s correlation with the market %.2f over 63 sessions against %.2f over 252',
-                  factor, corr_63, corr_252),
+                  label, corr_63, corr_252),
            5 * abs(corr_63 - corr_252), sign(corr_63 - corr_252)
-    from {{ ref('factor_risk') }}
+    from risk
     where family = 'style' and factor <> 'market' and abs(corr_63 - corr_252) >= 0.4
 
     union all
@@ -100,15 +91,31 @@ with names as (
     where pctile >= 1 - {{ pct }} or pctile <= {{ pct }}
 
     union all
+    -- One item per group, the largest move, because a curve moves as one.
     select 'rates', measure,
-           case when unit = 'pct'
-                then printf('%s %+.0f bp to %.2f%%, %+.1f sigma', label, 100 * chg_1d, value, z_1d)
-                else printf('%s %+.2f to %.2f, %+.1f sigma', label, chg_1d, value, z_1d) end,
+           printf('%s %s, %+.1f sigma%s', label,
+                  case unit
+                      when 'pct' then printf('%+.0f bp to %.2f%%', 100 * chg_1d, value)
+                      when 'usd_b' then printf('%+.0f bn to %.0f bn', chg_1d, value)
+                      when 'fx' then printf('%+.2f%% to %.4f', 100 * chg_1d, value)
+                      when 'price' then printf('%+.1f%% to %.2f', 100 * chg_1d, value)
+                      else printf('%+.2f to %.2f', chg_1d, value) end,
+                  z_1d,
+                  case when n_group > 1 then printf(' (and %d more in %s)', n_group - 1, lower(grp))
+                       else '' end),
            abs(z_1d),
            case when stress = 'high' then -sign(z_1d) else sign(z_1d) end
-    from {{ ref('market_rates') }}
-    -- A weekly index or a policy rate moves in steps, so one step is a huge sigma.
-    where grp not in ('Funding', 'Conditions') and abs(z_1d) >= {{ z }}
+    from (
+        select *,
+               count(*) over (partition by grp) as n_group,
+               row_number() over (partition by grp order by abs(z_1d) desc) as rank
+        from {{ ref('market_rates') }}
+        -- A policy rate, a weekly index or the balance sheet moves in steps, so one step
+        -- is a huge sigma.
+        where grp not in ('Policy and money markets', 'Fed balance sheet', 'Conditions')
+          and abs(z_1d) >= {{ z }}
+    )
+    where rank = 1
 
     union all
     select 'relation', relation,
@@ -133,7 +140,7 @@ with names as (
                   100 * resid, resid_z, 100 * ret),
            abs(resid_z) / 2, sign(resid_z)
     from {{ ref('market_movers') }}
-    where cap >= {{ var('monitor_big_cap') }} and abs(resid_z) >= 2 * {{ z }}
+    where cap >= {{ var('monitor_big_cap') }} and abs(resid_z) >= {{ z }}
 
 )
 

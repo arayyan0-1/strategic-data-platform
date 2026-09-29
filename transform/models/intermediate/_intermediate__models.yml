@@ -11,8 +11,9 @@ models:
 
   - name: int_security_links
     description: One row per new FIGI that continues the security of the old FIGI on the same ticker.
-      The CIK and the first word of the name stay the same, the sessions are consecutive, the old key
-      stops on every ticker, the new key starts on the link date, and the price does not jump.
+      The CIK stays the same, each name with no spaces starts with the first word of the other name,
+      the sessions are consecutive, the old key stops on every ticker, the new key starts on the link
+      date, and the price does not jump.
     columns:
       - name: jump
         description: The log return of the split-adjusted close from the last old bar to the first new

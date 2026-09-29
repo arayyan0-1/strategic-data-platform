@@ -71,11 +71,12 @@ def test_the_payload_carries_json_safe_values(warehouse):
     json.dumps(p, allow_nan=False)
 
 
-def test_the_rates_come_in_order_with_their_history(warehouse):
-    rows = market.snapshot()["rates"]["rows"]
+def test_the_rates_come_in_order_with_their_history_on_one_date_axis(warehouse):
+    rates = market.snapshot()["rates"]
+    rows = rates["rows"]
     assert [r["measure"] for r in rows] == ["t_2y", "t_10y"]
     assert rows[0]["chg_1d"] is None and rows[0]["series"] == []
-    assert rows[1]["series"] == [4.0, 5.0] and rows[1]["dates"][0] == "2026-09-23"
+    assert rows[1]["series"] == [4.0, 5.0] and rates["dates"] == ["2026-09-23", "2026-09-24"]
 
 
 def test_a_missing_mart_empties_its_section_and_names_the_fix(warehouse):
@@ -110,6 +111,7 @@ def _get(path: str, host: str = "localhost:8787"):
         _send=lambda code, body, *a: sent.append((code, body)),
     )
     fake._refuse = lambda: dashboard.Handler._refuse(fake)
+    fake._view = lambda: dashboard.Handler._view(fake)
     dashboard.Handler.do_GET(fake)
     return sent[0]
 

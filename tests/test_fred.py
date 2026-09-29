@@ -110,6 +110,15 @@ def test_a_short_series_is_not_published(served):
     assert not dal.FRED.table_file.exists()
 
 
+def test_a_rate_in_the_wrong_unit_is_refused_and_a_dollar_amount_is_not(served):
+    table, _ = served
+    table["WALCL"] = csv("WALCL", value=6_747_704)
+    fred.ingest(PULL)
+    table["DGS10"] = csv("DGS10", value=4250)
+    with pytest.raises(AuditFailure, match="DGS10"):
+        fred.ingest(PULL + dt.timedelta(days=1))
+
+
 def test_thin_keeps_the_first_pull_the_last_month_and_one_pull_a_week(served):
     days = [PULL - dt.timedelta(days=i) for i in range(70, -1, -1)]
     for d in days:

@@ -5,7 +5,8 @@
 
 Serves http://127.0.0.1:8787. Use --port to select a different port. The page
 shows what each dataset holds, what is missing, and how old the dbt build is. The
-market monitor (sdp.market) is at /market.
+market monitor (sdp.market) is at /market, and its views of one stock or a pair
+(sdp.stock) at /market/stock.json?t=, /market/pair.json?a=&b= and /market/search.json.
 One button pulls the missing sessions and builds the dbt models. The page is
 local only and does not need the network, except when it pulls. The pull runs in
 a background thread, so the page stays live while it works.
@@ -21,8 +22,9 @@ import threading
 import time
 from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
-from sdp import daily, market
+from sdp import daily, market, stock
 
 log = logging.getLogger("sdp.dashboard")
 
@@ -172,8 +174,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 -- the page must show any failure
                 log.exception("The market payload failed.")
                 self._send(500, json.dumps({"errors": [f"{type(exc).__name__}: {exc}"]}))
+        elif self.path.startswith("/market/"):
+            self._view()
         else:
             self._send(404, json.dumps({"error": "not found"}))
+
+    def _view(self) -> None:
+        """Serve a view of sdp.stock: the search index, a stock or a pair."""
+        url = urlsplit(self.path)
+        q = {k: v[0] for k, v in parse_qs(url.query).items()}
+        routes = {"/market/search.json": ("search",),
+                  "/market/stock.json": ("profile", q.get("t", "")),
+                  "/market/pair.json": ("pair", q.get("a", ""), q.get("b", ""))}
+        if url.path not in routes:
+            self._send(404, json.dumps({"error": "not found"}))
+            return
+        try:
+            self._send(200, json.dumps(stock.view(*routes[url.path]), allow_nan=False))
+        except stock.UnknownTicker as exc:
+            self._send(404, json.dumps({"error": str(exc)}))
+        except Exception as exc:  # noqa: BLE001 -- the page must show any failure
+            log.exception("The view %s failed.", self.path)
+            self._send(500, json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
 
     def do_POST(self) -> None:  # noqa: N802
         if not _request_allowed(self.headers, self.server.server_address[1]):

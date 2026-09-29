@@ -92,6 +92,7 @@ with r as (
 select
     l.family,
     l.factor,
+    coalesce(fl.label, l.factor)                             as label,
     l.date                                                   as last_date,
     l.ret                                                    as ret_1d,
     l.ret / nullif(l.sd_prev, 0)                             as z_1d,
@@ -112,3 +113,4 @@ from last l
 join history h using (family, factor)
 left join month m using (family, factor)
 left join crowd c on l.family = 'style' and c.factor = l.factor
+left join {{ ref('factor_labels') }} fl on fl.family = l.family and fl.factor = l.factor
