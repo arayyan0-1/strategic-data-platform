@@ -1299,7 +1299,7 @@ function stockPage(P) {
         21 sessions over the development sessions, with its Newey-West t.</div></div>
     <div class="panel"><h3>Short interest</h3><div class="chart" id="st-si"></div><table id="st-si-t"></table></div></div>`;
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest stock-specific moves (3 residual volatilities or more)</h3><table id="st-shocks"></table>
-      <div class="note">σ here is the move over the residual volatility of the 63 sessions before. It is not a score.</div></div>
+      <div class="note">σ here is the move over the model's forecast of the stock-specific volatility. It is not a score.</div></div>
     <div class="panel"><h3>Corporate actions, three years and ahead</h3><table id="st-actions"></table></div></div>`;
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
