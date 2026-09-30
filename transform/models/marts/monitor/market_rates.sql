@@ -12,8 +12,10 @@
     the unit of the measure: percentage points for pct, billions of dollars for usd_b,
     and log returns for a currency (fx) or a price. chg_1d is null when the measure is
     not fresh, because a carried value is not a move of zero.
-  - z_1d is chg_1d over the standard deviation of the daily changes of the 252 sessions
-    before, so a move is in units of its own risk.
+  - z_1d is the score of chg_1d (market_scores): the change over the volatility of the
+    daily changes known before the session, mapped to the rarity of that ratio in the
+    history of the measures of its kind. The kind is the step kind for a group in the
+    var monitor_step_groups, and the other kind for the rest. It is null when chg_1d is.
   - pctile is the share of the history of the lake with a lower or equal value.
   - value_1m and value_1y are the levels 21 and 252 sessions before, for the curve chart.
   - maturity is in months for a point of the nominal, real or breakeven curve.
@@ -21,93 +23,7 @@
     a higher discount rate.
 #}
 
-{% set measures = [
-    ('t_1m', 'Treasury 1 month', 'Nominal curve', 'pct', 1, 'high'),
-    ('t_3m', 'Treasury 3 months', 'Nominal curve', 'pct', 3, 'high'),
-    ('t_6m', 'Treasury 6 months', 'Nominal curve', 'pct', 6, 'high'),
-    ('t_1y', 'Treasury 1 year', 'Nominal curve', 'pct', 12, 'high'),
-    ('t_2y', 'Treasury 2 years', 'Nominal curve', 'pct', 24, 'high'),
-    ('t_3y', 'Treasury 3 years', 'Nominal curve', 'pct', 36, 'high'),
-    ('t_5y', 'Treasury 5 years', 'Nominal curve', 'pct', 60, 'high'),
-    ('t_7y', 'Treasury 7 years', 'Nominal curve', 'pct', 84, 'high'),
-    ('t_10y', 'Treasury 10 years', 'Nominal curve', 'pct', 120, 'high'),
-    ('t_20y', 'Treasury 20 years', 'Nominal curve', 'pct', 240, 'high'),
-    ('t_30y', 'Treasury 30 years', 'Nominal curve', 'pct', 360, 'high'),
-    ('curve_10y_2y', 'Slope 10Y less 2Y', 'Curve', 'pct', none, 'low'),
-    ('curve_10y_3m', 'Slope 10Y less 3M', 'Curve', 'pct', none, 'low'),
-    ('curve_30y_5y', 'Slope 30Y less 5Y', 'Curve', 'pct', none, 'low'),
-    ('fly_2_5_10', 'Butterfly 2s5s10s', 'Curve', 'pct', none, 'none'),
-    ('fwd_1y1y', 'Forward 1Y in 1Y', 'Curve', 'pct', none, 'high'),
-    ('fwd_5y5y', 'Forward 5Y in 5Y', 'Curve', 'pct', none, 'high'),
-    ('term_premium_10y', 'Term premium 10Y (Kim-Wright)', 'Curve', 'pct', none, 'high'),
-    ('policy_priced_1y', 'Bills: 6M rate in 6M less 3M', 'Curve', 'pct', none, 'none'),
-    ('real_5y', 'Real yield 5Y (TIPS)', 'Real yields and inflation', 'pct', 60, 'high'),
-    ('real_7y', 'Real yield 7Y (TIPS)', 'Real yields and inflation', 'pct', 84, 'high'),
-    ('real_10y', 'Real yield 10Y (TIPS)', 'Real yields and inflation', 'pct', 120, 'high'),
-    ('real_20y', 'Real yield 20Y (TIPS)', 'Real yields and inflation', 'pct', 240, 'high'),
-    ('real_30y', 'Real yield 30Y (TIPS)', 'Real yields and inflation', 'pct', 360, 'high'),
-    ('breakeven_5y', 'Breakeven inflation 5Y', 'Real yields and inflation', 'pct', 60, 'high'),
-    ('breakeven_7y', 'Breakeven inflation 7Y', 'Real yields and inflation', 'pct', 84, 'high'),
-    ('breakeven_10y', 'Breakeven inflation 10Y', 'Real yields and inflation', 'pct', 120, 'high'),
-    ('breakeven_20y', 'Breakeven inflation 20Y', 'Real yields and inflation', 'pct', 240, 'high'),
-    ('breakeven_30y', 'Breakeven inflation 30Y', 'Real yields and inflation', 'pct', 360, 'high'),
-    ('breakeven_5y5y', 'Inflation 5Y forward 5Y', 'Real yields and inflation', 'pct', none, 'high'),
-    ('ig_oas', 'Spread IG (all)', 'Credit', 'pct', none, 'high'),
-    ('oas_aaa', 'Spread AAA', 'Credit', 'pct', none, 'high'),
-    ('oas_aa', 'Spread AA', 'Credit', 'pct', none, 'high'),
-    ('oas_a', 'Spread A', 'Credit', 'pct', none, 'high'),
-    ('oas_bbb', 'Spread BBB', 'Credit', 'pct', none, 'high'),
-    ('hy_oas', 'Spread HY (all)', 'Credit', 'pct', none, 'high'),
-    ('oas_bb', 'Spread BB', 'Credit', 'pct', none, 'high'),
-    ('oas_b', 'Spread B', 'Credit', 'pct', none, 'high'),
-    ('oas_ccc', 'Spread CCC and lower', 'Credit', 'pct', none, 'high'),
-    ('iorb', 'Interest on reserves (IORB)', 'Policy and money markets', 'pct', none, 'high'),
-    ('rrp_rate', 'Reverse repo rate (ON RRP)', 'Policy and money markets', 'pct', none, 'high'),
-    ('effr', 'Effective fed funds (EFFR)', 'Policy and money markets', 'pct', none, 'high'),
-    ('obfr', 'Overnight bank funding (OBFR)', 'Policy and money markets', 'pct', none, 'high'),
-    ('sofr', 'SOFR', 'Policy and money markets', 'pct', none, 'high'),
-    ('sofr_p1', 'SOFR 1st percentile', 'Policy and money markets', 'pct', none, 'high'),
-    ('sofr_p99', 'SOFR 99th percentile', 'Policy and money markets', 'pct', none, 'high'),
-    ('tgcr', 'Tri-party GC (TGCR)', 'Policy and money markets', 'pct', none, 'high'),
-    ('bill_4w', 'T-bill 4 weeks (discount)', 'Policy and money markets', 'pct', none, 'high'),
-    ('cp_fin_3m', 'Commercial paper 3M, financial AA', 'Policy and money markets', 'pct', none, 'high'),
-    ('cp_nonfin_3m', 'Commercial paper 3M, nonfinancial AA', 'Policy and money markets', 'pct', none, 'high'),
-    ('discount_rate', 'Discount window (primary credit)', 'Policy and money markets', 'pct', none, 'high'),
-    ('sofr_iorb', 'SOFR less IORB', 'Funding spreads', 'pct', none, 'high'),
-    ('effr_iorb', 'EFFR less IORB', 'Funding spreads', 'pct', none, 'high'),
-    ('sofr_tail', 'SOFR 99th percentile less SOFR', 'Funding spreads', 'pct', none, 'high'),
-    ('tgcr_rrp', 'TGCR less ON RRP rate', 'Funding spreads', 'pct', none, 'high'),
-    ('cp_bill', 'Financial CP 3M less bill 3M', 'Funding spreads', 'pct', none, 'high'),
-    ('bill_effr', 'Bill 3M less EFFR', 'Funding spreads', 'pct', none, 'high'),
-    ('fed_assets', 'Fed total assets', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('fed_treasuries', 'Fed Treasuries held', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('fed_mbs', 'Fed MBS held', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('reserves', 'Bank reserves', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('tga', 'Treasury General Account', 'Fed balance sheet', 'usd_b', none, 'high'),
-    ('rrp', 'Overnight reverse repo (ON RRP)', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('standing_repo', 'Standing repo facility', 'Fed balance sheet', 'usd_b', none, 'high'),
-    ('net_liquidity', 'Net liquidity (assets less TGA and RRP)', 'Fed balance sheet', 'usd_b', none, 'low'),
-    ('sofr_volume', 'SOFR volume', 'Fed balance sheet', 'usd_b', none, 'none'),
-    ('vix', 'VIX', 'Volatility', 'index', none, 'high'),
-    ('vix_3m', 'VIX3M', 'Volatility', 'index', none, 'high'),
-    ('vix_term', 'VIX over VIX3M', 'Volatility', 'ratio', none, 'high'),
-    ('dollar', 'Broad dollar index', 'Conditions', 'index', none, 'high'),
-    ('nfci', 'Chicago Fed financial conditions', 'Conditions', 'index', none, 'high'),
-    ('stlfsi', 'St. Louis Fed financial stress', 'Conditions', 'index', none, 'high'),
-    ('eurusd', 'EUR/USD', 'Currencies', 'fx', none, 'none'),
-    ('usdjpy', 'USD/JPY', 'Currencies', 'fx', none, 'none'),
-    ('gbpusd', 'GBP/USD', 'Currencies', 'fx', none, 'none'),
-    ('usdchf', 'USD/CHF', 'Currencies', 'fx', none, 'none'),
-    ('usdcad', 'USD/CAD', 'Currencies', 'fx', none, 'none'),
-    ('audusd', 'AUD/USD', 'Currencies', 'fx', none, 'none'),
-    ('nzdusd', 'NZD/USD', 'Currencies', 'fx', none, 'none'),
-    ('usdsek', 'USD/SEK', 'Currencies', 'fx', none, 'none'),
-    ('usdnok', 'USD/NOK', 'Currencies', 'fx', none, 'none'),
-    ('wti', 'WTI crude oil', 'Commodities', 'price', none, 'none'),
-    ('brent', 'Brent crude oil', 'Commodities', 'price', none, 'none'),
-    ('natgas', 'Henry Hub natural gas', 'Commodities', 'price', none, 'none'),
-    ('bitcoin', 'Bitcoin (Coinbase)', 'Commodities', 'price', none, 'none'),
-] %}
+{% set measures = market_rate_measures() %}
 
 {# The FRED series behind each measure. #}
 {% set feeds = {
@@ -170,11 +86,7 @@ with defs(position, measure, label, grp, unit, maturity, stress) as (
 
 ), scaled as (
 
-    select
-        *,
-        stddev_samp(chg_1d) over (partition by measure order by date
-            rows between 252 preceding and 1 preceding) as sd_1d,
-        row_number() over (partition by measure order by date desc) as back
+    select *, row_number() over (partition by measure order by date desc) as back
     from changed
 
 ), sessions as (
@@ -231,10 +143,12 @@ select
     s.chg_1w,
     s.chg_1m,
     s.chg_1y,
-    case when s.fresh then s.chg_1d / nullif(s.sd_1d, 0) end as z_1d,
+    case when s.fresh then z.z end                          as z_1d,
     s.pctile,
     s.value_1m,
     s.value_1y
 from defs d
 join stamped s on s.measure = d.measure
+left join {{ ref('market_scores') }} z
+    on z.family in ('rate', 'rate_step') and z.subject = d.measure and z.h = 1 and z.date = s.date
 order by d.position

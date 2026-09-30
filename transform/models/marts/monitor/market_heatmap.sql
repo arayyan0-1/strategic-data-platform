@@ -1,7 +1,9 @@
 {#
   The 500 largest in-universe names on the last session, for the heat map: the cap, the
   Fama-French 12 industry, and the total returns over 1, 5 and 21 sessions and the year
-  to date. resid_z is the stock-specific move of the last session in sigma.
+  to date. resid_z is the stock-specific move of the last session in units of the
+  residual volatility of the name. resid_score is its score (market_scores): a score of
+  3 is as rare as a 3 sigma move of a normal distribution.
 #}
 
 with last_session as (
@@ -36,10 +38,13 @@ select
     exp(sum(ln(1 + r.ret_1)) filter (where r.back <= 5)) - 1   as ret_1w,
     exp(sum(ln(1 + r.ret_1)) filter (where r.back <= 21)) - 1  as ret_1m,
     exp(sum(ln(1 + r.ret_1)) filter (where r.this_year)) - 1   as ret_ytd,
-    any_value(x.resid_z)                                       as resid_z
+    any_value(x.resid_z)                                       as resid_z,
+    any_value(z.z)                                             as resid_score
 from top t
 join rets r using (security_key)
 left join {{ ref('style_residuals') }} x
     on x.security_key = t.security_key and x.date = (select d from last_session)
+left join {{ ref('market_scores') }} z
+    on z.family = 'specific' and z.h = 1 and z.subject = t.security_key and z.date = x.date
 group by all
 order by t.cap desc

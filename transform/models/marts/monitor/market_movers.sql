@@ -4,6 +4,9 @@
   residual in units of their own residual volatility (style_residuals). A raw mover list
   mixes the market, the industry and the styles with news. This list keeps the part
   that no factor explains. factor_part is the market, industry and style parts together.
+  resid_score is the score of resid_z: the map of the names of a cap of monitor_big_cap
+  or more (market_scores), so a score of 3 is as rare as a 3 sigma move of a normal
+  distribution for those names. A smaller name uses the same map and passes it more often.
 #}
 
 with last_session as (
@@ -24,13 +27,23 @@ with last_session as (
       and r.resid_z is not null
       and (r.weight_cap >= 2e9 or u.adv >= 2e7)
 
+), scored as (
+
+    select
+        * exclude (q),
+        sign(resid_z) * {{ two_sided_z('q') }} as resid_score
+    from (
+        select *, {{ pool_q('resid_z', ref('market_scores'), 'specific', 1) }} as q
+        from today
+    )
+
 ), lists as (
 
     select 'residual_up' as list, row_number() over (order by resid_z desc) as rank, *
-    from today
+    from scored
     union all
     select 'residual_down', row_number() over (order by resid_z), *
-    from today
+    from scored
 
 )
 

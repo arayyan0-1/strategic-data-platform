@@ -144,9 +144,12 @@
 
   <section id="exceptions" data-nav="unusual"><h2>What is unusual today</h2>
     <div class="exc" id="exc"></div>
-    <div class="note">Moves of 3σ or more in units of their own risk, and levels at the edge of their own
-      history. A stock-specific move needs a cap of $10B and scores half its σ. Nothing here is a trade
-      signal. It says where to look first. Click an item with a ticker to open it.</div>
+    <div class="note">σ is a score. A score of 3 is as rare as a 3σ move of a normal distribution on the
+      history of the measure: about 1 day in 370. The score divides a move by the volatility known
+      before the session, then maps that ratio to its rarity in the history of the group. Here are the
+      scores of 3 or more, and the levels at the edge of their own history. A stock-specific move needs a
+      cap of $10B. Nothing here is a trade signal. It says where to look first. Click an item with a
+      ticker to open it.</div>
   </section>
 
   <section id="overview" data-nav="overview"><h2>Overview</h2><div class="tiles" id="tiles"></div></section>
@@ -169,20 +172,19 @@
     <div class="tabs" id="hm-tabs"></div>
     <div class="panel"><div id="heatmap"></div></div>
     <div class="note">Area is the market cap. Colour is the return, full at the limit in the tab, or the
-      stock-specific move in σ. Grouped by the Fama-French 12 industries. Click a name to open it.</div>
+      score of the stock-specific move. Grouped by the Fama-French 12 industries. Click a name to open it.</div>
   </section>
 
   <section id="crossasset" data-nav="cross-asset"><h2>Cross-asset</h2>
     <div class="grid2">
       <div class="panel"><table id="board"></table>
-        <div class="note">Colour is the move in σ of the ETF's own daily risk over 63 sessions.
-          Click rows to chart them. ↗ opens the ETF.</div></div>
+        <div class="note">Colour is the score of the move, in σ. Click rows to chart them. ↗ opens the ETF.</div></div>
       <div class="stack">
         <div class="panel"><h3>Selected, rebased to 0% one year ago</h3>
           <div class="chart" id="main-chart"></div></div>
         <div class="panel"><h3>Relationships</h3>
           <table id="relations"></table>
-          <div class="note">One-month change in σ of its own history. Percentile of the level over
+          <div class="note">The σ is the score of the one-month change. Percentile of the level over
             two years.</div></div>
       </div>
     </div>
@@ -206,8 +208,9 @@
       </div>
       <div class="panel"><table id="rates-table"></table>
         <div class="note">FRED, as known before the last session. Changes in basis points for rates
-          and spreads. Colour is the move in σ of the measure's own daily changes, red toward
-          stress. A date after a label is its last observation: FRED publishes it late, or once
+          and spreads. Colour is the score of the daily change, in σ, red toward
+          stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
+          scale. A date after a label is its last observation: FRED publishes it late, or once
           a week, so it has no 1D move. The forwards use the simple approximation from the
           constant-maturity yields. Click rows to chart them.</div></div>
     </div>
@@ -251,7 +254,8 @@
   <section id="factors" data-nav="factors"><h2>Factors: style and industry model</h2>
     <div class="note">One weighted regression per session on eight styles and the Fama-French
       12 industries, as in a Barra model. Each style return is a portfolio with unit exposure
-      to that style and none to the others. σ is the factor's own daily risk.</div>
+      to that style and none to the others. σ is the score of the move, against the history of the
+      factors of its family.</div>
     <div class="panel" style="margin-top:8px"><table id="risk"></table></div>
     <div class="grid2" style="margin-top:12px">
       <div class="panel"><h3>Style factors, cumulative, one year</h3><div class="chart" id="style-chart"></div></div>
@@ -271,7 +275,8 @@
 
   <section id="movers" data-nav="stock-specific"><h2>Stock-specific moves (liquid names, last session)</h2>
     <div class="note">The part of each return that the market, the industry and the styles do not
-      explain, in σ of the name's own residual risk. News lives here.</div>
+      explain. σ is the score of the move in units of the residual risk of the name, on the map of the
+      names of $10B or more. News lives here.</div>
     <div class="grid2" id="mover-lists" style="margin-top:8px"></div>
   </section>
 
@@ -763,7 +768,7 @@ let HM = "ret_1d";
 function heatmap() {
   const R = DATA.heatmap; if (!R) return;
   const modes = [["ret_1d", "1D", 0.03], ["ret_1w", "1W", 0.06], ["ret_1m", "1M", 0.12], ["ret_ytd", "YTD", 0.4],
-                 ["resid_z", "stock-specific σ", 3]];
+                 ["resid_score", "stock-specific σ", 3]];
   tabs($("hm-tabs"), modes.map(m => [m[0], m[1]]), HM, k => { HM = k; heatmap(); });
   const lim = modes.find(m => m[0] === HM)[2];
   const W = 1200, H = 560, groups = {};
@@ -778,7 +783,7 @@ function heatmap() {
     const cells = squarify(g.names.map(r => ({...r, v: r.cap})).sort((a, b) => b.v - a.v), g.x + 1, g.y + head + 1, g.w - 2, g.h - head - 2);
     for (const c of cells) {
       const v = c[HM], fs = Math.max(8, Math.min(16, Math.min(c.w / 4, c.h / 2.4)));
-      const val = HM === "resid_z" ? (nil(v) ? "" : (v > 0 ? "+" : "") + v.toFixed(1) + "σ") : (nil(v) ? "" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "%");
+      const val = HM === "resid_score" ? (nil(v) ? "" : (v > 0 ? "+" : "") + v.toFixed(1) + "σ") : (nil(v) ? "" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "%");
       svg += `<rect class="n" data-t="${esc(c.ticker)}" x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" width="${Math.max(c.w, 0).toFixed(1)}"
         height="${Math.max(c.h, 0).toFixed(1)}" fill="${divColor(v, lim)}"><title>${esc(c.ticker)} ${esc(c.name)}: ${val}, cap ${big(c.cap)}</title></rect>`;
       if (c.w > 26 && c.h > 14) svg += `<text x="${(c.x + c.w / 2).toFixed(1)}" y="${(c.y + c.h / 2 + (c.h > 28 ? -1 : fs / 3)).toFixed(1)}"
@@ -1079,7 +1084,7 @@ function movers() {
     <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
       <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim">${esc(r.industry_name || "")}</td>
       <td class="dim">${big(r.cap)}</td><td>${pct(r.ret, 1)}</td><td>${pct(r.factor_part, 1)}</td>
-      <td style="background:${zbg(r.resid_z)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_z)}</td>
+      <td style="background:${zbg(r.resid_score)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_score)}</td>
       <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`).join("") + `</table></div>`).join("");
 }
 
@@ -1285,7 +1290,7 @@ function stockPage(P) {
     <div class="panel"><h3>Risk: the share of the variance from each source</h3><div id="st-risk"></div></div></div>`;
   html += `<div class="grid3" style="margin-top:12px">
     <div class="panel"><h3>Moves with it: stock-specific part, one year</h3><table id="st-rel-spec"></table>
-      <div class="note">The correlation of the residuals of the model, each clipped at 3σ. Among 2,000 names over a year, chance
+      <div class="note">The correlation of the residuals of the model, each clipped at 3 residual volatilities. Among 2,000 names over a year, chance
         alone gives values up to about 0.25.</div></div>
     <div class="panel"><h3>Moves with it: total return, one year</h3><table id="st-rel-tot"></table></div>
     <div class="panel"><h3>Industry peers nearest in size</h3><table id="st-peers"></table></div></div>`;
@@ -1293,7 +1298,8 @@ function stockPage(P) {
       <div class="note">Decile 10 is the highest value in the universe. IC is the rank IC with the stock-specific return of the next
         21 sessions over the development sessions, with its Newey-West t.</div></div>
     <div class="panel"><h3>Short interest</h3><div class="chart" id="st-si"></div><table id="st-si-t"></table></div></div>`;
-  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest stock-specific moves (3σ or more)</h3><table id="st-shocks"></table></div>
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest stock-specific moves (3 residual volatilities or more)</h3><table id="st-shocks"></table>
+      <div class="note">σ here is the move over the residual volatility of the 63 sessions before. It is not a score.</div></div>
     <div class="panel"><h3>Corporate actions, three years and ahead</h3><table id="st-actions"></table></div></div>`;
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };

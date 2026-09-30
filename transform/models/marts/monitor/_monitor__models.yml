@@ -11,7 +11,8 @@ models:
           - not_null
 
   - name: market_board
-    description: The cross-asset ETF board, from the monitor_etfs seed.
+    description: The cross-asset ETF board, from the monitor_etfs seed. z_1d, z_1w and z_1m are the
+      scores of the returns over 1, 5 and 21 sessions.
     columns:
       - name: ticker
         data_tests:
@@ -47,22 +48,30 @@ models:
       curve (level, slope, curvature) and the share of the variance each explains.
 
   - name: market_exceptions
-    description: What is unusual on the last session, one row per item, with a score in standard deviations.
+    description: What is unusual on the last session, one row per item, with a score in sigma. A score of 3
+      is as rare as a 3 sigma move of a normal distribution.
 
   - name: market_heatmap
     description: The 500 largest in-universe names on the last session with their industry, cap, returns over
-      four spans and the stock-specific move in sigma.
+      four spans and the stock-specific move in units of its residual volatility and as a score.
     columns:
+      - name: resid_score
+        description: The score of resid_z (market_scores). A score of 3 is as rare as a 3 sigma move of a
+          normal distribution.
       - name: security_key
         data_tests:
           - not_null
           - unique
 
   - name: market_history
-    description: The total-adjusted close of each monitor ETF over the last two years.
+    description: The total-adjusted close of each monitor ETF over the whole history of the lake.
 
   - name: market_movers
     description: The in-universe names that moved most on the last session, in ranked lists.
+    columns:
+      - name: resid_score
+        description: The score of resid_z, on the map of the names of a cap of monitor_big_cap or more. A
+          score of 3 is as rare as a 3 sigma move of a normal distribution for those names.
 
   - name: market_rates
     description: The FRED measures on the last session (the Treasury curves, credit by rating, money markets
@@ -81,10 +90,36 @@ models:
   - name: market_regime
     description: The regime measures of the stock market on the last session against their history.
 
+  - name: market_relation_values
+    description: Cross-asset relations (ratios and correlations of the monitor ETFs, and the correlation
+      of stocks with Treasury yields) over the whole history, with the change of one session.
+
   - name: market_relations
     description: Cross-asset relations (ratios and correlations of the monitor ETFs, and the correlation
-      of stocks with Treasury yields) over two years, with the 21-session change, its z-score and the
+      of stocks with Treasury yields) over two years, with the 21-session change, its score and the
       percentile.
+
+  - name: market_scores
+    description: The score of each move of the monitor (ETF returns, changes of the FRED measures, changes
+      of the relations, stock-specific moves of the large caps), one row per family, subject, horizon and
+      session. A score of 3 is as rare as a 3 sigma move of a normal distribution on the history of the
+      family.
+    columns:
+      - name: family
+        description: etf, rate, rate_step, relation or specific.
+      - name: subject
+        description: The ticker of the ETF, the measure, the relation or the security key.
+      - name: h
+        description: The horizon of the move in sessions.
+      - name: z_raw
+        description: The move over the volatility known before the last session of the move, times the root
+          of the horizon.
+      - name: z
+        description: The score, the normal quantile of the share of the pool of the family that has a
+          z_raw at least as large. Null rows are not kept.
+      - name: date
+        data_tests:
+          - not_null
 
   - name: market_short_interest_history
     description: Short interest across the in-universe names per settlement, in dollars, as a share of the

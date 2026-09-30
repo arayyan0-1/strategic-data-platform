@@ -1,14 +1,16 @@
 {#
   What is unusual on the last session, one row per item, most unusual first. score is
-  the size of the surprise in standard deviations. A percentile maps to a score of 2 at
-  the limit and 3 at the extreme. The limits are the vars monitor_z, monitor_pct and
-  monitor_big_cap. direction is 1 for a move up or a calm reading, and -1 for a move down
-  or a warning (a crowded factor, a high-volatility regime, the stress end of a
-  measure, a rise in a yield, a spread or volatility). An ETF with less than 2%
-  volatility a year (T-bills) makes each accrual look like a large move in sigma, so it
-  is left out. An industry return is relative to the market and can trend for years, so
-  its drawdown is not an exception. A stock-specific move scores half its sigma, because
-  the residual volatility is too low for the tails.
+  the size of the surprise in sigma. For a move it is a score (market_scores): a score of
+  3 is as rare as a 3 sigma move of a normal distribution on the history of its family,
+  about 1 day in 370. A percentile maps to a score of 2 at the limit and 3 at the
+  extreme. The limits are the vars monitor_z, monitor_pct and monitor_big_cap.
+  direction is 1 for a move up or a calm reading, and -1 for a move down or a warning (a
+  crowded factor, a high-volatility regime, the stress end of a measure, a rise in a
+  yield, a spread or volatility). An ETF with a volatility under the var
+  monitor_min_etf_vol a year (T-bills) has no score, because each accrual looks like a
+  large move. An industry return is relative to the market and can trend for years, so
+  its drawdown is not an exception. A rates group in the var monitor_step_groups moves
+  in steps, so it is not an exception.
 #}
 {% set z = var('monitor_z') %}
 {% set pct = var('monitor_pct') %}
@@ -25,14 +27,14 @@ with risk as (
            printf('%s %+.1f%% today, %+.1f sigma', label, 100 * ret_1d, z_1d) as message,
            abs(z_1d) as score, sign(z_1d) as direction
     from {{ ref('market_board') }}
-    where abs(z_1d) >= {{ z }} and vol_20 >= 0.02
+    where abs(z_1d) >= {{ z }}
 
     union all
     select 'cross-asset', ticker,
            printf('%s %+.1f%% over a month, %+.1f sigma', label, 100 * ret_1m, z_1m),
            abs(z_1m), sign(z_1m)
     from {{ ref('market_board') }}
-    where abs(z_1m) >= {{ z }} + 0.5 and vol_20 >= 0.02
+    where abs(z_1m) >= {{ z }}
 
     union all
     select 'factor', family || ': ' || factor,
@@ -110,9 +112,7 @@ with risk as (
                count(*) over (partition by grp) as n_group,
                row_number() over (partition by grp order by abs(z_1d) desc) as rank
         from {{ ref('market_rates') }}
-        -- A policy rate, a weekly index or the balance sheet moves in steps, so one step
-        -- is a huge sigma.
-        where grp not in ('Policy and money markets', 'Fed balance sheet', 'Conditions')
+        where grp not in ({{ sql_list('monitor_step_groups') }})
           and abs(z_1d) >= {{ z }}
     )
     where rank = 1
@@ -135,12 +135,16 @@ with risk as (
       and kind = 'corr' and abs(z_21) >= {{ z }}
 
     union all
-    select 'stock-specific', ticker,
-           printf('%s %+.1f%% stock-specific (%+.1f sigma), %+.1f%% in all', coalesce(name, ticker),
-                  100 * resid, resid_z, 100 * ret),
-           abs(resid_z) / 2, sign(resid_z)
-    from {{ ref('market_movers') }}
-    where cap >= {{ var('monitor_big_cap') }} and abs(resid_z) >= {{ z }}
+    select 'stock-specific', r.ticker,
+           printf('%s %+.1f%% stock-specific (%+.1f sigma), %+.1f%% in all', coalesce(u.name, r.ticker),
+                  100 * r.resid, s.z, 100 * r.ret),
+           abs(s.z), sign(s.z)
+    from {{ ref('market_scores') }} s
+    join {{ ref('style_residuals') }} r on r.security_key = s.subject and r.date = s.date
+    left join {{ ref('int_universe') }} u on u.ticker = r.ticker and u.date = r.date
+    where s.family = 'specific' and s.h = 1
+      and s.date = (select max(date) from {{ ref('style_residuals') }})
+      and abs(s.z) >= {{ z }}
 
 )
 

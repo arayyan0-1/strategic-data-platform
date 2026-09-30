@@ -100,9 +100,10 @@ vars:
   eval_folds: 4
   holdout_start: "2025-10-01"
 
-  # The market monitor lists an item as an exception beyond these limits: a move of
-  # monitor_z standard deviations, a percentile in the outer monitor_pct of its
-  # history, and a stock-specific move of monitor_z for a cap of monitor_big_cap.
+  # The market monitor lists an item as an exception beyond these limits: a score of
+  # monitor_z, a percentile in the outer monitor_pct of its history, and a stock-specific
+  # score of monitor_z for a cap of monitor_big_cap. A score of 3 is as rare as a move of
+  # 3 standard deviations of a normal distribution.
   monitor_z: 3.0
   monitor_pct: 0.05
   monitor_big_cap: 10000000000
@@ -111,6 +112,30 @@ vars:
   # is significant when it passes the Benjamini-Hochberg procedure at this rate among
   # the tests of its period.
   seasonality_fdr: 0.05
+
+  # A score divides a move by the volatility known before the session. The volatility is
+  # the root of an exponentially weighted mean of squared changes. Its half-life is
+  # monitor_halflife sessions, it looks back monitor_vol_window sessions, and it needs
+  # monitor_min_obs changes. Half-lives of 10 to 21 sessions had the same QLIKE loss within
+  # 1%, and all beat a window of 63 sessions. The half-life of 15 had the most even tail
+  # share from year to year among them.
+  monitor_halflife: 15
+  monitor_vol_window: 252
+  monitor_min_obs: 63
+
+  # The volatility of a rate or a spread is at least monitor_tick percentage points: the
+  # quote step of FRED. Without the floor, a quiet spread that moves one step gets a
+  # ratio of thousands. An ETF whose volatility is under monitor_min_etf_vol a year (a
+  # T-bill fund) has no score. A factor return of less than monitor_zero_return is a
+  # factor that is not defined yet, and its history starts at the first larger return.
+  monitor_tick: 0.01
+  monitor_min_etf_vol: 0.02
+  monitor_zero_return: 1.0e-9
+
+  # These groups of market_rates move in steps (a policy rate, a weekly index, the
+  # balance sheet). A step is a huge move in units of the daily changes of the group, so
+  # each group has its own pool and no exception.
+  monitor_step_groups: ["Policy and money markets", "Fed balance sheet", "Conditions"]
 
 seeds:
   sdp:
