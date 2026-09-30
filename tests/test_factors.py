@@ -280,3 +280,109 @@ def test_return_clip_keeps_the_r2_on_the_raw_returns():
     assert abs(r2[0] - expected) < 1e-12
     _, _, _, _, _, r2_raw = factors.cross_section_returns(day, Z, r, w)
     assert r2[0] < r2_raw[0], "the raw fit has the highest R² on the raw returns"
+
+
+def _fund_panel(T=600, N=3, seed=11, noise=1e-4):
+    """Factor returns X, fund returns R = a + X b + noise, and the true loadings b."""
+    rng = np.random.default_rng(seed)
+    X = rng.normal(0, 0.01, (T, 4)) * np.array([1.0, 2.0, 0.5, 1.5])
+    b = rng.normal(0, 1, (4, N))
+    R = 1e-4 + X @ b + rng.normal(0, noise, (T, N))
+    return X, R, b
+
+
+def test_ridge_loadings_recover_the_loadings_and_leave_the_intercept_free():
+    X, R, b = _fund_panel(T=500)
+    beta, alpha = factors.ridge_loadings(R, X, 1e-6)
+    assert np.abs(beta - b).max() < 0.02
+    assert np.abs(alpha - 1e-4).max() < 1e-5
+    # A huge penalty shrinks every loading to 0. The intercept is then the mean return.
+    beta, alpha = factors.ridge_loadings(R, X, 1e12)
+    assert np.abs(beta).max() < 1e-6
+    assert np.allclose(alpha, R.mean(axis=0), atol=1e-8)
+
+
+def test_ridge_loadings_do_not_depend_on_the_scale_of_a_factor():
+    X, R, _ = _fund_panel(T=400)
+    beta, alpha = factors.ridge_loadings(R, X, 50.0)
+    Xs = X.copy()
+    Xs[:, 1] *= 10
+    beta_s, alpha_s = factors.ridge_loadings(R, Xs, 50.0)
+    assert np.allclose(beta_s[1], beta[1] / 10)
+    assert np.allclose(np.delete(beta_s, 1, axis=0), np.delete(beta, 1, axis=0))
+    assert np.allclose(alpha_s, alpha)
+
+
+def test_ridge_loadings_give_a_constant_factor_the_loading_zero():
+    X, R, _ = _fund_panel(T=300)
+    X[:, 2] = 0.003
+    beta, _ = factors.ridge_loadings(R, X, 5.0)
+    assert np.all(beta[2] == 0)
+
+
+def test_fund_loadings_recover_known_loadings_at_each_rebalance():
+    X, R, b = _fund_panel()
+    U = np.ones(R.shape, dtype=bool)
+    rows, B, alpha, r2, n = factors.fund_loadings(R, X, U, penalty=1e-6)
+    assert list(rows) == list(range(252, 600, 21))
+    assert np.abs(B - b.T[None]).max() < 0.05
+    assert np.abs(alpha - 1e-4).max() < 5e-5
+    assert np.nanmin(r2) > 0.99
+    assert (n == 252).all()
+
+
+def test_fund_loadings_read_no_row_from_the_rebalance_on():
+    X, R, _ = _fund_panel()
+    U = np.ones(R.shape, dtype=bool)
+    rows, B, *_ = factors.fund_loadings(R, X, U)
+    d = 294
+    R2, X2 = R.copy(), X.copy()
+    R2[d:] = np.random.default_rng(1).normal(0, 0.5, R[d:].shape)
+    X2[d:] = np.random.default_rng(2).normal(0, 0.5, X[d:].shape)
+    rows2, B2, *_ = factors.fund_loadings(R2, X2, U)
+    before = rows <= d
+    assert before.sum() == 3
+    assert np.array_equal(B[before], B2[before])
+    assert not np.allclose(B[~before][0], B2[~before][0])
+
+
+def test_fund_loadings_skip_a_fund_that_is_not_eligible():
+    X, R, _ = _fund_panel(N=4)
+    U = np.ones(R.shape, dtype=bool)
+    U[252, 0] = False          # Not liquid on the first rebalance.
+    R[:100, 1] = np.nan        # 152 returns before the first rebalance, under 252.
+    R[300:, 2] = np.nan        # The returns stop, so the window empties.
+    rows, B, alpha, r2, n = factors.fund_loadings(R, X, U)
+    at = {int(d): i for i, d in enumerate(rows)}
+    assert np.isnan(B[at[252], 0]).all() and np.isfinite(B[at[273], 0]).all()
+    assert np.isnan(B[at[252], 1]).all() and np.isfinite(B[at[357], 1]).all()
+    assert np.isfinite(B[at[420], 2]).all() and n[at[420], 2] == 132
+    assert np.isnan(B[at[441], 2]).all() and n[at[441], 2] == 111
+    assert np.isfinite(B[:, 3]).all()
+
+
+def test_fund_loadings_skip_a_row_with_a_missing_factor_or_return():
+    X, R, _ = _fund_panel(N=2)
+    X[300:310, 0] = np.nan
+    R[290:295, 1] = np.nan
+    U = np.ones(R.shape, dtype=bool)
+    rows, B, _, _, n = factors.fund_loadings(R, X, U)
+    i = list(rows).index(315)
+    assert n[i, 0] == 252 - 10 and n[i, 1] == 252 - 10 - 5
+    assert np.isfinite(B[i]).all()
+
+
+def test_fund_loadings_share_a_solve_between_funds_with_the_same_rows():
+    X, R, _ = _fund_panel(N=5)
+    R[270:275, 1] = np.nan
+    R[270:275, 3] = np.nan     # The same rows as fund 1, so one group.
+    R[280, 4] = np.nan
+    U = np.ones(R.shape, dtype=bool)
+    rows, B, alpha, r2, n = factors.fund_loadings(R, X, U, penalty=5.0)
+    i = list(rows).index(294)
+    for j in range(5):
+        y = R[294 - 252:294, j]
+        use = np.isfinite(y)
+        beta, a = factors.ridge_loadings(y[use][:, None], X[294 - 252:294][use], 5.0)
+        assert np.allclose(B[i, j], beta[:, 0])
+        assert np.isclose(alpha[i, j], a[0])

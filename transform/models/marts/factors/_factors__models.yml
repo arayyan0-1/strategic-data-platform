@@ -186,3 +186,96 @@ models:
 
   - name: factor_crowding
     description: Crowding of each style from short interest in its short leg less its long leg, per settlement.
+
+  - name: macro_factor_returns
+    description: The change of each macro series over each session (yields and spreads in percentage
+      points, currencies, the dollar, oil and bitcoin in log points). A session after the last observation
+      of a series is pending, so its change is null and not 0.
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+          - unique
+      - name: d_curve_10y_2y
+        description: The change of the 10-year yield less the change of the 2-year yield.
+      - name: pending
+        description: The factors whose series has no observation yet on the session. It is an empty list
+          when none is pending. A null change that is not in the list has no observation before the start
+          of its series.
+        data_tests:
+          - not_null
+
+  - name: fund_exposures
+    description: The loadings of each liquid fund on the style, industry and macro factors, from a ridge
+      regression of its daily return on the factor returns over the window before each fit. One row is one
+      fit. The loadings earn the sessions from fit_date to last_date.
+    config:
+      fund_macro: "{{ var('fund_macro') | join(',') }}"
+      fund_window: "{{ var('fund_window') }}"
+      fund_step: "{{ var('fund_step') }}"
+      fund_min_obs: "{{ var('fund_min_obs') }}"
+      fund_min_returns: "{{ var('fund_min_returns') }}"
+      fund_min_adv: "{{ var('fund_min_adv') }}"
+      fund_ridge: "{{ var('fund_ridge') }}"
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: fit_date
+        description: The first session that the loadings earn.
+        data_tests:
+          - not_null
+      - name: window_end
+        description: The last session that the fit reads, the session before fit_date.
+        data_tests:
+          - not_null
+      - name: last_date
+        description: The last session that the loadings earn.
+      - name: r2_in
+        description: The share of the variance of the returns of the window that the fit explains.
+      - name: n_obs
+        description: The count of rows of the window with the return of the fund and every factor.
+      - name: ridge
+        description: The penalty of the fit.
+      - name: intercept
+        description: The daily constant of the fit. It is not a factor part.
+      - name: market
+        description: The loading on the market, in the units of the market exposure of a stock (1 for a stock).
+      - name: d_t_10y
+        description: The loading on the change of the 10-year yield in percentage points. The duration in
+          years is minus 100 times the loading.
+
+  - name: fund_residuals
+    description: The return of each fund split into market, industry, style and macro parts from its
+      exposures, and a residual with its forecast volatility. One row per fund and session that a fit
+      covers. The forecast reads only the sessions before the row.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+      - name: fit_date
+        description: The fit of fund_exposures that gave the loadings of the row.
+        data_tests:
+          - not_null
+      - name: alpha
+        description: The intercept of the fit, the daily constant of the fund. It is not a factor part.
+      - name: macro_part
+        description: The macro factors times their loadings. A factor with no observation yet adds 0.
+      - name: macro_pending
+        description: True when a macro factor of fund_macro has no observation yet on the session. The
+          residual of the row then still holds the move of that factor.
+        data_tests:
+          - not_null
+      - name: resid
+        description: The return less alpha and the market, industry, style and macro parts.
+        data_tests:
+          - not_null
+      - name: spec_vol
+        description: The root mean square of the residuals of the fund before the row, weighted so that the
+          weight halves every fund_spec_vol_half_life rows. A row with macro_pending has no weight. Null with
+          fewer than fund_spec_vol_min_obs residuals.
+      - name: resid_z
+        description: The residual in units of spec_vol.

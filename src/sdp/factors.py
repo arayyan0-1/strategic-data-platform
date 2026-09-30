@@ -314,3 +314,65 @@ def mimic_returns(
         out[d:end] = np.where(np.isfinite(Bn).all(axis=1), Bn @ coef[1:], np.nan)
         r2[d:end] = 1 - np.sum((yy[ok] - fit) ** 2) / ss_tot if ss_tot > 0 else np.nan
     return out, r2
+
+
+def ridge_loadings(
+    y: np.ndarray, X: np.ndarray, penalty: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the loadings and the intercept of a ridge regression of each column of the
+    n x m matrix y on the n x k matrix X. The penalty acts on the standardized columns of X.
+    The intercept has no penalty. The loadings are in the units of X. A column of X with no
+    variance gets the loading 0."""
+    mu = X.mean(axis=0)
+    sd = np.where(np.ptp(X, axis=0) > 0, X.std(axis=0), np.inf)
+    Z = (X - mu) / sd
+    ym = y.mean(axis=0)
+    coef = np.linalg.solve(Z.T @ Z + penalty * np.eye(X.shape[1]), Z.T @ (y - ym))
+    beta = coef / sd[:, None]
+    return beta, ym - mu @ beta
+
+
+def fund_loadings(
+    R: np.ndarray, X: np.ndarray, U: np.ndarray, *,
+    window: int = 252, step: int = 21, min_obs: int = 126, min_returns: int = 252,
+    penalty: float = 5.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return the rebalance rows, the loadings (fits x funds x factors), the intercepts,
+    the in-sample R squared and the count of rows of each fit.
+
+    R holds the daily returns of the funds and X the factor returns, one row for each
+    session. At each rebalance row d, a ridge regression (ridge_loadings) of the return of
+    a fund on X over rows d - window to d - 1 gives the loadings. The loadings earn the rows
+    d to d + step - 1. A fund gets a fit when U is true for it on row d and it has at least
+    min_returns returns before row d. At least min_obs rows of the window must also have
+    its return and every factor. Other funds get NaN. The fit reads no row from d on."""
+    T, N = R.shape
+    K = X.shape[1]
+    seen = np.cumsum(np.isfinite(R), axis=0)
+    rows = np.arange(window, T, step)
+    B = np.full((rows.size, N, K), np.nan)
+    alpha = np.full((rows.size, N), np.nan)
+    r2 = np.full((rows.size, N), np.nan)
+    n_obs = np.zeros((rows.size, N), dtype=int)
+    for i, d in enumerate(rows):
+        Xw, Rw = X[d - window:d], R[d - window:d]
+        fin = np.isfinite(Rw) & np.isfinite(Xw).all(axis=1)[:, None]
+        n_obs[i] = fin.sum(axis=0)
+        ok = U[d] & (n_obs[i] >= min_obs) & (seen[d - 1] >= min_returns)
+        cols = np.flatnonzero(ok)
+        if cols.size == 0:
+            continue
+        # Funds with the same usable rows share one design, so they share one solve.
+        _, group = np.unique(np.packbits(fin[:, cols], axis=0).T, axis=0, return_inverse=True)
+        group = group.reshape(-1)
+        for g in np.unique(group):
+            c = cols[group == g]
+            use = fin[:, c[0]]
+            y = Rw[use][:, c]
+            b, a = ridge_loadings(y, Xw[use], penalty)
+            B[i, c] = b.T
+            alpha[i, c] = a
+            ss_tot = ((y - y.mean(axis=0)) ** 2).sum(axis=0)
+            ss_res = ((y - a - Xw[use] @ b) ** 2).sum(axis=0)
+            r2[i, c] = np.where(ss_tot > 0, 1 - ss_res / np.where(ss_tot > 0, ss_tot, 1), np.nan)
+    return rows, B, alpha, r2, n_obs
