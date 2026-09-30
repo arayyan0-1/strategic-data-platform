@@ -2,7 +2,7 @@
 """Factor-mimicking portfolios from a panel of returns. NumPy only, with no I/O. The dbt
 Python models read the warehouse and call these functions.
 
-Three constructions:
+Four constructions:
 
 - style_returns: a cross-sectional regression on each session. Each coefficient is the
   return of a portfolio with unit exposure to one characteristic and zero exposure to
@@ -11,6 +11,9 @@ Three constructions:
   rebalance and held out of sample.
 - mimic_returns: a rolling projection of a target return series (a published factor) on
   a set of traded base portfolios, held out of sample.
+- fund_loadings: a rolling ridge regression of the return of each fund on the factor
+  returns, held out of sample. The loadings are the exposures of a security that the
+  cross-section cannot describe from its characteristics.
 
 A row of a panel is a session and a column is a name. A return on row d is the return
 from the close of session d - 1 to the close of session d.
