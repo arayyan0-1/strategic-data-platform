@@ -113,9 +113,21 @@ models:
   - name: factor_correlation
     description: The correlation of the daily returns of each pair of factors over the last two years.
 
+  - name: factor_scores
+    description: The score of the move of each factor over 1 and 21 sessions, one row per factor, horizon
+      and session. A score of 3 is as rare as a 3 sigma move of a normal distribution on the history of the
+      factors of its family.
+    columns:
+      - name: z_raw
+        description: The log return over the volatility known before the last session of the move, times the
+          root of the horizon.
+      - name: z
+        description: The score, the normal quantile of the share of the pool of the family that has a
+          z_raw at least as large.
+
   - name: factor_risk
-    description: The risk state of each factor on its last session in units of its own history (z, volatility
-      percentile, drawdown percentile, correlation shift, crowding).
+    description: The risk state of each factor on its last session in units of its own history (score,
+      volatility percentile, drawdown percentile, correlation shift, crowding).
     columns:
       - name: factor
         data_tests:

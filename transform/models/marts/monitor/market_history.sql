@@ -1,6 +1,6 @@
 {#
-  The total-adjusted close of each monitor ETF over the last two years, for charts.
-  The ETF is the security that holds its ticker on the last session.
+  The total-adjusted close of each monitor ETF over the whole history of the lake, for
+  charts and scores. The ETF is the security that holds its ticker on the last session.
 #}
 
 with last_session as (
@@ -25,4 +25,3 @@ join {{ ref('int_universe') }} u
     on u.security_key = k.security_key and u.is_primary_line
 join {{ ref('int_prices_adjusted') }} p
     on p.ticker = u.ticker and p.date = u.date
-where p.date > (select d from last_session) - interval 2 year

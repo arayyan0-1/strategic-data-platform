@@ -1,8 +1,10 @@
 {#
   The risk state of each factor on its last session, in units of its own history:
 
-  - z_1d is the last return over the volatility of the 63 sessions before it. z_1m is
-    the log return of the last 21 sessions over that volatility times the root of 21.
+  - z_1d is the score of the last return and z_1m the score of the log return of the last
+    21 sessions (factor_scores). A score of 3 is as rare as a 3 sigma move of a normal
+    distribution on the history of the factors of its family. It is null while the factor
+    has no volatility to divide by.
   - vol_63 is the annualized volatility of the last 63 sessions. vol_pctile is the share
     of the history of the factor with a lower or equal vol_63: 0.95 is a high-volatility
     regime for the factor.
@@ -39,8 +41,6 @@ with r as (
         m.mret,
         corr(r.ret, y.dy_10y) over (partition by r.family, r.factor order by r.date
             rows between 62 preceding and current row)                  as rate_corr_63,
-        stddev_samp(r.ret) over (partition by r.family, r.factor order by r.date
-            rows between 63 preceding and 1 preceding)                   as sd_prev,
         stddev_samp(r.ret) over (partition by r.family, r.factor order by r.date
             rows between 62 preceding and current row) * sqrt(252)      as vol_63,
         exp(sum(ln(1 + r.ret)) over (partition by r.family, r.factor order by r.date
@@ -95,9 +95,9 @@ select
     coalesce(fl.label, l.factor)                             as label,
     l.date                                                   as last_date,
     l.ret                                                    as ret_1d,
-    l.ret / nullif(l.sd_prev, 0)                             as z_1d,
+    s1.z                                                     as z_1d,
     l.level / m.level_21 - 1                                 as ret_1m,
-    ln(l.level / m.level_21) / nullif(l.sd_prev * sqrt(21), 0) as z_1m,
+    s21.z                                                    as z_1m,
     l.vol_63,
     h.vol_pctile,
     l.drawdown,
@@ -112,5 +112,9 @@ select
 from last l
 join history h using (family, factor)
 left join month m using (family, factor)
+left join {{ ref('factor_scores') }} s1
+    on s1.family = l.family and s1.factor = l.factor and s1.h = 1 and s1.date = l.date
+left join {{ ref('factor_scores') }} s21
+    on s21.family = l.family and s21.factor = l.factor and s21.h = 21 and s21.date = l.date
 left join crowd c on l.family = 'style' and c.factor = l.factor
 left join {{ ref('factor_labels') }} fl on fl.family = l.family and fl.factor = l.factor
