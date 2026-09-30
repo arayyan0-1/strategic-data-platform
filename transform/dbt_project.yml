@@ -147,6 +147,44 @@ vars:
   # each group has its own pool and no exception.
   monitor_step_groups: ["Policy and money markets", "Fed balance sheet", "Conditions"]
 
+  # The exposures of a fund to the factors (fund_exposures). A fund line is the primary line
+  # of a security with a type in fund_types. A fund gets a fit when its trailing dollar
+  # volume is at least fund_min_adv on the session of the fit and it has fund_min_returns
+  # returns before that session. At least fund_min_obs rows of the window must also hold its
+  # return and every factor. A fit reads the fund_window sessions before it and earns the
+  # next fund_step sessions. fund_ridge is the penalty on factor returns that are
+  # standardized. On the development sessions, the median out-of-sample R squared of the
+  # funds with a dollar volume of $50M or more moved by 0.001 between a penalty of 1 and 10.
+  # It fell from a penalty of 20.
+  fund_types: ["ETF", "ETN", "ETV", "ETS", "FUND"]
+  fund_min_adv: 1000000
+  fund_window: 252
+  fund_step: 21
+  fund_min_obs: 126
+  fund_min_returns: 252
+  fund_ridge: 5.0
+
+  # The macro factors of the fund exposures, from macro_factor_returns. A factor is in the
+  # list when, on the development sessions, it raised the median out-of-sample R squared of
+  # its own group of funds by 0.01 or more and lowered the median of the US equity funds by
+  # 0.002 or less. The groups are bond funds (the 10-year and 2-year yields), dollar and
+  # international funds (the broad dollar and the euro), oil and gold funds (oil) and
+  # bitcoin funds (bitcoin). The real yield, the high-yield spread and the yen did not
+  # reach 0.01. The 2-year yield replaces the slope of the curve, because both span the same
+  # space with the 10-year yield. With the 2-year yield, the loading on the 10-year yield is
+  # a duration at a fixed 2-year yield. From about October 2024 to November 2025 the FRED
+  # bitcoin series is dated one day early against the bitcoin funds, so a fit that reads
+  # that stretch under-states the bitcoin loading.
+  fund_macro: ["d_t_10y", "d_t_2y", "d_dollar", "d_wti", "d_bitcoin", "d_eurusd"]
+
+  # The forecast of the specific volatility of a fund (fund_residuals). The weight of a
+  # residual halves every fund_spec_vol_half_life rows. The forecast needs
+  # fund_spec_vol_min_obs residuals before the row. The half-life must be 2 or more. On the
+  # development sessions, the loss of the forecast stayed within 0.01 for half-lives of 21
+  # to 63 rows. It was higher for shorter ones.
+  fund_spec_vol_half_life: 21
+  fund_spec_vol_min_obs: 21
+
 seeds:
   sdp:
     +schema: reference

@@ -212,3 +212,14 @@ models:
       - name: days_to_cover_is_censored
         data_tests:
           - not_null
+
+  - name: int_fund_returns
+    description: The daily total return of the primary line of each fund (a security with a type in
+      fund_types), on each session with a bar. Null when the line has no bar on the session before.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
