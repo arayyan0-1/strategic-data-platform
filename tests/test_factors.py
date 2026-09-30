@@ -32,6 +32,75 @@ def test_zscore_centered_on_the_cap_gives_the_cap_weighted_market_no_exposure():
     assert factors.zscore(x, cap, clip=1.5).max() == 1.5
 
 
+def _zscore_in_one_piece(x, w, clip=3.0):
+    """The zscore as it was written before the fit and the apply were two functions."""
+    x = np.asarray(x, dtype=float)
+    z = np.zeros_like(x)
+    ok = np.isfinite(x)
+    if ok.sum() < 3:
+        return z
+    v = x[ok]
+    med = np.median(v)
+    mad = 1.4826 * np.median(np.abs(v - med))
+    if mad > 0:
+        v = np.clip(v, med - 5 * mad, med + 5 * mad)
+    ww = w[ok]
+    mu = np.average(v, weights=ww) if ww.sum() > 0 else v.mean()
+    sd = v.std()
+    if sd == 0:
+        return z
+    z[ok] = np.clip((v - mu) / sd, -clip, clip)
+    return z
+
+
+def test_zscore_gives_the_same_bits_as_the_version_in_one_piece():
+    rng = np.random.default_rng(10)
+    cases = [(np.ones(20), np.ones(20)),
+             (np.append(np.zeros(30), [1.0, 2.0]), np.ones(32)),
+             (rng.normal(0, 1, 30), np.zeros(30))]
+    for n in (0, 1, 2, 3, 4, 7, 50, 1000):
+        x, w = rng.normal(0, 1, n), rng.uniform(0.1, 5, n)
+        cases.append((x, w))
+        if n >= 3:
+            gap, big = x.copy(), x.copy()
+            gap[: n // 3] = np.nan
+            big[0] = 1e9
+            cases += [(gap, w), (big, w)]
+    for x, w in cases:
+        for clip in (3.0, 1.5):
+            assert np.array_equal(factors.zscore(x, w, clip), _zscore_in_one_piece(x, w, clip))
+
+
+def test_zscore_apply_keeps_the_scale_of_the_fit():
+    rng = np.random.default_rng(11)
+    fit = rng.normal(5, 2, 3000)
+    w = np.exp(rng.normal(0, 1, 3000))
+    lo, hi, mu, sd = params = factors.zscore_fit(fit, w)
+    assert np.array_equal(factors.zscore_apply(fit, params), factors.zscore(fit, w))
+    z = factors.zscore_apply(np.array([mu, mu + sd, mu - 2 * sd, np.nan, 1e9]), params, clip=10.0)
+    assert np.allclose(z[:3], [0.0, 1.0, -2.0])
+    assert z[3] == 0
+    assert z[4] == factors.zscore_apply(np.array([hi]), params, clip=10.0)[0], "a winsor bound"
+
+
+def test_standardize_apply_uses_the_parameters_of_the_session_of_the_row():
+    rng = np.random.default_rng(12)
+    day = np.repeat([0, 1], 500)
+    X = np.column_stack([np.where(day == 0, 0.0, 10.0) + rng.normal(0, 1, 1000),
+                         rng.normal(0, 1, 1000)])
+    w = rng.uniform(1, 2, 1000)
+    Z = factors.standardize(day, X, w)
+    days, P = factors.standardize_fit(day, X, w)
+    Z2, known = factors.standardize_apply(day, X, days, P)
+    assert known.all() and np.array_equal(Z, Z2)
+    # A name at 10 is far above the mean of session 0 and on the mean of session 1. A session
+    # with no parameters gives no z-score.
+    Zc, known = factors.standardize_apply(
+        np.array([0, 1, 2]), np.array([[10.0, 0.0]] * 3), days, P)
+    assert Zc[0, 0] == 3 and abs(Zc[1, 0]) < 0.3
+    assert list(known) == [True, True, False] and not Zc[2].any()
+
+
 def test_style_returns_recover_the_factor_returns():
     rng = np.random.default_rng(2)
     days, names, k = 40, 600, 3

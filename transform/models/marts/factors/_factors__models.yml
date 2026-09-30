@@ -58,6 +58,57 @@ models:
       - name: resid_z
         description: The residual in units of spec_vol.
 
+  - name: coverage_exposures
+    description: The industry and the eight style z-scores of each common stock that the universe leaves
+      out (the types in coverage_types), per session, with the return of the next session. The z-scores use
+      the parameters of the universe of the session (winsor bounds, mean and standard deviation), so they
+      share its scale, and a missing characteristic gives 0. The build covers the latest coverage_sessions
+      sessions, or all with 0.
+    config:
+      style_center: "{{ var('style_center') }}"
+      style_clip: "{{ var('style_clip') }}"
+      coverage_sessions: "{{ var('coverage_sessions') }}"
+      coverage_types: "{{ tojson(var('coverage_types')) }}"
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: industry
+        data_tests:
+          - not_null
+      - name: fwd_ret_1
+        description: The return of the next session. Null when the name has no bar on the next session,
+          because the return of a longer gap does not belong to the factor returns of one session.
+
+  - name: coverage_residuals
+    description: The return of each coverage name split into market, industry and style parts and a
+      stock-specific residual, with the residual in units of its forecast volatility. The parts are the
+      exposures of coverage_exposures times the factor returns of style_factor_returns. The forecast is the
+      own volatility from the residuals of the name before the session, from the universe and from the
+      coverage set, times the vol_regime of the universe. It has no size-decile shrinkage.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: resid
+        data_tests:
+          - not_null
+      - name: market_cap
+        description: The market cap of the share class on the session of the exposure, the close before the
+          return. Null when the vendor gives none.
+      - name: own_vol
+        description: The root mean square of the earlier residuals of the name, weighted so that the weight
+          halves every spec_vol_half_life rows. Null with fewer than spec_vol_min_obs residuals.
+      - name: vol_regime
+        description: The factor for the volatility regime, the same as in style_residuals on the session.
+        data_tests:
+          - not_null
+      - name: spec_vol
+        description: The forecast of the volatility of the residual for the session. It is own_vol times
+          vol_regime.
+      - name: resid_z
+        description: The residual in units of spec_vol.
+
   - name: pca_factor_returns
     description: The top five eigenportfolios of the trailing correlation matrix, held out of sample.
     columns:

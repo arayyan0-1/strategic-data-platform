@@ -13,18 +13,9 @@ read this table.
 """
 import numpy as np
 
-from sdp.factors import filled, standardize
+from sdp.factors import STYLE_SQL, filled, standardize
 
-STYLES = {
-    "size": "ln(u.market_cap)",
-    "liquidity": "ln(u.adv / u.market_cap)",
-    "beta": "s.beta_252",
-    "momentum": "s.momentum_12_1",
-    "reversal": "s.reversal_5",
-    "volatility": "s.vol_60",
-    "dividend_yield": "s.dividend_yield",
-    "high_52w": "s.high_52w",
-}
+STYLES = STYLE_SQL
 
 
 def model(dbt, session):

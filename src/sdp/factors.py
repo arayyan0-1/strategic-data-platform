@@ -27,28 +27,61 @@ def filled(a) -> np.ndarray:
     return np.ma.filled(np.ma.asarray(a, dtype=float), np.nan)
 
 
+# The warehouse expression of each style characteristic. The alias u is int_universe and
+# the alias s is signals. A characteristic that the log cannot take is null.
+STYLE_SQL = {
+    "size": "case when u.market_cap > 0 then ln(u.market_cap) end",
+    "liquidity": "case when u.adv > 0 and u.market_cap > 0 then ln(u.adv / u.market_cap) end",
+    "beta": "s.beta_252",
+    "momentum": "s.momentum_12_1",
+    "reversal": "s.reversal_5",
+    "volatility": "s.vol_60",
+    "dividend_yield": "s.dividend_yield",
+    "high_52w": "s.high_52w",
+}
+
+
+def zscore_fit(x: np.ndarray, w: np.ndarray) -> tuple[float, float, float, float]:
+    """Return the parameters that standardize one cross-section: the lower and upper
+    winsor bounds (the median plus or minus 5 robust standard deviations), the w-weighted
+    mean of the winsorized values and their equal-weighted standard deviation. A
+    cross-section with fewer than 3 finite values, or with no spread, gets a standard
+    deviation of 0, and zscore_apply then gives 0 for every value."""
+    x = np.asarray(x, dtype=float)
+    ok = np.isfinite(x)
+    if ok.sum() < 3:
+        return -np.inf, np.inf, 0.0, 0.0
+    v = x[ok]
+    med = np.median(v)
+    mad = 1.4826 * np.median(np.abs(v - med))
+    lo, hi = (med - 5 * mad, med + 5 * mad) if mad > 0 else (-np.inf, np.inf)
+    v = np.clip(v, lo, hi)
+    ww = w[ok]
+    mu = np.average(v, weights=ww) if ww.sum() > 0 else v.mean()
+    return float(lo), float(hi), float(mu), float(v.std())
+
+
+def zscore_apply(x: np.ndarray, params: tuple[float, float, float, float],
+                 clip: float = 3.0) -> np.ndarray:
+    """Standardize x with the parameters of zscore_fit: winsorize, center, scale and clip at
+    plus or minus clip. A missing value becomes 0, the mean. The values of x need not be
+    the values that gave the parameters."""
+    lo, hi, mu, sd = params
+    x = np.asarray(x, dtype=float)
+    z = np.zeros_like(x)
+    ok = np.isfinite(x)
+    if not sd > 0 or not ok.any():
+        return z
+    z[ok] = np.clip((np.clip(x[ok], lo, hi) - mu) / sd, -clip, clip)
+    return z
+
+
 def zscore(x: np.ndarray, w: np.ndarray, clip: float = 3.0) -> np.ndarray:
     """Standardize one cross-section. Winsorize at the median plus or minus 5 robust
     standard deviations, center on the w-weighted mean, divide by the equal-weighted
     standard deviation and clip at plus or minus clip. A missing value becomes 0, the
     mean. With w the market cap, the cap-weighted market has an exposure of 0."""
-    x = np.asarray(x, dtype=float)
-    z = np.zeros_like(x)
-    ok = np.isfinite(x)
-    if ok.sum() < 3:
-        return z
-    v = x[ok]
-    med = np.median(v)
-    mad = 1.4826 * np.median(np.abs(v - med))
-    if mad > 0:
-        v = np.clip(v, med - 5 * mad, med + 5 * mad)
-    ww = w[ok]
-    mu = np.average(v, weights=ww) if ww.sum() > 0 else v.mean()
-    sd = v.std()
-    if sd == 0:
-        return z
-    z[ok] = np.clip((v - mu) / sd, -clip, clip)
-    return z
+    return zscore_apply(x, zscore_fit(x, w), clip)
 
 
 def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
@@ -65,6 +98,43 @@ def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
         for j in range(X.shape[1]):
             Z[rows, j] = zscore(X[rows, j], w[rows], clip)
     return Z
+
+
+def standardize_fit(day: np.ndarray, X: np.ndarray, w: np.ndarray
+                    ) -> tuple[np.ndarray, np.ndarray]:
+    """Return the sessions and the parameters of zscore_fit for each session and column of
+    X, as an array of shape (sessions, columns, 4)."""
+    day = np.asarray(day)
+    order = np.argsort(day, kind="stable")
+    days, starts = np.unique(day[order], return_index=True)
+    ends = np.append(starts[1:], day.size)
+    P = np.zeros((days.size, X.shape[1], 4))
+    for i, (a, b) in enumerate(zip(starts, ends, strict=True)):
+        rows = order[a:b]
+        for j in range(X.shape[1]):
+            P[i, j] = zscore_fit(X[rows, j], w[rows])
+    return days, P
+
+
+def standardize_apply(day: np.ndarray, X: np.ndarray, days: np.ndarray, P: np.ndarray,
+                      clip: float = 3.0) -> tuple[np.ndarray, np.ndarray]:
+    """Return the z-scores of the rows of X under the parameters of standardize_fit, and
+    a flag for the rows whose session has parameters. The z-scores of a row with no
+    parameters are 0. Rows keep their order."""
+    day = np.asarray(day)
+    Z = np.zeros_like(X, dtype=float)
+    known = np.isin(day, days)
+    order = np.argsort(day, kind="stable")
+    sessions, starts = np.unique(day[order], return_index=True)
+    ends = np.append(starts[1:], day.size)
+    for d, a, b in zip(sessions, starts, ends, strict=True):
+        i = np.searchsorted(days, d)
+        if i >= days.size or days[i] != d:
+            continue
+        rows = order[a:b]
+        for j in range(X.shape[1]):
+            Z[rows, j] = zscore_apply(X[rows, j], tuple(P[i, j]), clip)
+    return Z, known
 
 
 def weighted_median(x: np.ndarray, w: np.ndarray) -> float:

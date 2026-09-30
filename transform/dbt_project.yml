@@ -81,6 +81,16 @@ vars:
   style_center: cap
   style_clip: 3.0
 
+  # The coverage universe: the common stock outside the estimation universe gets style
+  # exposures and a residual, but the fit never sees it. coverage_types lists the types
+  # (funds, preferreds, rights, units and warrants are out). coverage_sessions is the
+  # number of latest sessions that the coverage models build, 0 for all. All sessions take
+  # 12 seconds. A limit shortens the history of the specific volatility of a name, so keep
+  # at least 2 years more than the window that is read, because the weight of a residual
+  # halves every spec_vol_half_life rows.
+  coverage_types: ["CS", "ADRC"]
+  coverage_sessions: 0
+
   # The style fit clips the returns of each session at the weighted median plus or minus
   # this many robust standard deviations (1.4826 times the MAD). 0 means no clip. The
   # residual and r2 always use the raw returns, so a jump stays in the residual.

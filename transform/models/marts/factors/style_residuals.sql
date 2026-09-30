@@ -30,7 +30,6 @@
     {{ exceptions.raise_compiler_error(
         'spec_vol_half_life and spec_vol_regime_half_life must be 2 or more.') }}
 {% endif %}
-{% set decay = 0.5 ** (1.0 / var('spec_vol_half_life')) %}
 {% set regime_decay = 0.5 ** (1.0 / var('spec_vol_regime_half_life')) %}
 {% set shrink = var('spec_vol_shrinkage') %}
 
@@ -70,17 +69,9 @@ with days as (
 
 ), own as (
 
-    -- One running sum holds each residual with the weight decay^(-k), where k is the
-    -- position of the residual in the history of the name. The factor decay^(k - 1) turns
-    -- the sum into the weights of row k. The weights of the k - 1 rows before add up to
-    -- (1 - decay^(k - 1)) / (1 - decay).
     select
         *,
-        case when k - 1 >= {{ var('spec_vol_min_obs') }}
-             then sqrt(sum(resid * resid * power({{ decay }}, -k)) over prev
-                       * power({{ decay }}, k - 1) * (1 - {{ decay }})
-                       / (1 - power({{ decay }}, k - 1)))
-        end                                                         as own_vol
+        {{ own_vol() }}                                             as own_vol
     from resid
     window prev as (partition by security_key order by date
                     rows between unbounded preceding and 1 preceding)
