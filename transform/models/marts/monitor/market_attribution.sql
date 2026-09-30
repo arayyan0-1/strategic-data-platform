@@ -8,8 +8,11 @@
   - kind industry: the return of the names of each Fama-French 12 industry, times their
     weight.
 
-  A cap-weighted style exposure is not zero, so the styles can move the cap-weighted
-  market: on a day when large names rise more than small names, size shows here.
+  Under cap weights the industries sum to 0 (the constraint of the model) and each style
+  to about 0 (the z-scores are centered on the cap), so the cap-weighted market splits
+  into the market factor and the stock-specific part. The residuals are neutral under the
+  root of the cap, not the cap, so that part is not 0. The equal-weighted market holds
+  more small names, so its industries and styles show.
 #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
