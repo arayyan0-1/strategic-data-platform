@@ -123,6 +123,25 @@
   .stackbar span { height:100%; }
   .inline input { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:3px;
                   font:inherit; padding:2px 6px; width:90px; }
+  .badge { display:inline-block; border:1px solid currentColor; border-radius:3px; padding:0 6px; font-size:11px;
+           letter-spacing:.08em; text-transform:uppercase; }
+  .badge.universe { color:var(--up); } .badge.coverage { color:var(--blue); }
+  .badge.fund { color:var(--amber); } .badge.none, .badge.cash, .badge.unresolved { color:var(--dim); }
+  .badge.no_model { color:var(--dim); }
+  .routenote { margin:6px 0 10px; color:var(--dim); font-size:12px; }
+  td, th, .kv, .tile .v { font-variant-numeric:tabular-nums; }
+  .pf-input { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:14px; }
+  .pf-input textarea { width:100%; min-height:150px; background:var(--panel); color:var(--ink); resize:vertical;
+                       border:1px solid var(--line); border-radius:3px; padding:6px 8px; font:inherit; }
+  .pf-input textarea:focus, .pf-bar select:focus, .pf-bar input:focus { outline:none; border-color:var(--amber); }
+  .pf-bar { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; margin-bottom:8px; }
+  .pf-bar select, .pf-bar input { background:var(--panel); color:var(--ink); border:1px solid var(--line);
+                                  border-radius:3px; font:inherit; padding:3px 6px; max-width:100%; }
+  .pf-bar input { width:150px; }
+  .btn.go { color:var(--bg); background:var(--amber); border-color:var(--amber); }
+  .warnbox { border-left:3px solid var(--amber); background:var(--panel); padding:6px 10px; margin:8px 0;
+             font-size:12px; }
+  @media (max-width:900px) { .pf-input { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -532,7 +551,8 @@ function applyLayout() {
     $(id).hidden = L.hidden.includes(id);
   }
   $("nav").innerHTML = order.filter(id => !L.hidden.includes(id))
-    .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("") + '<a href="/">data status</a>';
+    .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("")
+    + '<a href="#portfolio">portfolio</a><a href="/">data status</a>';
   const hidden = SECTIONS.filter(id => L.hidden.includes(id));
   $("layout-menu").innerHTML = (hidden.length ? "<div class='dim'>Hidden sections:</div>" + hidden.map(id =>
     `<div><a href="#" data-show="${id}">show ${esc($(id).dataset.nav || id)}</a></div>`).join("")
@@ -594,6 +614,8 @@ function suggest(q) {
     const t = ($(id).dataset.nav || id) + " " + $(id).querySelector("h2").firstChild.textContent;
     if (starts(t) || has(t)) add(starts(t) ? 1 : 4, {kind: "section", id, label: $(id).dataset.nav || id, detail: "section"});
   }
+  if (lo.length >= 2 && "portfolio".startsWith(lo)) add(1, {kind: "portfolio", label: "portfolio",
+    detail: "holdings: exposures, risk, what moved"});
   for (const r of (DATA && DATA.rates ? DATA.rates.rows : [])) {
     const t = r.label + " " + r.measure;
     if (starts(t) || has(t)) add(starts(t) ? 2 : 5, {kind: "measure", m: r.measure, label: r.label, detail: r.grp});
@@ -601,8 +623,9 @@ function suggest(q) {
   let nStart = 0, nName = 0;
   for (const r of INDEX || []) {
     const item = {kind: "ticker", t: r[0], label: r[0], detail: `${r[1] || ""} · ${r[2] || ""}${r[3] ? " · " + big(r[3]) : ""}`};
-    if (r[0] === u) add(0, item);
-    else if (r[0].startsWith(u) && nStart < 8) { add(3, item); nStart++; }
+    const up = r[0].toUpperCase();
+    if (up === u) add(0, item);
+    else if (up.startsWith(u) && nStart < 8) { add(3, item); nStart++; }
     else if (lo.length >= 3 && (r[1] || "").toLowerCase().includes(lo) && nName < 8) { add(6, item); nName++; }
   }
   return out.sort((a, b) => a.score - b.score || a.n - b.n).slice(0, 16);
@@ -622,6 +645,7 @@ function runCommand(c) {
   if (c.kind === "ticker") location.hash = `stock/${c.t}`;
   else if (c.kind === "pair") location.hash = `pair/${c.a}/${c.b}`;
   else if (c.kind === "section") reveal(c.id);
+  else if (c.kind === "portfolio") location.hash = "portfolio";
   else if (c.kind === "measure") {
     const r = DATA.rates.rows.find(x => x.measure === c.m), panel = PANELS.find(p => p.groups.includes(r.grp));
     if (!panel.sel.includes(c.m)) panel.sel.push(c.m);
@@ -1236,11 +1260,12 @@ function openOverlay(html) {
 function closeOverlay() {
   if ($("overlay").hidden) return;
   $("overlay").hidden = true; document.body.style.overflow = "";
-  if (/^#(stock|pair)\//.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+  if (/^#(stock\/|pair\/|portfolio$)/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
 }
 async function route() {
   const h = decodeURIComponent(location.hash.slice(1));
   const s = h.match(/^stock\/([A-Za-z0-9.\-]+)$/), p = h.match(/^pair\/([A-Za-z0-9.\-]+)\/([A-Za-z0-9.\-]+)$/);
+  if (h === "portfolio") { portfolioPage(); return; }
   if (!s && !p) { closeOverlay(); return; }
   openOverlay(`<div class="top"><span class="big">${esc(s ? s[1].toUpperCase() : p[1].toUpperCase() + " / " + p[2].toUpperCase())}</span>
     <span class="dim">loading…</span><button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>`);
@@ -1252,26 +1277,64 @@ async function route() {
   }
 }
 
-function zbar(z, marks = []) {
-  const X = v => Math.max(0, Math.min(100, 50 + v / 3 * 50));
+// A bar for a value from -lim to +lim, with optional marks [[value, colour, title]].
+function zbar(z, marks = [], lim = 3) {
+  const X = v => Math.max(0, Math.min(100, 50 + v / lim * 50));
   const w = nil(z) ? 0 : Math.abs(X(z) - 50);
   return `<span class="zbar"><span class="axis"></span><span style="left:${nil(z) ? 50 : Math.min(50, X(z))}%;width:${w}%;
     background:${(z || 0) >= 0 ? "var(--up)" : "var(--down)"}"></span>${marks.filter(m => !nil(m[0])).map(([v, c, t]) =>
     `<i style="left:${X(v)}%;background:${c}" title="${esc(t)}"></i>`).join("")}</span>`;
 }
 
+// A signed number with a colour, for a loading or a return.
+const sgn = (v, d = 1, unit = "") => nil(v) ? '<span class="dim">–</span>'
+  : `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${v > 0 ? "+" : ""}${Number(v).toFixed(d)}${unit}</span>`;
+// A macro loading in plain units. A yield or a spread loading is the return for a rise of 1
+// percentage point. A price loading is the return for a rise of 1%.
+function macroReading(kind, v) {
+  if (nil(v)) return '<span class="dim">–</span>';
+  if (kind === "price") return `${sgn(v, 2, "%")} for +1%`;
+  const pp = v * 100;
+  const dur = kind === "yield" ? ` · duration ${num(-pp, 1)} years` : kind === "spread" ? ` · spread duration ${num(-pp, 1)} years` : "";
+  return `${sgn(pp, 1, "%")} for +1 pp${dur}`;
+}
+const STYLE_KEYS = ["size", "liquidity", "beta", "momentum", "reversal", "volatility", "dividend_yield", "high_52w"];
+function loadingRow(label, l, earlier, lim) {
+  return `<tr><td class="l">${esc(label)}</td><td>${num(l, 2)}</td><td>${zbar(l, [[earlier, "#58a6ff", "earlier fit"]], lim)}</td>
+    <td class="dim">${num(earlier, 2)}</td></tr>`;
+}
+// The loadings of a fund: market and styles, the industries of note and the macro factors.
+function fundTable(F) {
+  const grp = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
+  const shown = F.industries.filter(i => i.note).sort((a, b) => Math.abs(b.loading) - Math.abs(a.loading));
+  return `<tr><th>Factor</th><th>Loading</th><th></th><th>${F.earlier_fit_date ? "Fit of " + esc(F.earlier_fit_date) : "Earlier fit"}</th></tr>`
+    + grp("Market and styles") + loadingRow(LABEL("style", "market"), F.market.loading, F.market.earlier, 1.2)
+    + F.styles.map(s => loadingRow(LABEL("style", s.factor), s.loading, s.earlier, 0.5)).join("")
+    + grp("Industries of note") + shown.map(i => loadingRow(INDUSTRY[i.factor] || i.factor, i.loading, i.earlier, 0.5)).join("")
+    + grp("Macro factors") + F.macro.map(m => `<tr><td class="l">${esc(m.label)}</td><td>${num(m.loading, 3)}</td>
+      <td class="l" colspan="2">${macroReading(m.kind, m.loading)}</td></tr>`).join("");
+}
+
 function stockPage(P) {
-  const h = P.head, st = P.stats, e = P.exposures, r = P.risk;
+  const h = P.head, st = P.stats, e = P.exposures, r = P.risk, route = P.route, F = P.fund;
+  const fund = route === "fund", none = route === "none";
+  const SPEC = fund ? "Fund-specific" : "Stock-specific";
+  const macroLabel = Object.fromEntries((F ? F.macro : []).map(m => [m.factor, m.label]));
+  const srcLabel = c => c === "specific" ? SPEC : c === "market" ? "Market" : c === "industry" ? (fund ? "Industries" : "Industry")
+    : macroLabel[c] || LABEL("style", c);
   const tickers = (h.tickers || "").split(" > ").length > 1 ? ` · tickers ${esc(h.tickers)}` : "";
-  let html = `<div class="top"><span class="big">${esc(h.ticker)}</span><span>${esc(h.name)}</span>
+  let html = `<div class="top"><span class="big">${esc(h.ticker)}</span><span class="badge ${esc(route)}">${esc(route)}</span><span>${esc(h.name)}</span>
     <span class="dim">${esc(h.type || "")} · ${esc(h.primary_exchange || "")} · ${esc(h.industry_name || "no industry")}${h.sic_description ? " · " + esc(h.sic_description) : ""}${tickers}</span>
     <span class="inline dim">pair with <input id="pair-with" placeholder="ticker"></span>
-    <button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>`;
+    <button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>
+    <div class="routenote">${esc(P.route_note)}</div>`;
   html += `<div class="kv">
     <div><span class="k">Close ${esc(h.last_session || "")}</span>${num(h.close)}</div>
     <div><span class="k">Market cap</span>${big(h.market_cap)}</div>
     <div><span class="k">Dollar volume (20d)</span>${big(h.adv)}</div>
     <div><span class="k">In the universe</span>${h.in_universe ? "yes" : "<span class='dim'>no</span>"}</div>
+    ${F ? `<div><span class="k">Fit R² (in sample)</span>${num(F.r2_in, 2)}</div><div><span class="k">Fit date</span>${esc(F.fit_date)}</div>
+      <div><span class="k">Fund constant, a year</span>${pct(F.alpha_year, 1)}</div>` : ""}
     ${["1d", "1w", "1m", "3m", "6m", "ytd", "1y"].map(k => `<div><span class="k">${k.toUpperCase()}</span>${pct(st["ret_" + k], 1)}</div>`).join("")}
     <div><span class="k">Volatility 1M / 1Y</span>${pct(st.vol_1m, 0, false)} / ${pct(st.vol_1y, 0, false)}</div>
     <div><span class="k">Model volatility</span>${r ? pct(r.vol, 0, false) : "–"}</div>
@@ -1284,22 +1347,35 @@ function stockPage(P) {
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Where the return came from, one year (sum of daily parts)</h3>
       <div class="chart" id="st-cum"></div></div>
     <div class="panel"><h3>Return attribution</h3><div class="tabs" id="st-attr-tabs"></div><div class="bars" id="st-attr"></div>
-      <div class="note">The exposures of each session before, times the factor returns. The parts sum to the return.</div></div></div>`;
-  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Style exposures (z-scores)</h3><table id="st-expo"></table>
-      <div class="note">The bar is the exposure now. <span class="amber">▮</span> the median of its industry, <span style="color:#58a6ff">▮</span> a year ago.</div></div>
+      <div class="note" id="st-attr-note"></div></div></div>`;
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel">${fund
+      ? `<h3>Loadings of the fit of ${esc(F.fit_date)}</h3><table id="st-expo"></table>
+         <div class="note">A loading is the return on a portfolio with unit exposure to the factor. A yield loading is per percentage
+          point, and a price loading is per log point. The bar is the loading now. <span style="color:#58a6ff">▮</span> the fit a year earlier.
+          The page shows each industry with a loading of 0.05 or more, and the three largest.</div>`
+      : `<h3>Style exposures (z-scores)</h3><table id="st-expo"></table>
+         <div class="note">The bar is the exposure now. <span class="amber">▮</span> the median of its industry in the universe,
+          <span style="color:#58a6ff">▮</span> a year ago.</div>`}</div>
     <div class="panel"><h3>Risk: the share of the variance from each source</h3><div id="st-risk"></div></div></div>`;
-  html += `<div class="grid3" style="margin-top:12px">
+  if (fund) html += `<div class="grid3" style="margin-top:12px">
+    <div class="panel"><h3>Funds that move with it: total return, one year</h3><table id="st-rel-fund"></table></div>
+    <div class="panel"><h3>Stocks that move with it: total return, one year</h3><table id="st-rel-stock"></table>
+      <div class="note">The names in the universe and in coverage, among them closed-end funds that carry a stock type.</div></div>
+    <div class="panel"><h3>Funds with the nearest loadings</h3><table id="st-similar"></table>
+      <div class="note">The cosine of two loading vectors, each loading scaled by the volatility of its factor. The cosine ignores size,
+        so a leveraged fund and its base fund look the same.</div></div></div>`;
+  else if (!none) html += `<div class="grid3" style="margin-top:12px">
     <div class="panel"><h3>Moves with it: stock-specific part, one year</h3><table id="st-rel-spec"></table>
       <div class="note">The correlation of the residuals of the model, each clipped at 3 residual volatilities. Among 2,000 names over a year, chance
-        alone gives values up to about 0.25.</div></div>
+        alone gives values up to about 0.25. The names come from the universe and from coverage.</div></div>
     <div class="panel"><h3>Moves with it: total return, one year</h3><table id="st-rel-tot"></table></div>
     <div class="panel"><h3>Industry peers nearest in size</h3><table id="st-peers"></table></div></div>`;
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Signals on the last session</h3><table id="st-sig"></table>
       <div class="note">Decile 10 is the highest value in the universe. IC is the rank IC with the stock-specific return of the next
-        21 sessions over the development sessions, with its Newey-West t.</div></div>
+        21 sessions over the development sessions, with its Newey-West t. The signals cover the model universe.</div></div>
     <div class="panel"><h3>Short interest</h3><div class="chart" id="st-si"></div><table id="st-si-t"></table></div></div>`;
-  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest stock-specific moves (3 residual volatilities or more)</h3><table id="st-shocks"></table>
-      <div class="note">σ here is the move over the model's forecast of the stock-specific volatility. It is not a score.</div></div>
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest ${SPEC.toLowerCase()} moves (3 residual volatilities or more)</h3><table id="st-shocks"></table>
+      <div class="note">σ here is the move over the model's forecast of the ${SPEC.toLowerCase()} volatility. It is not a score.</div></div>
     <div class="panel"><h3>Corporate actions, three years and ahead</h3><table id="st-actions"></table></div></div>`;
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
@@ -1307,8 +1383,9 @@ function stockPage(P) {
   const C = P.cumulative;
   if (C.dates.length) lineChart($("st-cum"), [
     {name: "total", color: "#e3b341", width: 2, points: C.dates.map((d, i) => [d, C.total[i]])},
-    {name: "factors", color: "#58a6ff", points: C.dates.map((d, i) => [d, C.total[i] - C.specific[i]])},
-    {name: "stock-specific", color: "#bc8cff", points: C.dates.map((d, i) => [d, C.specific[i]])},
+    {name: "factors", color: "#58a6ff", points: C.dates.map((d, i) => [d, C.total[i] - C.specific[i] - (C.alpha ? C.alpha[i] : 0)])},
+    ...(C.alpha ? [{name: "constant (alpha)", color: "#8b949e", points: C.dates.map((d, i) => [d, C.alpha[i]])}] : []),
+    {name: SPEC.toLowerCase(), color: "#bc8cff", points: C.dates.map((d, i) => [d, C.specific[i]])},
   ], {height: 240, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
   else lineChart($("st-cum"), [{name: "price, rebased", points: rebase(P.prices.dates, P.prices.px)}],
     {height: 240, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
@@ -1316,45 +1393,65 @@ function stockPage(P) {
   const attr = () => {
     const a = P.attribution.find(x => x.span === span);
     tabs($("st-attr-tabs"), P.attribution.map(x => [x.span, x.span.toUpperCase()]), span, k => { span = k; attr(); });
-    if (!a) { $("st-attr").innerHTML = '<div class="note">Not in the model universe.</div>'; return; }
-    const parts = [["ret", "Total"], ["market", "Market"], ["industry", "Industry"], ...["size", "liquidity", "beta", "momentum",
-      "reversal", "volatility", "dividend_yield", "high_52w"].map(s => [s, LABEL("style", s)]), ["specific", "Stock-specific"]];
-    bars($("st-attr"), parts.map(([k, l]) => ({label: l, value: a[k], color: k === "ret" ? "var(--amber)" : undefined})), v => pct(v, 1));
+    $("st-attr-note").textContent = fund
+      ? "The loadings of the fit of each session, times the factor returns. The parts sum to the return. A macro change that is not published yet counts as 0 in its part, so its move sits in the fund-specific part until the change arrives."
+      : "The exposures of each session before, times the factor returns. The parts sum to the return.";
+    if (!a) { $("st-attr").innerHTML = `<div class="note">${none ? "No factor model covers this security." : "Not enough history."}</div>`; return; }
+    const styles = STYLE_KEYS.map(s => [s, LABEL("style", s)]);
+    const parts = fund
+      ? [["ret", "Total"], ["alpha", "Fund constant (alpha)"], ["market", "Market"], ["industry", "Industries"], ...styles,
+         ...F.macro.map(m => [m.factor, m.label]), ["specific", SPEC]]
+      : [["ret", "Total"], ["market", "Market"], ["industry", "Industry"], ...styles, ["specific", SPEC]];
+    bars($("st-attr"), parts.map(([k, l]) => {
+      const late = a.pending && a.pending[k];
+      return {label: late ? `${l} (${late}d pending)` : l, title: l, value: a[k], pend: late && late >= a.sessions,
+              color: k === "ret" ? "var(--amber)" : undefined};
+    }), (v, x) => x.pend ? '<span class="dim">pending</span>' : pct(v, 1));
   };
   attr();
-  if (e) {
-    const styles = ["size", "liquidity", "beta", "momentum", "reversal", "volatility", "dividend_yield", "high_52w"];
-    $("st-expo").innerHTML = `<tr><th>Style</th><th>z</th><th></th><th>Industry median</th><th>A year ago</th></tr>` + styles.map(s =>
+  if (fund) $("st-expo").innerHTML = fundTable(F);
+  else if (e) {
+    $("st-expo").innerHTML = `<tr><th>Style</th><th>z</th><th></th><th>Industry median</th><th>A year ago</th></tr>` + STYLE_KEYS.map(s =>
       `<tr><td class="l">${esc(LABEL("style", s))}</td><td>${num(e["z_" + s], 2)}</td><td>${zbar(e["z_" + s],
         [[P.industry_median?.["z_" + s], "var(--amber)", "industry median"], [P.exposures_1y?.["z_" + s], "#58a6ff", "a year ago"]])}</td>
        <td class="dim">${num(P.industry_median?.["z_" + s], 2)}</td><td class="dim">${num(P.exposures_1y?.["z_" + s], 2)}</td></tr>`).join("");
-  } else $("st-expo").innerHTML = '<tr><td class="dim">Not in the model universe (the model covers in-universe common stock).</td></tr>';
+  } else $("st-expo").innerHTML = '<tr><td class="dim">No factor model covers this security.</td></tr>';
   if (r) {
     const cols = {market: "#e3b341", industry: "#58a6ff", specific: "#56606b"};
     const parts = r.parts.filter(x => Math.abs(x.var_share) > 0.002).sort((a, b) => b.var_share - a.var_share);
     $("st-risk").innerHTML = `<div class="stackbar">${parts.filter(x => x.var_share > 0).map((x, i) =>
       `<span style="width:${(x.var_share * 100).toFixed(1)}%;background:${cols[x.component] || COLORS[(i + 4) % COLORS.length]}"
-        title="${esc(x.component)} ${(x.var_share * 100).toFixed(1)}%"></span>`).join("")}</div>
-      <table><tr><th>Source</th><th>Share of variance</th></tr>${parts.map(x => `<tr><td class="l">${esc(x.component === "specific"
-        ? "Stock-specific" : x.component === "market" ? "Market" : x.component === "industry" ? "Industry" : LABEL("style", x.component))}</td>
+        title="${esc(srcLabel(x.component))} ${(x.var_share * 100).toFixed(1)}%"></span>`).join("")}</div>
+      <table><tr><th>Source</th><th>Share of variance</th></tr>${parts.map(x => `<tr><td class="l">${esc(srcLabel(x.component))}</td>
         <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
-      <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, stock-specific
+      <div class="note">Model volatility ${pct(r.vol, 1, false)} a year: factors ${pct(r.factor_vol, 1, false)}, ${SPEC.toLowerCase()}
         ${pct(r.spec_vol, 1, false)} (a forecast that weights recent sessions more). Realized over a year: ${pct(st.vol_1y, 1, false)}. A negative share is a
-        factor that hedges the others. Every name has a market exposure of 1, and the beta style adjusts it. For a name that
-        moves little with the market (BRK.B, AAPL, WMT, JNJ in 2026), the adjustment falls short and the factor part adds noise.</div>`;
-  } else $("st-risk").innerHTML = '<div class="note">Not in the model universe.</div>';
+        factor that hedges the others. ${fund
+          ? "The covariance covers the style and macro factors together, over the sessions with every macro change."
+          : "Every name has a market exposure of 1, and the beta style adjusts it. For a name that moves little with the market (BRK.B, AAPL, WMT, JNJ in 2026), the adjustment falls short and the factor part adds noise."}</div>`;
+  } else $("st-risk").innerHTML = `<div class="note">${none ? "No factor model covers this security." : "Not enough history for a forecast."}</div>`;
   const relRow = (x, k) => `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td>
     <td>${num(x[k], 2)}</td><td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`;
   const relHead = `<tr><th>Name</th><th>Corr</th><th>1M</th><th></th></tr>`;
-  $("st-rel-spec").innerHTML = relHead + P.related.filter(x => x.kind === "specific").map(x => relRow(x, "resid_corr")).join("");
-  $("st-rel-tot").innerHTML = relHead + P.related.filter(x => x.kind === "total").map(x => relRow(x, "ret_corr")).join("");
-  $("st-peers").innerHTML = `<tr><th>Name</th><th>Cap</th><th>1M</th><th></th></tr>` + P.peers.map(x =>
-    `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td><td class="dim">${big(x.market_cap)}</td>
-     <td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`).join("");
-  $("st-sig").innerHTML = `<tr><th>Signal</th><th>Value</th><th>Decile</th><th>Rank</th><th>IC</th><th>t</th></tr>` + P.signals.map(x =>
+  const noneRow = '<tr><td class="dim">None.</td></tr>';
+  if (fund) {
+    $("st-rel-fund").innerHTML = relHead + (P.related.filter(x => x.kind === "fund").map(x => relRow(x, "ret_corr")).join("") || noneRow);
+    $("st-rel-stock").innerHTML = relHead + (P.related.filter(x => x.kind === "stock").map(x => relRow(x, "ret_corr")).join("") || noneRow);
+    $("st-similar").innerHTML = `<tr><th>Fund</th><th>Cosine</th><th>R²</th><th>1M</th></tr>` + (P.similar_funds.map(x =>
+      `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td><td>${num(x.cosine, 3)}</td>
+       <td class="dim">${num(x.r2_in, 2)}</td><td>${pct(x.ret_1m, 1)}</td></tr>`).join("") || noneRow);
+  } else if (!none) {
+    $("st-rel-spec").innerHTML = relHead + P.related.filter(x => x.kind === "specific").map(x => relRow(x, "resid_corr")).join("");
+    $("st-rel-tot").innerHTML = relHead + P.related.filter(x => x.kind === "total").map(x => relRow(x, "ret_corr")).join("");
+    $("st-peers").innerHTML = `<tr><th>Name</th><th>Cap</th><th>1M</th><th></th></tr>` + (P.peers.map(x =>
+      `<tr><td class="l">${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 20))}</span></td><td class="dim">${big(x.market_cap)}</td>
+       <td>${pct(x.ret_1m, 1)}</td><td><a href="#pair/${esc(h.ticker)}/${esc(x.ticker)}" title="pair">⇄</a></td></tr>`).join("")
+      || '<tr><td class="dim">None. A peer needs a market cap and an industry.</td></tr>');
+  }
+  $("st-sig").innerHTML = `<tr><th>Signal</th><th>Value</th><th>Decile</th><th>Rank</th><th>IC</th><th>t</th></tr>` + (P.signals.map(x =>
     `<tr><td class="l">${esc(x.label || x.signal)}</td><td>${num(x.value, 4)}</td>
      <td style="background:${zbg((x.decile - 5.5) / 1.5)}">${x.decile ?? "–"}</td><td class="dim">${x.rank_high ?? "–"} of ${x.n_names ?? "–"}</td>
-     <td>${num(x.mean_ic, 4)}</td><td class="dim">${num(x.t_nw, 1)}</td></tr>`).join("");
+     <td>${num(x.mean_ic, 4)}</td><td class="dim">${num(x.t_nw, 1)}</td></tr>`).join("") || '<tr><td class="dim">None.</td></tr>');
   const SI = [...P.short_interest].reverse();
   if (SI.length) {
     lineChart($("st-si"), [{name: "short interest, % of shares", points: SI.map(x => [x.settlement_date, nil(x.share_of_shares) ? null : x.share_of_shares * 100])},
@@ -1371,6 +1468,160 @@ function stockPage(P) {
     `<tr><td class="l">${x.event_date}${x.event_date > (h.last_session || "") ? ' <span class="amber">ahead</span>' : ""}</td><td class="l">${esc(x.ticker)}</td>
      <td class="l">${esc(x.kind)}</td><td class="l">${x.kind === "split" ? (x.ratio < 1 ? `${num(1 / x.ratio, 2)}-for-1` : `1-for-${num(x.ratio, 2)}`)
       : `$${num(x.cash_amount, 4)}`}</td></tr>`).join("") || '<tr><td class="dim">None.</td></tr>');
+}
+
+// ---------------------------------------------------------------- the portfolio page
+// Each line is TICKER and a weight: a percent, a fraction or a money value. The server divides
+// by the sum. The browser keeps the named portfolios and no server keeps a copy.
+function parseHoldings(text) {
+  const holdings = [], bad = [];
+  text.split("\n").forEach((raw, i) => {
+    const line = raw.replace(/#.*/, "").trim();
+    if (!line) return;
+    const m = line.match(/^([A-Za-z0-9.\-]+)(?:\s+|\s*[,:=]\s*)(.+)$/);
+    const digits = m ? m[2].replace(/[$£€%\s,]/g, "") : "";
+    if (!m || !/^[+-]?(\d+\.?\d*|\.\d+)$/.test(digits)) bad.push(`Line ${i + 1} needs a ticker and a weight: ${raw.trim().slice(0, 40)}`);
+    else holdings.push({ticker: m[1], amount: parseFloat(digits)});
+  });
+  return {holdings, bad};
+}
+async function postJSON(url, body) {
+  const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function portfolioPage(text) {
+  const saved = store.get("sdp.portfolios", {}), names = Object.keys(saved).sort();
+  const cur = names.includes(store.get("sdp.portfolio.current", "")) ? store.get("sdp.portfolio.current", "") : "";
+  const body = text ?? (cur ? saved[cur] : store.get("sdp.portfolio.draft", ""));
+  openOverlay(`<div class="top"><span class="big">PORTFOLIO</span><span class="dim">exposures, risk and what moved</span>
+    <button class="btn close" onclick="closeOverlay()">close (Esc)</button></div>
+    <div class="pf-input"><div>
+      <div class="pf-bar"><select id="pf-sel" title="Saved portfolios"><option value="">new portfolio</option>${names.map(n =>
+        `<option ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+        <input id="pf-name" placeholder="name" maxlength="40" value="${esc(cur)}">
+        <button class="btn" id="pf-save">save</button><button class="btn" id="pf-del">delete</button></div>
+      <textarea id="pf-text" spellcheck="false" placeholder="VT 60%&#10;QQQ 20%&#10;TLT 10%&#10;CASH 10%">${esc(body)}</textarea>
+      <div class="pf-bar" style="margin-top:8px"><button class="btn go" id="pf-run">analyse</button><span class="dim" id="pf-status"></span></div>
+    </div>
+    <div class="note">One holding on each line: a ticker and a weight. The weight is a percent, a fraction or a money value, and the page divides
+      by the sum. A line CASH holds cash, which has no risk and earns the cash rate. List a US-listed security: the lake holds no UK-listed fund,
+      so enter a US-listed equivalent (VT for VWRL). The browser keeps the named portfolios in its own storage. The server reads the holdings for
+      one request and keeps no copy.</div></div>
+    <div id="pf-out"></div>`);
+  const sel = $("pf-sel"), txt = $("pf-text");
+  txt.oninput = () => store.set("sdp.portfolio.draft", txt.value);
+  sel.onchange = () => {
+    store.set("sdp.portfolio.current", sel.value);
+    portfolioPage(sel.value ? saved[sel.value] : "");
+  };
+  $("pf-save").onclick = () => {
+    const name = $("pf-name").value.trim() || "portfolio";
+    saved[name] = txt.value; store.set("sdp.portfolios", saved); store.set("sdp.portfolio.current", name);
+    portfolioPage(txt.value);
+  };
+  $("pf-del").onclick = () => {
+    const name = sel.value;
+    if (!name) return;
+    delete saved[name]; store.set("sdp.portfolios", saved); store.set("sdp.portfolio.current", "");
+    portfolioPage(txt.value);
+  };
+  $("pf-run").onclick = async () => {
+    const {holdings, bad} = parseHoldings(txt.value), out = $("pf-out"), status = $("pf-status");
+    out.innerHTML = bad.length ? `<div class="warnbox">${bad.map(esc).join("<br>")}</div>` : "";
+    if (!holdings.length) { status.textContent = "No holdings to analyse."; return; }
+    status.textContent = "reading…";
+    try {
+      portfolioResult(out, bad, await postJSON("/market/portfolio.json", {holdings}));
+      status.textContent = "";
+    } catch (e) { status.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  };
+}
+function portfolioResult(out, bad, R) {
+  const e = R.exposures, k = R.risk;
+  const macroLabel = Object.fromEntries((e ? e.macro : []).map(m => [m.factor, m.label]));
+  const srcLabel = c => c === "specific" ? "Specific" : c === "market" ? "Market" : c === "industry" ? "Industries"
+    : c === "cash" ? "Cash" : c === "alpha" ? "Fund constants (alpha)" : c === "ret" ? "Total" : macroLabel[c] || LABEL("style", c);
+  let html = bad.length ? `<div class="warnbox">${bad.map(esc).join("<br>")}</div>` : "";
+  if (R.warnings.length) html += `<div class="warnbox">${R.warnings.map(esc).join("<br>")}</div>`;
+  html += `<div class="kv" style="margin-top:8px">
+    <div><span class="k">As of</span>${esc(R.as_of)}</div>
+    <div><span class="k">Model volatility</span>${k ? pct(k.vol, 1, false) : "–"}</div>
+    <div><span class="k">Factor volatility</span>${k ? pct(k.factor_vol, 1, false) : "–"}</div>
+    <div><span class="k">Specific volatility</span>${k ? pct(k.spec_vol, 1, false) : "–"}</div>
+    <div><span class="k">Systematic share</span>${k ? pct(k.systematic_share, 0, false) : "–"}</div>
+    <div><span class="k">Cash</span>${pct(R.cash_weight, 1, false)}</div>
+    <div><span class="k">Covered</span>${pct(R.covered_weight, 1, false)}</div></div>`;
+  html += `<div class="panel" style="margin-top:12px"><h3>Holdings</h3><table id="pf-hold"></table>
+    <div class="note">The weight is the amount over the sum of the amounts (${num(R.input_total, 2)}). Volatility is the model volatility of the holding
+      alone. The share is its part of the variance of the portfolio. Days is the count of sessions with a return in the last year.</div></div>`;
+  html += `<div class="grid2e" style="margin-top:12px"><div class="panel"><h3>Exposures of the portfolio</h3><table id="pf-expo"></table>
+      <div class="note">The exposure x is the sum of weight times exposure of each holding. A stock has a market exposure of 1 and no macro
+        exposure, because the model gives a stock none. A fund has its loadings.</div></div>
+    <div class="panel"><h3>Risk: the share of the variance from each source</h3><div id="pf-risk"></div></div></div>`;
+  html += `<div class="grid2e" style="margin-top:12px"><div class="panel"><h3>Variance contribution of each holding</h3><div class="bars" id="pf-contrib"></div>
+      <div class="note">The contributions sum to the variance of the portfolio. A negative one is a holding that hedges the others.</div></div>
+    <div class="panel"><h3>What moved the portfolio</h3><div class="tabs" id="pf-tabs"></div><div class="bars" id="pf-moves"></div>
+      <table id="pf-top"></table><div class="note" id="pf-moves-note"></div></div></div>`;
+  html += `<div class="note" style="margin-top:12px">The weights are the current ones held fixed over each span, not a history of trades. Returns are in US dollars.
+    The model cannot see that the specific return of a fund holds the specific returns of its holdings, so a portfolio of a fund and its large
+    holdings has a specific risk that is a little wrong.</div>`;
+  out.innerHTML = html;
+
+  $("pf-hold").innerHTML = `<tr><th>Holding</th><th>Route</th><th>Weight</th><th>Volatility</th><th>Share</th><th>Days</th></tr>` + R.holdings.map(x => {
+    const state = x.status === "unresolved" ? "unresolved" : x.route;
+    const who = x.security_key ? `${tk(x.ticker)} <span class="name">${esc((x.name || "").slice(0, 28))}</span>`
+      : `<b>${esc(x.ticker === "CASH" ? "CASH" : x.input)}</b> <span class="name">${esc(x.name || "")}</span>`;
+    return `<tr><td class="l">${who}</td><td><span class="badge ${esc(state)}">${esc(state)}</span></td><td>${pct(x.weight, 1, false)}</td>
+      <td>${pct(x.vol, 1, false)}</td><td>${x.var_share ? pct(x.var_share, 1, false) : '<span class="dim">–</span>'}</td><td class="dim">${x.days || ""}</td></tr>`
+      + (x.reason ? `<tr><td class="l ${x.status === "unresolved" ? "err" : "dim"}" colspan="6" style="white-space:normal">${esc(x.reason)}</td></tr>` : "");
+  }).join("");
+
+  if (e) {
+    const grp = t => `<tr class="grp"><td colspan="3">${t}</td></tr>`;
+    const xr = (label, x, lim) => `<tr><td class="l">${esc(label)}</td><td>${num(x, 3)}</td><td>${zbar(x, [], lim)}</td></tr>`;
+    const inds = [...e.industries].sort((a, b) => Math.abs(b.x) - Math.abs(a.x)).filter((x, i) => i < 3 || Math.abs(x.x) >= 0.02).slice(0, 6);
+    $("pf-expo").innerHTML = `<tr><th>Factor</th><th>x</th><th></th></tr>` + grp("Market and styles") + xr("Market", e.market, 1.2)
+      + e.styles.map(s => xr(LABEL("style", s.factor), s.x, 0.5)).join("")
+      + grp("Industries, the six largest") + inds.map(i => xr(INDUSTRY[i.factor] || i.factor, i.x, 0.5)).join("")
+      + grp("Macro factors") + e.macro.map(m => `<tr><td class="l">${esc(m.label)}</td><td>${num(m.x, 3)}</td>
+        <td class="l">${macroReading(m.kind, m.x)}</td></tr>`).join("");
+  } else $("pf-expo").innerHTML = '<tr><td class="dim">No holding resolved.</td></tr>';
+
+  if (k) {
+    const cols = {market: "#e3b341", industry: "#58a6ff", specific: "#56606b"};
+    const parts = k.parts.filter(x => Math.abs(x.var_share) > 0.002).sort((a, b) => b.var_share - a.var_share);
+    $("pf-risk").innerHTML = `<div class="stackbar">${parts.filter(x => x.var_share > 0).map((x, i) =>
+      `<span style="width:${(x.var_share * 100).toFixed(1)}%;background:${cols[x.component] || COLORS[(i + 4) % COLORS.length]}"
+        title="${esc(srcLabel(x.component))} ${(x.var_share * 100).toFixed(1)}%"></span>`).join("")}</div>
+      <table><tr><th>Source</th><th>Share of variance</th></tr>${parts.map(x => `<tr><td class="l">${esc(srcLabel(x.component))}</td>
+        <td>${pct(x.var_share, 1, false)}</td></tr>`).join("")}</table>
+      <div class="note">Variance = x'Ωx + Σ w²σ², where Ω is the covariance of the style and macro factors (a half-life of 42 sessions, the sessions with every
+        macro change) and σ is the specific volatility forecast of each holding. Cash has no risk.</div>`;
+    const hs = [...k.holdings].sort((a, b) => b.share - a.share);
+    bars($("pf-contrib"), hs.map(x => ({label: x.ticker, value: x.share})), v => pct(v, 1, false));
+  } else {
+    $("pf-risk").innerHTML = '<div class="note">No risk to show.</div>';
+    $("pf-contrib").innerHTML = '<div class="note">No risk to show.</div>';
+  }
+
+  let span = R.moves.some(m => m.span === "1m") ? "1m" : (R.moves[0] || {}).span;
+  const moves = () => {
+    const m = R.moves.find(x => x.span === span);
+    tabs($("pf-tabs"), R.moves.map(x => [x.span, x.span.toUpperCase()]), span, s => { span = s; moves(); });
+    if (!m) { $("pf-moves").innerHTML = '<div class="note">No sessions.</div>'; $("pf-top").innerHTML = ""; return; }
+    const order = ["ret", "cash", "alpha", "market", "industry", ...STYLE_KEYS, ...(e ? e.macro.map(x => x.factor) : []), "specific"];
+    const items = order.filter(c => c === "ret" || Math.abs(m.parts[c] || 0) > 1e-12).map(c => ({
+      label: m.pending.includes(c) ? `${srcLabel(c)} (days pending)` : srcLabel(c), title: srcLabel(c), value: m.parts[c],
+      color: c === "ret" ? "var(--amber)" : undefined}));
+    bars($("pf-moves"), items, v => pct(v, 2));
+    $("pf-top").innerHTML = `<tr><th>Largest contributors</th><th>Contribution</th></tr>` + m.contributors.slice(0, 5).map(c =>
+      `<tr><td class="l">${esc(c.ticker)}</td><td>${pct(c.contribution, 2)}</td></tr>`).join("");
+    $("pf-moves-note").textContent = `The sum of ${m.sessions} daily returns with the current weights held fixed, split into the parts of the model.`
+      + (m.pending.length ? " A macro change that is not published yet counts as 0 in its part, so its move sits in the specific part." : "");
+  };
+  moves();
 }
 
 function pairPage(Q) {

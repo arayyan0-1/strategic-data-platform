@@ -7,9 +7,10 @@ Serves http://127.0.0.1:8787. Use --port to select a different port. The page
 shows what each dataset holds, what is missing, and how old the dbt build is. The
 market monitor (sdp.market) is at /market, and its views of one stock or a pair
 (sdp.stock) at /market/stock.json?t=, /market/pair.json?a=&b= and /market/search.json.
-One button pulls the missing sessions and builds the dbt models. The page is
-local only and does not need the network, except when it pulls. The pull runs in
-a background thread, so the page stays live while it works.
+The view of a portfolio is a POST to /market/portfolio.json. One button pulls the
+missing sessions and builds the dbt models. The page is local only and does not need
+the network, except when it pulls. The pull runs in a background thread, so the page
+stays live while it works.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ log = logging.getLogger("sdp.dashboard")
 HOST = "127.0.0.1"
 PORT = 8787
 SNAPSHOT_TTL = 10.0  # Seconds. One snapshot reads the whole lake.
+MAX_BODY = 16 * 1024  # Bytes. A portfolio request of 60 lines is under 4 KB.
 
 _job_lock = threading.Lock()
 _job: dict = {"running": False, "phase": "idle", "started": None,
@@ -197,9 +199,39 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("The view %s failed.", self.path)
             self._send(500, json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
 
+    def _portfolio(self) -> None:
+        """Serve the view of a portfolio. The body is JSON: {"holdings": [{"ticker", "amount"}]}.
+        The log never holds the holdings, so a failure logs the type of the error only."""
+        try:
+            size = int(self.headers.get("Content-Length") or "")
+        except ValueError:
+            self._send(400, json.dumps({"error": "the request needs a Content-Length"}))
+            return
+        if size < 0:
+            self._send(400, json.dumps({"error": "the request needs a Content-Length"}))
+        elif size > MAX_BODY:
+            self._send(413, json.dumps({"error": f"the request is over {MAX_BODY} bytes"}))
+        else:
+            try:
+                body = json.loads(self.rfile.read(size))
+                holdings = body["holdings"]
+            except (ValueError, KeyError, TypeError, RecursionError):
+                self._send(400, json.dumps({"error": "the body must be JSON with holdings"}))
+                return
+            try:
+                self._send(200, json.dumps(stock.portfolio_view(holdings), allow_nan=False))
+            except stock.BadHoldings as exc:
+                self._send(400, json.dumps({"error": str(exc)}))
+            except Exception as exc:  # noqa: BLE001 -- the page must show any failure
+                log.error("The portfolio view failed: %s", type(exc).__name__)
+                self._send(500, json.dumps(
+                    {"error": f"the portfolio view failed: {type(exc).__name__}"}))
+
     def do_POST(self) -> None:  # noqa: N802
         if not _request_allowed(self.headers, self.server.server_address[1]):
             self._refuse()
+        elif self.path == "/market/portfolio.json":
+            self._portfolio()
         elif self.path == "/pull":
             if _start_job():
                 self._send(202, json.dumps({"started": True}))
