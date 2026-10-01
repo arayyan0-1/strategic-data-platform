@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sdp import dal, dashboard
+from sdp import dal, dashboard, stock
 
 D = dt.date
 
@@ -30,6 +30,28 @@ def _reset_job():
     yield
     dashboard._job.update(idle)
     dashboard._clear_snapshot()
+
+
+def _post(path: str, body: str | bytes, host: str = "localhost:8787", origin: str | None = None,
+          length: int | str | None = None):
+    """Send a POST through the handler with no socket. Return the code and the reply text.
+    A length of "" leaves the Content-Length header out."""
+    raw = body.encode() if isinstance(body, str) else body
+    headers = {"Host": host, "Content-Length": str(len(raw) if length is None else length)}
+    if length == "":
+        del headers["Content-Length"]
+    if origin is not None:
+        headers["Origin"] = origin
+    sent = []
+    fake = SimpleNamespace(
+        path=path, headers=headers, rfile=io.BytesIO(raw),
+        server=SimpleNamespace(server_address=("127.0.0.1", 8787)),
+        _send=lambda code, text, *a: sent.append((code, text)),
+    )
+    fake._refuse = lambda: dashboard.Handler._refuse(fake)
+    fake._portfolio = lambda: dashboard.Handler._portfolio(fake)
+    dashboard.Handler.do_POST(fake)
+    return sent[0]
 
 
 def _wait_idle() -> None:
@@ -233,3 +255,68 @@ class TestSend:
                                wfile=SimpleNamespace(write=write))
         with pytest.raises(OSError):
             dashboard.Handler._send(fake, 200, "{}")
+
+
+class TestPortfolioRoute:
+    PATH = "/market/portfolio.json"
+    BODY = '{"holdings": [{"ticker": "VT", "amount": 60}]}'
+
+    @pytest.fixture(autouse=True)
+    def _view(self, monkeypatch):
+        """Replace the view with a recorder, so no warehouse is read."""
+        self.seen = []
+        monkeypatch.setattr(dashboard.stock, "portfolio_view",
+                            lambda h: self.seen.append(h) or {"holdings": h})
+
+    @pytest.mark.parametrize("origin", ["https://example.com", "null", "http://127.0.0.1:9999"])
+    def test_a_foreign_origin_is_refused_before_the_body_is_read(self, origin):
+        assert _post(self.PATH, self.BODY, origin=origin)[0] == 403
+        assert self.seen == []
+
+    @pytest.mark.parametrize("host", ["evil.example:8787", "127.0.0.1:9999"])
+    def test_a_foreign_host_is_refused(self, host):
+        assert _post(self.PATH, self.BODY, host=host)[0] == 403
+        assert self.seen == []
+
+    def test_a_request_from_this_page_is_served(self):
+        code, _ = _post(self.PATH, self.BODY, origin="http://localhost:8787")
+        assert code == 200 and self.seen == [[{"ticker": "VT", "amount": 60}]]
+
+    def test_a_body_over_the_limit_is_refused_without_a_read(self):
+        assert _post(self.PATH, b" " * (dashboard.MAX_BODY + 1))[0] == 413
+        assert self.seen == []
+
+    def test_a_body_at_the_limit_is_read(self):
+        pad = " " * (dashboard.MAX_BODY - len(self.BODY))
+        assert _post(self.PATH, self.BODY + pad)[0] == 200
+
+    @pytest.mark.parametrize("body", [
+        "not json", "[1, 2]", "{}", '{"holdings": ', b"\xff\xfe",
+        pytest.param("[" * 10000, id="nested too deep")])
+    def test_a_malformed_body_is_a_bad_request(self, body):
+        assert _post(self.PATH, body, length=len(body))[0] == 400
+        assert self.seen == []
+
+    @pytest.mark.parametrize("length", ["", "abc", -5])
+    def test_a_missing_or_wrong_length_is_a_bad_request(self, length):
+        assert _post(self.PATH, self.BODY, length=length)[0] == 400
+
+    def test_bad_holdings_are_a_bad_request_with_the_reason(self, monkeypatch):
+        def refuse(_):
+            raise stock.BadHoldings("The holdings must be a list of lines.")
+        monkeypatch.setattr(dashboard.stock, "portfolio_view", refuse)
+        code, text = _post(self.PATH, '{"holdings": 5}')
+        assert code == 400 and "list of lines" in text
+
+    def test_a_failure_of_the_view_is_a_server_error_that_does_not_log_the_holdings(
+            self, monkeypatch, caplog):
+        def fail(_):
+            raise RuntimeError("secret VT 60")
+        monkeypatch.setattr(dashboard.stock, "portfolio_view", fail)
+        code, text = _post(self.PATH, self.BODY)
+        assert code == 500 and "RuntimeError" in text and "secret" not in text
+        assert "VT" not in caplog.text and "secret" not in caplog.text
+
+    def test_the_pull_route_still_works(self, monkeypatch):
+        monkeypatch.setattr(dashboard, "_start_job", lambda: True)
+        assert _post("/pull", b"")[0] == 202
