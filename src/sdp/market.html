@@ -80,6 +80,11 @@
   .legend i { display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:4px; }
   .legend.tg .lg { cursor:pointer; user-select:none; }
   .legend .lg.off { opacity:.45; text-decoration:line-through; }
+  .rng { display:flex; justify-content:flex-end; gap:2px; margin-bottom:2px; }
+  .rng button { background:none; border:1px solid var(--line); color:var(--dim); font:inherit; font-size:10px;
+                line-height:13px; padding:0 5px; border-radius:2px; cursor:pointer; }
+  .rng button:hover { color:var(--ink); }
+  .rng button.on { color:var(--amber); border-color:var(--amber); }
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
                  font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
@@ -391,9 +396,11 @@ function spark(vals, w = 72, h = 18) {
     stroke-width="1.2" points="${pts.join(" ")}"/></svg>`;
 }
 
-// What the reader changes on a line chart (the lines hidden), by the id of the chart. It lasts
-// while the page is open.
+// What the reader changes on a line chart (the lines hidden and the range), by the id of the
+// chart. It lasts while the page is open.
 const CHART_STATE = {};
+const DAY = 864e5;
+const RANGES = [["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
 const ext = a => a.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
 // The last point at or before t (the last point when t is null). The points are in date order.
 function pointAt(pts, t) {
@@ -404,21 +411,42 @@ function pointAt(pts, t) {
 }
 
 // A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
-// dashed lines at fixed values. A click on a legend entry hides or shows its line, and the
-// y range fits the lines that show.
+// dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
+// above the chart picks the range, from the ones that the data covers (o.range = false turns
+// it off). The y range fits the lines that show, over the range.
 function lineChart(el, series, o = {}) {
   const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
-  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: []}) : {hidden: []};
+  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
   const S = series.map((s, i) => {
     const pts = s.points.map(p => [+new Date(p[0]), nil(p[1]) ? null : p[1]]);
     return {s, c: s.color || COLORS[i % COLORS.length], pts, ok: pts.filter(p => p[1] !== null)};
   });
   const all = S.flatMap(x => x.ok);
   if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
-  const [x0, x1] = ext(all.map(p => p[0]));
+  const [xmin, x1] = ext(all.map(p => p[0]));
   const f = o.fmt || (v => v.toFixed(2));
+  // A range shows when it is shorter than the data and holds 5 points of the longest line.
+  const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
+    && Math.max(...S.map(x => x.ok.filter(p => p[0] >= x1 - d * DAY).length)) >= 5);
   const draw = () => {
-    const shown = S.filter(x => !st.hidden.includes(x.s.name)), pool = (shown.length ? shown : S).flatMap(x => x.ok);
+    const cur = avail.find(r => r[0] === st.range), x0 = cur ? x1 - cur[1] * DAY : xmin;
+    // The points of a line from x0 on, with its value at x0 in front.
+    const clip = x => {
+      const out = []; let prev = null;
+      for (const p of x.pts) {
+        if (p[1] === null) { if (p[0] >= x0) out.push(p); prev = null; continue; }
+        if (p[0] < x0) { prev = p; continue; }
+        if (prev && p[0] > x0) out.push([x0, prev[1] + (p[1] - prev[1]) * (x0 - prev[0]) / (p[0] - prev[0])]);
+        prev = null; out.push(p);
+      }
+      return out;
+    };
+    const shown = S.filter(x => !st.hidden.includes(x.s.name));
+    for (const x of S) x.view = clip(x);
+    const inView = xs => xs.flatMap(x => x.view.filter(p => p[1] !== null));
+    let pool = inView(shown);
+    if (!pool.length) pool = inView(S);
+    if (!pool.length) pool = all;
     let [y0, y1] = ext(pool.map(p => p[1]));
     if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
     for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
@@ -438,16 +466,19 @@ function lineChart(el, series, o = {}) {
     }
     const lines = shown.map(x => {
       let d = "", pen = false;
-      for (const [t, v] of x.pts) {
+      for (const [t, v] of x.view) {
         if (v === null) { pen = false; continue; }
         d += `${pen ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
       }
       return `<path d="${d}" fill="none" stroke="${x.c}" stroke-width="${x.s.width || 1.4}"
         ${x.s.dash ? `stroke-dasharray="${x.s.dash}"` : ""}/>`;
     }).join("");
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
+    const rng = avail.length ? `<div class="rng">${[...avail.map(r => r[0]), "All"].map(k =>
+      `<button data-r="${k}" class="${(cur ? cur[0] : "All") === k ? "on" : ""}">${k}</button>`).join("")}</div>` : "";
+    el.innerHTML = `${rng}<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
       stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
       fill="transparent"/></svg><div class="legend${S.length > 1 ? " tg" : ""}"></div>`;
+    el.querySelectorAll(".rng button").forEach(b => b.onclick = () => { st.range = b.dataset.r === "All" ? null : b.dataset.r; draw(); });
     const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
     const legend = t => leg.innerHTML = S.map((x, i) => {
       if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
