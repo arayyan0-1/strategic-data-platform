@@ -475,11 +475,15 @@ function lineChart(el, series, o = {}) {
     }).join("");
     const rng = avail.length ? `<div class="rng">${[...avail.map(r => r[0]), "All"].map(k =>
       `<button data-r="${k}" class="${(cur ? cur[0] : "All") === k ? "on" : ""}">${k}</button>`).join("")}</div>` : "";
+    // One dot for each line that shows, on the point that the readout gives.
+    const dots = shown.map(x => `<circle class="dt" r="3" fill="${x.c}" stroke="#0b0e14" stroke-width="1"
+      visibility="hidden"/>`).join("");
     el.innerHTML = `${rng}<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
-      stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
+      stroke="#56606b" visibility="hidden"/>${dots}<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
       fill="transparent"/></svg><div class="legend${S.length > 1 ? " tg" : ""}"></div>`;
     el.querySelectorAll(".rng button").forEach(b => b.onclick = () => { st.range = b.dataset.r === "All" ? null : b.dataset.r; draw(); });
     const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
+    const dt = [...svg.querySelectorAll(".dt")];
     const legend = t => leg.innerHTML = S.map((x, i) => {
       if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
       const p = pointAt(x.ok, t);
@@ -499,9 +503,16 @@ function lineChart(el, series, o = {}) {
       if (px < L || px > W - R) return;
       const t = x0 + (px - L) / (W - L - R) * (x1 - x0);
       cx.setAttribute("x1", px); cx.setAttribute("x2", px); cx.setAttribute("visibility", "visible");
+      shown.forEach((x, j) => {
+        const q = pointAt(x.ok, t), on = q && q[0] >= x0;
+        if (on) { dt[j].setAttribute("cx", X(q[0]).toFixed(1)); dt[j].setAttribute("cy", Y(q[1]).toFixed(1)); }
+        dt[j].setAttribute("visibility", on ? "visible" : "hidden");
+      });
       legend(t);
     });
-    svg.addEventListener("mouseleave", () => { cx.setAttribute("visibility", "hidden"); legend(null); });
+    svg.addEventListener("mouseleave", () => {
+      cx.setAttribute("visibility", "hidden"); dt.forEach(d => d.setAttribute("visibility", "hidden")); legend(null);
+    });
   };
   draw();
 }
