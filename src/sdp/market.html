@@ -78,6 +78,8 @@
   .chart svg { display:block; width:100%; }
   .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; margin-top:4px; }
   .legend i { display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:4px; }
+  .legend.tg .lg { cursor:pointer; user-select:none; }
+  .legend .lg.off { opacity:.45; text-decoration:line-through; }
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
                  font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
@@ -389,60 +391,88 @@ function spark(vals, w = 72, h = 18) {
     stroke-width="1.2" points="${pts.join(" ")}"/></svg>`;
 }
 
+// What the reader changes on a line chart (the lines hidden), by the id of the chart. It lasts
+// while the page is open.
+const CHART_STATE = {};
+const ext = a => a.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
+// The last point at or before t (the last point when t is null). The points are in date order.
+function pointAt(pts, t) {
+  if (t === null) return pts[pts.length - 1] || null;
+  let lo = 0, hi = pts.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (pts[m][0] <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r < 0 ? null : pts[r];
+}
+
 // A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
-// dashed lines at fixed values.
+// dashed lines at fixed values. A click on a legend entry hides or shows its line, and the
+// y range fits the lines that show.
 function lineChart(el, series, o = {}) {
   const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
-  const all = series.flatMap(s => s.points.filter(p => !nil(p[1])));
-  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
-  const ts = all.map(p => +new Date(p[0])), vs = all.map(p => p[1]);
-  let x0 = Math.min(...ts), x1 = Math.max(...ts), y0 = Math.min(...vs), y1 = Math.max(...vs);
-  if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
-  for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
-  if (y0 === y1) { y0 -= 1; y1 += 1; }
-  const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
-  const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
-  const f = o.fmt || (v => v.toFixed(2));
-  let g = "";
-  for (let i = 0; i <= 4; i++) {
-    const v = y0 + (y1 - y0) * i / 4, y = Y(v);
-    g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#1b222c"/>
-          <text x="${L - 6}" y="${y + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
-  }
-  if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
-  for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
-  for (const [t, x, a] of [[x0, L, "start"], [(x0 + x1) / 2, X((x0 + x1) / 2), "middle"], [x1, W - R, "end"]]) {
-    g += `<text x="${x}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
-  }
-  const lines = series.map((s, i) => {
-    const c = s.color || COLORS[i % COLORS.length];
-    let d = "", pen = false;
-    for (const [t, v] of s.points) {
-      if (nil(v)) { pen = false; continue; }
-      d += `${pen ? "L" : "M"}${X(+new Date(t)).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
-    }
-    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${s.width || 1.4}"
-      ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/>`;
-  }).join("");
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
-    stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
-    fill="transparent"/></svg><div class="legend"></div>`;
-  const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
-  const legend = t => leg.innerHTML = series.map((s, i) => {
-    let p = null;
-    for (const q of s.points) { if (nil(q[1])) continue; if (t === null || +new Date(q[0]) <= t) p = q; else break; }
-    return `<span><i style="background:${s.color || COLORS[i % COLORS.length]}"></i>${esc(s.name)}
-      ${p ? f(p[1]) : "–"}</span>`;
-  }).join("") + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
-  legend(null);
-  svg.addEventListener("mousemove", e => {
-    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
-    if (px < L || px > W - R) return;
-    const t = x0 + (px - L) / (W - L - R) * (x1 - x0);
-    cx.setAttribute("x1", px); cx.setAttribute("x2", px); cx.setAttribute("visibility", "visible");
-    legend(t);
+  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: []}) : {hidden: []};
+  const S = series.map((s, i) => {
+    const pts = s.points.map(p => [+new Date(p[0]), nil(p[1]) ? null : p[1]]);
+    return {s, c: s.color || COLORS[i % COLORS.length], pts, ok: pts.filter(p => p[1] !== null)};
   });
-  svg.addEventListener("mouseleave", () => { cx.setAttribute("visibility", "hidden"); legend(null); });
+  const all = S.flatMap(x => x.ok);
+  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  const [x0, x1] = ext(all.map(p => p[0]));
+  const f = o.fmt || (v => v.toFixed(2));
+  const draw = () => {
+    const shown = S.filter(x => !st.hidden.includes(x.s.name)), pool = (shown.length ? shown : S).flatMap(x => x.ok);
+    let [y0, y1] = ext(pool.map(p => p[1]));
+    if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+    for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
+    if (y0 === y1) { y0 -= 1; y1 += 1; }
+    const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
+    const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
+    let g = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = y0 + (y1 - y0) * i / 4, y = Y(v);
+      g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#1b222c"/>
+            <text x="${L - 6}" y="${y + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
+    }
+    if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
+    for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
+    for (const [t, x, a] of [[x0, L, "start"], [(x0 + x1) / 2, X((x0 + x1) / 2), "middle"], [x1, W - R, "end"]]) {
+      g += `<text x="${x}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
+    }
+    const lines = shown.map(x => {
+      let d = "", pen = false;
+      for (const [t, v] of x.pts) {
+        if (v === null) { pen = false; continue; }
+        d += `${pen ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
+      }
+      return `<path d="${d}" fill="none" stroke="${x.c}" stroke-width="${x.s.width || 1.4}"
+        ${x.s.dash ? `stroke-dasharray="${x.s.dash}"` : ""}/>`;
+    }).join("");
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
+      stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
+      fill="transparent"/></svg><div class="legend${S.length > 1 ? " tg" : ""}"></div>`;
+    const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
+    const legend = t => leg.innerHTML = S.map((x, i) => {
+      if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
+      const p = pointAt(x.ok, t);
+      return `<span class="lg" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)} ${p ? f(p[1]) : "–"}</span>`;
+    }).join("") + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
+    legend(null);
+    leg.onclick = e => {
+      const sp = e.target.closest(".lg");
+      if (!sp || S.length < 2) return;
+      const n = S[+sp.dataset.i].s.name, k = st.hidden.indexOf(n);
+      if (k >= 0) st.hidden.splice(k, 1);
+      else if (shown.length > 1) st.hidden.push(n);  // The last line that shows stays.
+      draw();
+    };
+    svg.addEventListener("mousemove", e => {
+      const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
+      if (px < L || px > W - R) return;
+      const t = x0 + (px - L) / (W - L - R) * (x1 - x0);
+      cx.setAttribute("x1", px); cx.setAttribute("x2", px); cx.setAttribute("visibility", "visible");
+      legend(t);
+    });
+    svg.addEventListener("mouseleave", () => { cx.setAttribute("visibility", "hidden"); legend(null); });
+  };
+  draw();
 }
 
 // A chart on a numeric or categorical x axis. Each series is {name, pts: [[x, y, title]]}.
