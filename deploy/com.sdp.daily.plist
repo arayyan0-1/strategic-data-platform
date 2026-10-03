@@ -18,6 +18,13 @@
 
   It runs the venv interpreter, not `uv run`, because two `uv run` calls race on
   the venv (the same reason run_backfill.sh does this).
+
+  The process type is Standard, not Background. macOS keeps a Background job on
+  the efficiency cores and limits its disk I/O. One DuckDB query took 2.65 s in
+  a Background job and 0.27 s in a Standard job. A full build from this job took
+  20 to 110 minutes. A full build from a shell takes 2 to 3 minutes. Nice 10
+  lets the programs of the user go first and costs nothing when the machine is
+  idle (0.28 s).
 -->
 <plist version="1.0">
 <dict>
@@ -50,6 +57,9 @@
     <false/>
 
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Standard</string>
+
+    <key>Nice</key>
+    <integer>10</integer>
 </dict>
 </plist>
