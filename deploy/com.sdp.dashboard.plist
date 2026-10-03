@@ -15,6 +15,12 @@
   Runs the venv interpreter, not `uv run`, for the same reason as the daily
   agent. A pull started from the page runs in this process and takes the same
   lock as the daily agent, so the two cannot collide.
+
+  The process type is Standard, not Background. The build of that pull runs
+  under this process. macOS keeps a Background job on the efficiency cores and
+  limits its disk I/O. One DuckDB query took 2.65 s in a Background job and
+  0.27 s in a Standard job. Nice 10 lets the programs of the user go first and
+  costs nothing when the machine is idle (0.28 s).
 -->
 <plist version="1.0">
 <dict>
@@ -44,6 +50,9 @@
     <string>/Users/aray/strategic-data-platform/data/_logs/dashboard.err.log</string>
 
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Standard</string>
+
+    <key>Nice</key>
+    <integer>10</integer>
 </dict>
 </plist>
