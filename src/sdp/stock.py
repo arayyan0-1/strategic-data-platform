@@ -7,7 +7,8 @@
   fund (loadings from a ridge fit, with macro factors) or none (price statistics only).
   The profile has its exposures, its risk and the part of it that each factor explains,
   where its return came from, the names that move with it, its signals, short interest,
-  corporate actions and largest stock-specific moves.
+  corporate actions and largest stock-specific moves. It also has the price of the last
+  year with its moving averages and volume, for the chart.
 - pair: two tickers against each other: the ratio and its z-score, the rolling
   correlation and beta, the hedge ratio and the half-life of the ratio. The half-life
   shows only when a Dickey-Fuller test rejects a random walk at 5%.
@@ -19,6 +20,7 @@ the portfolio is cached until the build stamp changes.
 """
 from __future__ import annotations
 
+import datetime as dt
 import math
 import re
 import threading
@@ -47,6 +49,10 @@ WINDOWS = (("1d", 1), ("1w", 5), ("1m", 21), ("3m", 63), ("6m", 126), ("1y", 252
 FACTOR_HALF_LIFE = 42
 FACTOR_WINDOW = 504
 CACHE_SIZE = 64
+# The price chart shows the sessions of the last CHART_DAYS days, with the average of the
+# last MOVING_AVERAGES sessions at each one.
+CHART_DAYS = 365
+MOVING_AVERAGES = (50, 200)
 # The 5% critical value of the Dickey-Fuller t for a fit with a constant, 250 points.
 ADF_CRITICAL = -2.87
 
@@ -200,6 +206,34 @@ def _price_stats(px: np.ndarray, dates: list) -> dict:
         out["max_drawdown_1y"] = float((year / np.maximum.accumulate(year) - 1).min())
         out["off_high_1y"] = float(px[-1] / year.max() - 1)
         out["over_low_1y"] = float(px[-1] / year.min() - 1)
+    return out
+
+
+def _moving_average(x: np.ndarray, n: int) -> np.ndarray:
+    """Return the mean of the last n values at each point, NaN before the first full window."""
+    out = np.full(len(x), np.nan)
+    if len(x) >= n:
+        c = np.cumsum(np.insert(x, 0, 0.0))
+        out[n - 1:] = (c[n:] - c[:-n]) / n
+    return out
+
+
+def _digits(x: np.ndarray, n: int = 6) -> list:
+    """Return the values with n significant digits, None where a value is not finite. The
+    page shows no more, and a short number keeps the payload small."""
+    return [float(f"{v:.{n}g}") if np.isfinite(v) else None for v in x]
+
+
+def _price_series(dates: list[dt.date], px: np.ndarray, volume: np.ndarray) -> dict:
+    """Return the series of the price chart: one row for each session of the last CHART_DAYS
+    days. Each moving average uses all the sessions in hand, so the first row has one too.
+    The volume is adjusted for splits."""
+    start = dates[-1] - dt.timedelta(days=CHART_DAYS) if dates else None
+    first = next((i for i, d in enumerate(dates) if d > start), 0)
+    out = {"dates": [d.isoformat() for d in dates[first:]], "px": _digits(px[first:])}
+    for n in MOVING_AVERAGES:
+        out[f"ma{n}"] = _digits(_moving_average(px, n)[first:])
+    out["volume"] = [round(float(v)) if np.isfinite(v) else None for v in volume[first:]]
     return out
 
 
@@ -517,14 +551,17 @@ def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
     route = _route(wh, have, key, last)
     macro = _macro(wh, have) if route == "fund" else []
 
+    # The volume in shares of today: close / adj_close_split is the split factor, inverted.
     prices = wh.execute("""
-        select date, coalesce(adj_close_total, adj_close_split) as px, volume, dollar_volume
+        select date, coalesce(adj_close_total, adj_close_split) as px,
+               coalesce(volume * close / nullif(adj_close_split, 0), volume) as volume
         from core.security_sessions
         where security_key = ? and date > ?::date - interval 2 year
         order by date""", [key, last]).fetchall()
     prices = [p for p in prices if p[1] is not None and p[1] > 0]
     dates = [p[0] for p in prices]
     px = np.array([p[1] for p in prices], dtype=float)
+    volume = np.array([np.nan if p[2] is None else p[2] for p in prices], dtype=float)
     stats = _price_stats(px, dates) if len(px) > 1 else {}
 
     expo = expo_1y = peers_z = fit = fund = coverage = None
@@ -645,7 +682,7 @@ def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
     return {
         "route": route, "route_note": _route_note(route, head, fund),
         "head": head, "stats": stats, "cost": cost, "coverage": coverage, "fund": fund,
-        "prices": {"dates": [d.isoformat() for d in dates], "px": px.tolist()},
+        "prices": _price_series(dates, px, volume),
         "exposures": expo, "exposures_1y": expo_1y, "industry_median": peers_z,
         "risk": risk, "attribution": attribution, "cumulative": cumulative,
         "related": related, "peers": peers, "similar_funds": similar,

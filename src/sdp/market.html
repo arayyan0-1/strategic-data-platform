@@ -414,9 +414,16 @@ function pointAt(pts, t) {
 // dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
 // above the chart picks the range, from the ones that the data covers (o.range = false turns
 // it off). The y range fits the lines that show, over the range. o.periodEnds draws a faint
-// line at the last weekday of each month and a stronger one at each quarter end.
+// line at the last weekday of each month and a stronger one at each quarter end. o.width is the
+// width of the drawing (640). o.bars = {name, points: [[date, value, colour]], height, fmt} draws
+// bars under the lines on the same time axis, from 0 to the largest value in the range.
 function lineChart(el, series, o = {}) {
-  const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
+  const W = o.width || 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
+  // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
+  const BH = o.bars ? o.bars.height || 56 : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
+  const VH = BH ? yb1 + B : H;
+  const fb = (o.bars && o.bars.fmt) || big;
+  const bpts = o.bars ? o.bars.points.filter(p => !nil(p[1])).map(p => [+new Date(p[0]), p[1], p[2]]) : [];
   const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
   const S = series.map((s, i) => {
     const pts = s.points.map(p => [+new Date(p[0]), nil(p[1]) ? null : p[1]]);
@@ -424,7 +431,7 @@ function lineChart(el, series, o = {}) {
   });
   const all = S.flatMap(x => x.ok);
   if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
-  const [xmin, x1] = ext(all.map(p => p[0]));
+  const [xmin, x1] = ext([...all, ...bpts].map(p => p[0]));
   const f = o.fmt || (v => v.toFixed(2));
   // A range shows when it is shorter than the data and holds 5 points of the longest line.
   const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
@@ -453,7 +460,7 @@ function lineChart(el, series, o = {}) {
     for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
     if (y0 === y1) { y0 -= 1; y1 += 1; }
     const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
-    const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
+    const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (Pb - T);
     let g = "";
     for (let i = 0; i <= 4; i++) {
       const v = y0 + (y1 - y0) * i / 4, y = Y(v);
@@ -463,7 +470,16 @@ function lineChart(el, series, o = {}) {
     if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
     for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
     for (const [t, x, a] of [[x0, L, "start"], [(x0 + x1) / 2, X((x0 + x1) / 2), "middle"], [x1, W - R, "end"]]) {
-      g += `<text x="${x}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
+      g += `<text x="${x}" y="${VH - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
+    }
+    if (BH) {
+      const vis = bpts.filter(p => p[0] >= x0), top = Math.max(...vis.map(p => p[1]), 0) || 1;
+      const bw = Math.max(1, (W - L - R) / (vis.length || 1) * 0.7);
+      g += `<line x1="${L}" x2="${W - R}" y1="${yb1}" y2="${yb1}" stroke="#3a4450"/>
+        <text x="${L - 6}" y="${yb0 + 8}" fill="#7d8894" font-size="10" text-anchor="end">${fb(top)}</text>
+        <text x="${L - 6}" y="${yb1}" fill="#7d8894" font-size="10" text-anchor="end">0</text>`
+        + vis.map(p => `<rect x="${(X(p[0]) - bw / 2).toFixed(1)}" y="${(yb1 - p[1] / top * BH).toFixed(1)}" width="${bw.toFixed(1)}"
+          height="${(p[1] / top * BH).toFixed(1)}" fill="${p[2] || "#56606b"}" fill-opacity=".6"/>`).join("");
     }
     if (o.periodEnds) {
       const a = new Date(x0), months = (x1 - x0) / DAY / 30.4;
@@ -473,7 +489,7 @@ function lineChart(el, series, o = {}) {
         while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(+d - DAY);
         const quarter = (m + 1) % 3 === 0;
         if (+d >= x0 && +d <= x1 && (quarter || months <= 48)) g += `<line x1="${X(+d).toFixed(1)}" x2="${X(+d).toFixed(1)}"
-          y1="${T}" y2="${H - B}" stroke="${quarter ? "#46515f" : "#272f3b"}"/>`;
+          y1="${T}" y2="${BH ? yb1 : Pb}" stroke="${quarter ? "#46515f" : "#272f3b"}"/>`;
         if (++m > 11) { m = 0; yr++; }
       }
     }
@@ -491,8 +507,9 @@ function lineChart(el, series, o = {}) {
     // One dot for each line that shows, on the point that the readout gives.
     const dots = shown.map(x => `<circle class="dt" r="3" fill="${x.c}" stroke="#0b0e14" stroke-width="1"
       visibility="hidden"/>`).join("");
-    el.innerHTML = `${rng}<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
-      stroke="#56606b" visibility="hidden"/>${dots}<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
+    const ybot = BH ? yb1 : Pb;
+    el.innerHTML = `${rng}<svg viewBox="0 0 ${W} ${VH}">${g}${lines}<line class="cx" y1="${T}" y2="${ybot}"
+      stroke="#56606b" visibility="hidden"/>${dots}<rect x="${L}" y="${T}" width="${W - L - R}" height="${ybot - T}"
       fill="transparent"/></svg><div class="legend${S.length > 1 ? " tg" : ""}"></div>`;
     el.querySelectorAll(".rng button").forEach(b => b.onclick = () => { st.range = b.dataset.r === "All" ? null : b.dataset.r; draw(); });
     const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
@@ -501,7 +518,8 @@ function lineChart(el, series, o = {}) {
       if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
       const p = pointAt(x.ok, t);
       return `<span class="lg" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)} ${p ? f(p[1]) : "–"}</span>`;
-    }).join("") + (o.periodEnds ? '<span class="dim">vertical lines: month ends, brighter at quarter ends</span>' : "")
+    }).join("") + (BH ? `<span><i style="background:#56606b"></i>${esc(o.bars.name)} ${(q => q ? fb(q[1]) : "–")(pointAt(bpts, t))}</span>` : "")
+      + (o.periodEnds ? '<span class="dim">vertical lines: month ends, brighter at quarter ends</span>' : "")
       + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
     legend(null);
     leg.onclick = e => {
@@ -1432,6 +1450,11 @@ function stockPage(P) {
     <div><span class="k">Days up, 1Y</span>${pct(st.share_up, 0, false)}</div>
     <div><span class="k">Model spread (half)</span>${P.cost ? (P.cost.spread * 1e4).toFixed(1) + " bp" : "–"}</div>
   </div>`;
+  const PR = P.prices;
+  if (PR.dates.length > 1) html += `<div class="panel" style="margin-top:12px"><h3>Price, one year: the adjusted close, the 50 and 200-session averages, and the volume</h3>
+      <div class="chart" id="st-price"></div>
+      <div class="note">The close is adjusted for splits and dividends. The volume is in shares, adjusted for splits. A bar is
+        green when the close is above the close of the session before. An average needs 50 or 200 sessions of history.</div></div>`;
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Where the return came from, one year (sum of daily parts)</h3>
       <div class="chart" id="st-cum"></div></div>
     <div class="panel"><h3>Return attribution</h3><div class="tabs" id="st-attr-tabs"></div><div class="bars" id="st-attr"></div>
@@ -1468,6 +1491,15 @@ function stockPage(P) {
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
 
+  if (PR.dates.length > 1) {
+    const pts = k => PR.dates.map((d, i) => [d, PR[k][i]]);
+    lineChart($("st-price"), [{name: "close", color: "#d6dde6", width: 1.6, points: pts("px")},
+      {name: "50-session average", color: "#e3b341", points: pts("ma50")},
+      {name: "200-session average", color: "#58a6ff", points: pts("ma200")}],
+      {height: 250, width: 1300, fmt: v => v.toFixed(v >= 1000 ? 0 : v >= 100 ? 1 : 2),
+       bars: {name: "volume", height: 64, points: PR.dates.map((d, i) => [d, PR.volume[i],
+         i && PR.px[i] < PR.px[i - 1] ? "var(--down)" : "var(--up)"])}});
+  }
   const C = P.cumulative;
   if (C.dates.length) lineChart($("st-cum"), [
     {name: "total", color: "#e3b341", width: 2, points: C.dates.map((d, i) => [d, C.total[i]])},

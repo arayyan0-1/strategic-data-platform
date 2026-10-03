@@ -65,8 +65,8 @@ def warehouse(tmp_data_root):
                2834 as sic_code, 'XNYS' as primary_exchange, type = 'CS' as in_universe
         from px""")
     con.execute("""create table core.security_sessions as
-        select security_key, date, ticker, px as adj_close_total, px as adj_close_split,
-               1e6 as volume, 1e8 as dollar_volume from px""")
+        select security_key, date, ticker, px as close, px as adj_close_total,
+               px as adj_close_split, 1e6 as volume, 1e8 as dollar_volume from px""")
     con.execute("""create table core.rates as
         select date, 0.0001::double as rf from px where security_key = 'KA'""")
     con.execute("""create table intermediate.int_security_details as
@@ -175,12 +175,56 @@ def test_a_profile_carries_every_part_and_is_json_safe(warehouse):
     p = stock.view("profile", "aaa")
     json.dumps(p, allow_nan=False)
     assert p["head"]["ticker"] == "AAA" and p["head"]["sic_description"]
-    assert p["stats"]["ret_1d"] == pytest.approx(p["prices"]["px"][-1] / p["prices"]["px"][-2] - 1)
+    # The prices carry six significant digits, so the return agrees to about 1e-5.
+    assert p["stats"]["ret_1d"] == pytest.approx(
+        p["prices"]["px"][-1] / p["prices"]["px"][-2] - 1, abs=2e-5)
     assert {r["kind"] for r in p["related"]} == {"specific", "total"}
     assert p["related"][0]["ticker"] == "BBB", "B is A plus noise"
     assert p["signals"][0]["label"] == "Momentum 12-1 months"
     assert p["short_interest"][0]["share_of_shares"] == pytest.approx(0.01)
     assert p["actions"] and p["attribution"][-1]["span"] == "1y"
+
+
+def test_a_profile_has_the_series_of_the_price_chart(warehouse):
+    p = stock.view("profile", "aaa")["prices"]
+    n = len(p["dates"])
+    assert n == N and all(len(p[k]) == n for k in ("px", "ma50", "ma200", "volume"))
+    assert p["ma50"][:49] == [None] * 49 and p["ma50"][49] is not None
+    assert p["ma200"][:199] == [None] * 199 and p["ma200"][-1] is not None
+    assert p["volume"][-1] == 1_000_000
+    # Rounded: a day takes under 64 characters, where the raw floats take over 100.
+    assert len(json.dumps(p)) < 64 * n
+
+
+def test_the_volume_of_the_chart_is_adjusted_for_splits(warehouse):
+    con = duckdb.connect(str(settings.warehouse_path))
+    # A 2-for-1 split after 2025-06-01: the close of those days is twice the adjusted close.
+    con.execute("update core.security_sessions set close = 2 * adj_close_split "
+                "where security_key = 'KA' and date < '2025-06-01'")
+    con.close()
+    p = stock.view("profile", "aaa")["prices"]
+    volume = dict(zip(p["dates"], p["volume"], strict=True))
+    assert volume["2025-05-31"] == 2_000_000 and volume["2025-06-01"] == 1_000_000
+
+
+def test_the_price_series_has_one_year_and_the_averages_of_the_sessions_before_it():
+    days = [dt.date(2024, 1, 1) + dt.timedelta(days=i) for i in range(700)]
+    px = np.arange(1.0, 701.0)
+    s = stock._price_series(days, px, np.full(700, 1000.0))
+    assert len(s["dates"]) == 365 and s["dates"][-1] == days[-1].isoformat()
+    assert s["dates"][0] > (days[-1] - dt.timedelta(days=365)).isoformat()
+    assert s["ma50"][-1] == pytest.approx(px[-50:].mean())
+    # The first row of the chart has an average of 200 sessions, and 135 of them lie before it.
+    assert s["ma200"][0] == pytest.approx(px[136:336].mean())
+
+
+def test_a_short_history_has_no_long_average_and_none_has_no_series():
+    days = [dt.date(2025, 1, 1) + dt.timedelta(days=i) for i in range(100)]
+    s = stock._price_series(days, np.linspace(10, 20, 100), np.full(100, np.nan))
+    assert s["ma200"] == [None] * 100 and s["ma50"][48] is None and s["ma50"][49] is not None
+    assert s["volume"] == [None] * 100
+    assert stock._price_series([], np.array([]), np.array([])) == {
+        "dates": [], "px": [], "ma50": [], "ma200": [], "volume": []}
 
 
 def test_the_risk_shares_sum_to_one(warehouse):
