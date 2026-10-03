@@ -15,7 +15,7 @@
   a.tk:hover { color:var(--amber); text-decoration:underline; }
   header { position:sticky; top:0; z-index:5; background:#070a0f; border-bottom:1px solid var(--line);
            padding:6px 16px; }
-  header .bar { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; }
+  header .bar { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; }
   header b.brand { color:var(--amber); letter-spacing:.08em; white-space:nowrap; }
   header .push { margin-left:auto; }
   header .menu { position:absolute; right:16px; top:100%; z-index:21; background:#0e131b;
@@ -26,13 +26,20 @@
   header nav a.sep { grid-column:1 / -1; border-top:1px solid var(--line); padding-top:3px; margin-top:3px; }
   .meta { color:var(--dim); white-space:nowrap; }
   .srcbox { position:relative; }
-  .srcbox .pop { display:none; position:absolute; left:0; top:100%; z-index:22; background:#0e131b;
-                 border:1px solid var(--line); padding:8px 10px; white-space:nowrap; }
+  .srcbox .pop { display:none; position:absolute; right:0; top:100%; z-index:22; background:#0e131b;
+                 border:1px solid var(--line); padding:8px 10px; width:max-content; max-width:560px; }
   .srcbox:hover .pop, .srcbox.open .pop { display:block; }
   .pop div { margin:2px 0; font-size:11px; }
   .pop i, .stat i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; }
-  .flag { color:var(--amber); font-size:11px; white-space:nowrap; cursor:default; }
-  .cmd { position:relative; flex:1 1 200px; min-width:150px; max-width:480px; }
+  .pop .head { color:var(--dim); letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:3px; font:inherit; font-size:11px;
+          padding:2px 8px; cursor:pointer; max-width:220px; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; display:block; color:var(--up); }
+  .stat i { background:currentColor; }
+  .stat.late { color:var(--amber); } .stat.stale { color:var(--down); }
+  .stat:hover { border-color:var(--dim); }
+  .flag { color:var(--amber); font-size:11px; white-space:nowrap; cursor:pointer; }
+  .cmd { position:relative; flex:1 1 120px; min-width:120px; max-width:480px; }
   .cmd input { width:100%; background:var(--panel); color:var(--ink); border:1px solid var(--line);
                border-radius:3px; padding:4px 8px; font:inherit; }
   .cmd input:focus { outline:none; border-color:var(--amber); }
@@ -178,8 +185,8 @@
       placeholder="Ticker, pair (XOM/CVX), measure or section. Press / to focus.">
       <div id="cmd-list" hidden></div></div>
     <span class="meta" id="meta">loading…</span>
-    <span class="srcbox" id="srcbox"><button class="btn" id="src-btn" title="Freshness of each source">sources</button>
-      <div class="pop" id="src-pop"></div></span>
+    <span class="srcbox" id="srcbox"><button class="stat" id="src-btn" title="Freshness of each source"><i></i><span
+      id="src-text">sources</span></button><div class="pop" id="src-pop"></div></span>
     <span class="flag" id="links-flag" hidden></span>
     <span class="push"></span>
     <button class="btn" id="nav-btn" title="Go to a section">sections ▾</button>
@@ -718,6 +725,7 @@ function layoutControls() {
   $("layout-btn").onclick = () => { $("nav-menu").hidden = true; $("layout-menu").hidden = !$("layout-menu").hidden; };
   $("nav-btn").onclick = () => { $("layout-menu").hidden = true; $("nav-menu").hidden = !$("nav-menu").hidden; };
   $("src-btn").onclick = () => $("srcbox").classList.toggle("open");
+  $("links-flag").onclick = () => $("srcbox").classList.toggle("open");
   // A click outside a menu closes it.
   document.addEventListener("click", e => {
     if (!e.target.closest(".menu, #layout-btn, #nav-btn")) { $("nav-menu").hidden = true; $("layout-menu").hidden = true; }
@@ -821,15 +829,27 @@ function setupCommand() {
 
 // ---------------------------------------------------------------- the header
 const isCount = s => s.pending !== null && s.pending !== undefined;
+// The state of a source: fresh, late (past its limit) or stale (past 1.5 times its limit).
+// A source with no date counts as late.
+function sourceState(s, today) {
+  if (!s.last_date) return {state: "late", age: null};
+  const age = Math.round((today - new Date(s.last_date)) / 864e5);
+  return {state: age > s.max_age_days * 1.5 ? "stale" : age > s.max_age_days ? "late" : "fresh", age};
+}
 function sources() {
   const S = DATA.sources || [], today = new Date();
-  const flag = S.find(isCount);
-  $("src-pop").innerHTML = S.filter(s => !isCount(s)).map(s => {
-    const age = s.last_date ? Math.round((today - new Date(s.last_date)) / 864e5) : null;
-    const c = age === null ? "var(--dim)" : age > s.max_age_days * 1.5 ? "var(--down)" : age > s.max_age_days ? "var(--amber)" : "var(--up)";
-    return `<div title="${esc(s.note)}"><i style="background:${c}"></i>${esc(s.source)} ${esc(s.last_date || "–")}
-      <span class="dim">${esc(s.note)}${s.pulled ? " · pulled " + esc(s.pulled) : ""}</span></div>`;
-  }).join("");
+  const flag = S.find(isCount), rows = S.filter(s => !isCount(s)).map(s => ({s, ...sourceState(s, today)}));
+  const late = rows.filter(r => r.state !== "fresh"), color = {fresh: "var(--up)", late: "var(--amber)", stale: "var(--down)"};
+  const worst = late.some(r => r.state === "stale") ? "stale" : late.length ? "late" : "fresh";
+  $("src-btn").className = "stat " + worst;
+  const names = late.map(r => r.s.source);
+  $("src-text").textContent = !late.length ? "sources fresh"
+    : "late: " + names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : "");
+  $("src-pop").innerHTML = '<div class="head">Sources</div>' + rows.map(({s, state, age}) =>
+    `<div title="${esc(s.note)}"><i style="background:${color[state]}"></i>${esc(s.source)} ${esc(s.last_date || "no date")}
+      <span class="dim">${age === null ? "" : age + " d old, limit " + s.max_age_days + " d · "}${esc(s.note)}${s.pulled ? " · pulled " + esc(s.pulled) : ""}</span></div>`).join("")
+    + (flag && flag.pending ? `<div><i style="background:var(--amber)"></i>${esc(flag.source)}
+      <span class="dim">${flag.pending} to review · ${esc(flag.note)}</span></div>` : "");
   const n = flag ? flag.pending : 0;
   $("links-flag").hidden = !n;
   $("links-flag").textContent = n ? `Security links: ${n} to review` : "";
@@ -1830,7 +1850,9 @@ async function load() {
   try {
     DATA = await getJSON("/market.json");
   } catch (e) { $("meta").textContent = "cannot read /market.json: " + e.message; return; }
-  $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${(DATA.built || "–").slice(0, 16).replace("T", " ")} UTC`;
+  const built = (DATA.built || "–").slice(0, 16).replace("T", " ");
+  $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${built.slice(5)} UTC`;
+  $("meta").title = `Built ${built} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
   for (const f of [sources, exceptions, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
     breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
