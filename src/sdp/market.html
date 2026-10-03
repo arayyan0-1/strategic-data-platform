@@ -15,13 +15,31 @@
   a.tk:hover { color:var(--amber); text-decoration:underline; }
   header { position:sticky; top:0; z-index:5; background:#070a0f; border-bottom:1px solid var(--line);
            padding:6px 16px; }
-  header .bar { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; }
-  header b.brand { color:var(--amber); letter-spacing:.08em; }
-  header nav { display:flex; flex-wrap:wrap; gap:2px 10px; margin-top:4px; }
-  header nav a { color:var(--dim); font-size:12px; }
-  header nav a:hover { color:var(--ink); }
-  .meta { color:var(--dim); }
-  .cmd { position:relative; flex:1 1 320px; max-width:520px; }
+  header .bar { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; }
+  header b.brand { color:var(--amber); letter-spacing:.08em; white-space:nowrap; }
+  header .push { margin-left:auto; }
+  header .menu { position:absolute; right:16px; top:100%; z-index:21; background:#0e131b;
+                 border:1px solid var(--line); padding:8px 10px; min-width:220px; }
+  header nav { display:grid; grid-template-columns:repeat(2,max-content); gap:3px 22px; }
+  header nav a { color:var(--ink); font-size:12px; }
+  header nav a:hover { color:var(--amber); }
+  header nav a.sep { grid-column:1 / -1; border-top:1px solid var(--line); padding-top:3px; margin-top:3px; }
+  .meta { color:var(--dim); white-space:nowrap; }
+  .srcbox { position:relative; }
+  .srcbox .pop { display:none; position:absolute; right:0; top:100%; z-index:22; background:#0e131b;
+                 border:1px solid var(--line); padding:8px 10px; width:max-content; max-width:560px; }
+  .srcbox:hover .pop, .srcbox.open .pop { display:block; }
+  .pop div { margin:2px 0; font-size:11px; }
+  .pop i, .stat i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; }
+  .pop .head { color:var(--dim); letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:3px; font:inherit; font-size:11px;
+          padding:2px 8px; cursor:pointer; max-width:220px; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; display:block; color:var(--up); }
+  .stat i { background:currentColor; }
+  .stat.late { color:var(--amber); } .stat.stale { color:var(--down); }
+  .stat:hover { border-color:var(--dim); }
+  .flag { color:var(--amber); font-size:11px; white-space:nowrap; cursor:pointer; }
+  .cmd { position:relative; flex:1 1 120px; min-width:120px; max-width:480px; }
   .cmd input { width:100%; background:var(--panel); color:var(--ink); border:1px solid var(--line);
                border-radius:3px; padding:4px 8px; font:inherit; }
   .cmd input:focus { outline:none; border-color:var(--amber); }
@@ -31,16 +49,12 @@
   #cmd-list div.on, #cmd-list div:hover { background:var(--hl); }
   #cmd-list .k { color:var(--amber); min-width:70px; }
   #cmd-list .t { color:var(--dim); margin-left:auto; font-size:11px; }
-  #sources span { font-size:11px; margin-right:10px; white-space:nowrap; }
-  #sources i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; }
   .btn { background:var(--panel); color:var(--dim); border:1px solid var(--line); font:inherit; font-size:11px;
-         padding:2px 8px; border-radius:3px; cursor:pointer; }
+         padding:2px 8px; border-radius:3px; cursor:pointer; white-space:nowrap; }
   .btn:hover { color:var(--ink); }
-  #layout-menu { position:absolute; right:16px; top:40px; z-index:21; background:#0e131b; border:1px solid var(--line);
-                 padding:8px 10px; min-width:220px; }
   #layout-menu div { margin:3px 0; }
   main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
-  section { margin:18px 0 26px; }
+  section { margin:18px 0 24px; scroll-margin-top:48px; }
   section.collapsed > :not(h2) { display:none !important; }
   h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
        border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; display:flex; align-items:center; }
@@ -60,15 +74,20 @@
   .stack > * + * { margin-top:12px; }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:10px; min-width:0;
            overflow-x:auto; }
-  #crossasset .grid2 { grid-template-columns:minmax(0,1.75fr) minmax(0,1fr); }
+  .split { display:grid; grid-template-columns:minmax(0,var(--sl,1fr)) minmax(0,var(--sr,1fr)); gap:14px; }
   table { width:100%; border-collapse:collapse; }
   th { color:var(--dim); font-weight:600; font-size:11px; text-align:right; padding:3px 6px;
        border-bottom:1px solid var(--line); white-space:nowrap; }
-  th:first-child, td:first-child { text-align:left; }
+  th:first-child, td:first-child, th.l { text-align:left; }
   td { text-align:right; padding:2px 6px; border-bottom:1px solid #161c26; white-space:nowrap; }
   td.l { text-align:left; }
+  td.lab { white-space:normal; min-width:140px; }
+  td.ell { max-width:110px; overflow:hidden; text-overflow:ellipsis; }
+  table.tight th, table.tight td { padding-left:4px; padding-right:4px; }
   tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:8px;
               text-transform:uppercase; border-bottom:1px solid var(--line); }
+  tr.grp td .gtog { float:right; text-transform:none; letter-spacing:0; color:var(--dim); cursor:pointer; }
+  tr.grp td .gtog:hover { color:var(--ink); }
   tr.row:hover { background:var(--hl); cursor:pointer; }
   tr.sel { background:var(--hl); }
   .up { color:var(--up); } .down { color:var(--down); } .dim { color:var(--dim); } .amber { color:var(--amber); }
@@ -78,11 +97,22 @@
   .chart svg { display:block; width:100%; }
   .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; margin-top:4px; }
   .legend i { display:inline-block; width:10px; height:2px; vertical-align:middle; margin-right:4px; }
+  .legend.tg .lg { cursor:pointer; user-select:none; }
+  .legend .lg.off { opacity:.45; text-decoration:line-through; }
+  .rng { display:flex; justify-content:flex-end; gap:2px; margin-bottom:2px; }
+  .rng button { background:none; border:1px solid var(--line); color:var(--dim); font:inherit; font-size:10px;
+                line-height:13px; padding:0 5px; border-radius:2px; cursor:pointer; }
+  .rng button:hover { color:var(--ink); }
+  .rng button.on { color:var(--amber); border-color:var(--amber); }
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
                  font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
   .tabs .sep { display:inline-block; width:10px; }
   .bars .b { display:grid; grid-template-columns:190px 1fr 86px; align-items:center; gap:6px; margin:2px 0; }
+  .bars .b > span:last-child { white-space:nowrap; text-align:right; }
+  #attr-industries .b { margin:4px 0; }
+  .bars .name { display:block; max-width:none; white-space:nowrap; }
+  #season-bars .b { grid-template-columns:190px 1fr 118px; }
   .bars .track { position:relative; height:10px; }
   .bars .track span { position:absolute; top:0; height:10px; }
   .bars .axis { position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--line); }
@@ -90,7 +120,12 @@
   .heat td { text-align:center; font-size:11px; padding:3px 4px; }
   .note { color:var(--dim); font-size:11px; margin-top:6px; }
   .err { color:var(--down); }
-  @media (max-width:900px) { .grid2, .grid2e { grid-template-columns:1fr; } }
+  @media (max-width:900px) { .grid2, .grid2e, .split { grid-template-columns:1fr; } }
+  @media (max-width:1360px) {
+    #crossasset .split { grid-template-columns:minmax(0,1fr); }
+    #crossasset .stack { order:-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+    #crossasset .stack > * + * { margin-top:0; }
+  }
   .exc { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:6px; }
   .ex { display:grid; grid-template-columns:118px 1fr 38px; gap:8px; align-items:center;
         background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 10px;
@@ -99,7 +134,7 @@
   .ex .area { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
   .ex .score { text-align:right; color:var(--amber); }
   .ex.link { cursor:pointer; } .ex.link:hover { background:var(--hl); }
-  .pbar { position:relative; display:inline-block; width:70px; height:6px; background:#1b222c;
+  .pbar { position:relative; display:inline-block; width:56px; height:6px; background:#1b222c;
           border-radius:3px; vertical-align:middle; margin-right:6px; }
   .pbar i { position:absolute; top:-2px; width:4px; height:10px; margin-left:-2px; border-radius:2px; }
   .zbar { position:relative; display:inline-block; width:160px; height:10px; background:#161c26; vertical-align:middle; }
@@ -149,14 +184,18 @@
   <div class="bar">
     <b class="brand">SDP · MARKET MONITOR</b>
     <div class="cmd"><input id="cmd" autocomplete="off" spellcheck="false"
-      placeholder="Ticker, a pair (XOM/CVX), a measure or a section. Press / to focus.">
+      placeholder="Ticker, pair (XOM/CVX), measure or section. Press / to focus.">
       <div id="cmd-list" hidden></div></div>
     <span class="meta" id="meta">loading…</span>
+    <span class="srcbox" id="srcbox"><button class="stat" id="src-btn" title="Freshness of each source"><i></i><span
+      id="src-text">sources</span></button><div class="pop" id="src-pop"></div></span>
+    <span class="flag" id="links-flag" hidden></span>
+    <span class="push"></span>
+    <button class="btn" id="nav-btn" title="Go to a section">sections ▾</button>
     <button class="btn" id="layout-btn" title="Show hidden sections, or reset the layout">layout</button>
   </div>
-  <div id="sources" class="meta" style="margin-top:3px"></div>
-  <nav id="nav"></nav>
-  <div id="layout-menu" hidden></div>
+  <div class="menu" id="nav-menu" hidden><nav id="nav"></nav></div>
+  <div class="menu" id="layout-menu" hidden></div>
 </header>
 <main>
   <div id="errors" class="err"></div>
@@ -176,15 +215,15 @@
   <section id="attribution" data-nav="what moved"><h2>What moved the market</h2>
     <div class="tabs" id="attr-tabs"></div>
     <div class="grid3">
-      <div class="panel"><h3 id="attr-f-title">By factor</h3><div class="bars" id="attr-factors"></div></div>
+      <div class="panel"><h3 id="attr-f-title">By factor</h3><div class="bars" id="attr-factors"></div>
+        <div class="note">The in-universe common stock through the style and industry model. Each part is in basis
+          points of the market and the parts sum to its return. Each style is centered on the cap-weighted market, as in
+          Barra, so cap-weighted the styles are near zero and the market factor is the market. Equal-weighted, the styles
+          show how the average name differs: on a day when small names beat large ones, size shows here. By name: the cap weight times the return; the
+          stock-specific part is in grey. The names are for the last session (1D) or the last 21 sessions.</div></div>
       <div class="panel"><h3>By industry</h3><div class="bars" id="attr-industries"></div></div>
-      <div class="panel"><h3 id="attr-n-title">By name</h3><table id="attr-names"></table></div>
+      <div class="panel"><h3 id="attr-n-title">By name</h3><table id="attr-names" class="tight"></table></div>
     </div>
-    <div class="note">The in-universe common stock through the style and industry model. Each part is in basis
-      points of the market and the parts sum to its return. Each style is centered on the cap-weighted market, as in
-      Barra, so cap-weighted the styles are near zero and the market factor is the market. Equal-weighted, the styles
-      show how the average name differs: on a day when small names beat large ones, size shows here. By name: the cap weight times the return; the
-      stock-specific part is in grey. The names are for the last session (1D) or the last 21 sessions.</div>
   </section>
 
   <section id="heat" data-nav="heat map"><h2>Heat map: the 500 largest names</h2>
@@ -195,14 +234,14 @@
   </section>
 
   <section id="crossasset" data-nav="cross-asset"><h2>Cross-asset</h2>
-    <div class="grid2">
-      <div class="panel"><table id="board"></table>
+    <div class="split" style="--sl:1.7fr;--sr:1fr">
+      <div class="panel"><h3>ETFs by asset group</h3><table id="board" class="tight"></table>
         <div class="note">Colour is the score of the move, in σ. Click rows to chart them. ↗ opens the ETF.</div></div>
       <div class="stack">
         <div class="panel"><h3>Selected, rebased to 0% one year ago</h3>
           <div class="chart" id="main-chart"></div></div>
         <div class="panel"><h3>Relationships</h3>
-          <table id="relations"></table>
+          <table id="relations" class="tight"></table>
           <div class="note">The σ is the score of the one-month change. Percentile of the level over
             two years.</div></div>
       </div>
@@ -210,63 +249,69 @@
   </section>
 
   <section id="rates" data-nav="rates"><h2>Rates, credit and volatility</h2>
-    <div class="grid2">
+    <div class="split" style="--sl:1.3fr;--sr:1fr">
       <div class="stack">
+        <div class="panel"><h3>Rates, spreads and volatility</h3><table id="rates-table" class="tight"></table>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
         <div class="panel"><h3>US Treasury yield curve</h3>
           <div class="tabs inline" id="curve-tabs"></div>
           <div class="chart" id="curve-chart"></div>
           <div class="note" id="curve-note"></div></div>
         <div class="panel"><h3>Level, slope and curvature (principal components of daily moves)</h3>
-          <div class="chart" id="pca-chart"></div><table id="pca-table" style="margin-top:6px"></table>
+          <div class="chart" id="pca-chart"></div><table id="pca-table" class="tight" style="margin-top:6px"></table>
           <div class="chart" id="pca-loadings" style="margin-top:8px"></div>
           <div class="note" id="pca-note"></div></div>
         <div class="panel"><h3>Credit spreads by rating (OAS)</h3><div class="chart" id="ladder-chart"></div>
           <div class="note">ICE BofA option-adjusted spreads on a log scale. FRED serves three years, so the
             history starts in 2023-09.</div></div>
-        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
-      </div>
-      <div class="panel"><table id="rates-table"></table>
         <div class="note">FRED, as known before the last session. Changes in basis points for rates
           and spreads. Colour is the score of the daily change, in σ, red toward
           stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
           scale. A date after a label is its last observation: FRED publishes it late, or once
           a week, so it has no 1D move. The forwards use the simple approximation from the
-          constant-maturity yields. Click rows to chart them.</div></div>
+          constant-maturity yields. Click rows to chart them.</div>
+      </div>
     </div>
   </section>
 
   <section id="funding" data-nav="funding"><h2>Funding and liquidity</h2>
-    <div class="grid2">
+    <div class="split" style="--sl:1.2fr;--sr:1fr">
       <div class="stack">
-        <div class="panel"><h3>Overnight rates inside the policy corridor, one year</h3>
-          <div class="chart" id="corridor-chart"></div>
+        <div class="panel"><h3>Money markets and the Federal Reserve balance sheet</h3>
+          <table id="funding-table" class="tight"></table>
+          <div class="note">The policy rates move in steps and the balance sheet once a week, so they are not
+            exceptions. The funding spreads are. Click rows to chart them.</div>
           <div class="note">IORB is the ceiling that matters for banks, the ON RRP rate the floor. SOFR above IORB,
-            or a wide 99th percentile, is repo pressure: quarter-ends, tax dates and settlement of coupons.</div></div>
-        <div class="panel"><h3>Funding spreads, one year (bp)</h3><div class="chart" id="spreads-chart"></div></div>
-        <div class="panel"><h3>The Federal Reserve balance sheet, two years ($bn)</h3>
-          <div class="chart" id="fedbs-chart"></div>
+            or a wide 99th percentile, is repo pressure: quarter-ends, tax dates and settlement of coupons.</div>
           <div class="note">Net liquidity is the assets of the Fed less the Treasury General Account and the
             overnight reverse repo: a popular gauge of the liquidity that the Fed supplies, and its link to stock
             prices is loose. The balance sheet is weekly (Wednesday).</div></div>
-        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="funding-chart"></div></div>
       </div>
-      <div class="panel"><table id="funding-table"></table>
-        <div class="note">The policy rates move in steps and the balance sheet once a week, so they are not
-          exceptions. The funding spreads are. Click rows to chart them.</div></div>
+      <div class="stack">
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="funding-chart"></div></div>
+        <div class="panel"><h3>Overnight rates inside the policy corridor, one year</h3>
+          <div class="chart" id="corridor-chart"></div></div>
+        <div class="panel"><h3>Funding spreads, one year (bp)</h3><div class="chart" id="spreads-chart"></div></div>
+        <div class="panel"><h3>The Federal Reserve balance sheet, two years ($bn)</h3>
+          <div class="chart" id="fedbs-chart"></div></div>
+      </div>
     </div>
   </section>
 
   <section id="fx" data-nav="fx and commodities"><h2>Currencies and commodities</h2>
-    <div class="grid2">
+    <div class="split" style="--sl:1.3fr;--sr:1fr">
+      <div class="panel"><h3>Currencies and commodities</h3><table id="fx-table" class="tight"></table></div>
       <div class="panel"><h3>Selected, two years, rebased</h3><div class="chart" id="fx-chart"></div>
         <div class="note">FRED noon rates from New York and spot prices. Changes are in percent. The board
           above has the ETFs, which trade to the close.</div></div>
-      <div class="panel"><table id="fx-table"></table></div>
     </div>
   </section>
 
   <section id="regime" data-nav="regime"><h2>Regime (in-universe US common stock)</h2>
-    <div class="panel"><table id="regime-table"></table></div>
+    <div class="panel"><h3>Measures of the market state</h3><table id="regime-table"></table></div>
     <div class="grid3" id="breadth-charts" style="margin-top:12px"></div>
   </section>
 
@@ -275,11 +320,11 @@
       12 industries, as in a Barra model. Each style return is a portfolio with unit exposure
       to that style and none to the others. σ is the score of the move, against the history of the
       factors of its family.</div>
-    <div class="panel" style="margin-top:8px"><table id="risk"></table></div>
-    <div class="grid2" style="margin-top:12px">
+    <div class="panel" style="margin-top:8px"><h3>Style factors</h3><table id="risk" class="tight"></table></div>
+    <div class="split" style="margin-top:12px">
       <div class="panel"><h3>Style factors, cumulative, one year</h3><div class="chart" id="style-chart"></div></div>
       <div class="panel"><h3>Industries against the market, one month</h3><div class="bars" id="ind-bars"></div>
-        <table id="ind-table" style="margin-top:8px"></table></div>
+        <table id="ind-table" class="tight" style="margin-top:8px"></table></div>
     </div>
   </section>
 
@@ -287,8 +332,8 @@
     <div class="tabs" id="sig-tabs"></div>
     <div class="note" id="sig-note"></div>
     <div class="grid2e" style="margin-top:8px">
-      <div class="panel"><h3>Highest 10</h3><table id="sig-top"></table></div>
-      <div class="panel"><h3>Lowest 10</h3><table id="sig-bottom"></table></div>
+      <div class="panel"><h3>Highest 10</h3><table id="sig-top" class="tight"></table></div>
+      <div class="panel"><h3>Lowest 10</h3><table id="sig-bottom" class="tight"></table></div>
     </div>
   </section>
 
@@ -296,11 +341,11 @@
     <div class="note">The part of each return that the market, the industry and the styles do not
       explain. σ is the score of the move in units of the residual risk of the name, on the map of the
       names of $10B or more. News lives here.</div>
-    <div class="grid2" id="mover-lists" style="margin-top:8px"></div>
+    <div class="grid2e" id="mover-lists" style="margin-top:8px"></div>
   </section>
 
   <section id="calendar" data-nav="calendar"><h2>Material corporate actions ahead</h2>
-    <div class="panel"><table id="cal"></table></div>
+    <div class="panel"><h3>Splits, special dividends and large payments</h3><table id="cal" class="tight"></table></div>
     <div class="note">Splits, special dividends and payments of 1% or more, for names with $20M or
       more of dollar volume.</div></section>
 
@@ -309,9 +354,9 @@
       <div class="panel"><h3>Short across the universe, share of cap</h3><div class="chart" id="si-share"></div></div>
       <div class="panel"><h3>Median days to cover, and names at 10 days or more</h3><div class="chart" id="si-dtc-chart"></div></div>
     </div>
-    <div class="grid2" style="margin-top:12px">
-      <div class="panel"><h3>Most days to cover</h3><table id="si-dtc"></table></div>
-      <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up"></table></div>
+    <div class="grid2e" style="margin-top:12px">
+      <div class="panel"><h3>Most days to cover</h3><table id="si-dtc" class="tight"></table></div>
+      <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up" class="tight"></table></div>
     </div></section>
 
   <section id="calendars" data-nav="seasonality"><h2>Seasonality and event studies</h2>
@@ -321,7 +366,7 @@
         <div class="note" id="season-note"></div></div>
       <div class="panel"><h3>Stock-specific return around events (development sessions)</h3>
         <div class="tabs" id="event-tabs"></div><div class="chart" id="event-chart"></div>
-        <table id="event-table" style="margin-top:6px"></table>
+        <table id="event-table" class="tight" style="margin-top:6px"></table>
         <div class="note">The mean residual of the style model summed from 5 sessions before the event. After the
           event (day +1 on) is what a trade could earn. Events on the same date are not independent, so the
           t is the t-statistic of the mean across event dates, and it treats the dates as independent of each
@@ -333,23 +378,22 @@
     <details><summary class="dim">Quintile long-shorts with costs, PCA, Fama-French, q and the mimics</summary>
       <div class="tabs" id="fam-tabs" style="margin-top:10px"></div>
       <div class="note" id="fam-note"></div>
-      <div class="grid2" style="margin-top:8px">
-        <div class="panel"><table id="perf"></table></div>
+      <div class="panel" style="margin-top:8px"><h3>Performance of the factors of the family</h3><table id="perf" class="tight"></table></div>
+      <div class="grid2e" style="margin-top:12px">
         <div class="panel"><h3>Cumulative return, one year</h3><div class="chart" id="fam-chart"></div></div>
-      </div>
-      <div class="grid2" style="margin-top:12px">
-        <div class="panel"><h3>Signal long-shorts after costs</h3><table id="costs"></table>
-          <div class="note">Costs are half the spread that the invariance model of Kyle and Obizhaeva
-            gives from volatility and dollar volume, on each name that enters or leaves a leg. Gross of borrow and impact. Capacity is the leg
-            size at which a day's trade in a thin name (10th percentile of dollar volume) is 5% of
-            its volume, the median over the last year. Daily rebalancing is the worst case: a slow
-            signal rebalanced monthly trades far less.</div></div>
         <div class="panel"><h3 id="heat-title">Correlation with the published Fama-French factors</h3>
           <div id="heatcorr"></div></div>
       </div>
+      <div class="panel" style="margin-top:12px"><h3>Signal long-shorts after costs</h3><table id="costs" class="tight"></table>
+        <div class="note">Costs are half the spread that the invariance model of Kyle and Obizhaeva
+          gives from volatility and dollar volume, on each name that enters or leaves a leg. Gross of borrow and impact. Capacity is the leg
+          size at which a day's trade in a thin name (10th percentile of dollar volume) is 5% of
+          its volume, the median over the last year. Daily rebalancing is the worst case: a slow
+          signal rebalanced monthly trades far less.</div></div>
     </details>
   </section>
 </main>
+
 <div id="overlay" hidden><div class="inner" id="ov-body"></div></div>
 <script>
 const COLORS = ["#58a6ff","#e3b341","#3fb950","#f85149","#bc8cff","#39c5cf","#ff9bce","#d29922",
@@ -389,61 +433,159 @@ function spark(vals, w = 72, h = 18) {
     stroke-width="1.2" points="${pts.join(" ")}"/></svg>`;
 }
 
+// What the reader changes on a line chart (the lines hidden and the range), by the id of the
+// chart. It lasts while the page is open.
+const CHART_STATE = {};
+const DAY = 864e5;
+const RANGES = [["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
+const ext = a => a.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
+// The last point at or before t (the last point when t is null). The points are in date order.
+function pointAt(pts, t) {
+  if (t === null) return pts[pts.length - 1] || null;
+  let lo = 0, hi = pts.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (pts[m][0] <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r < 0 ? null : pts[r];
+}
+
 // A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
-// dashed lines at fixed values.
+// dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
+// above the chart picks the range, from the ones that the data covers (o.range = false turns
+// it off). The y range fits the lines that show, over the range. o.periodEnds draws a faint
+// line at the last weekday of each month and a stronger one at each quarter end. o.width is the
+// width of the drawing (640). o.bars = {name, points: [[date, value, colour]], height, fmt} draws
+// bars under the lines on the same time axis, from 0 to the largest value in the range.
 function lineChart(el, series, o = {}) {
-  const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
-  const all = series.flatMap(s => s.points.filter(p => !nil(p[1])));
-  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
-  const ts = all.map(p => +new Date(p[0])), vs = all.map(p => p[1]);
-  let x0 = Math.min(...ts), x1 = Math.max(...ts), y0 = Math.min(...vs), y1 = Math.max(...vs);
-  if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
-  for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
-  if (y0 === y1) { y0 -= 1; y1 += 1; }
-  const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
-  const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
-  const f = o.fmt || (v => v.toFixed(2));
-  let g = "";
-  for (let i = 0; i <= 4; i++) {
-    const v = y0 + (y1 - y0) * i / 4, y = Y(v);
-    g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#1b222c"/>
-          <text x="${L - 6}" y="${y + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
-  }
-  if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
-  for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
-  for (const t of [x0, (x0 + x1) / 2, x1]) {
-    const d = new Date(t).toISOString().slice(0, 10);
-    g += `<text x="${X(t)}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="middle">${d}</text>`;
-  }
-  const lines = series.map((s, i) => {
-    const c = s.color || COLORS[i % COLORS.length];
-    let d = "", pen = false;
-    for (const [t, v] of s.points) {
-      if (nil(v)) { pen = false; continue; }
-      d += `${pen ? "L" : "M"}${X(+new Date(t)).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
-    }
-    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${s.width || 1.4}"
-      ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/>`;
-  }).join("");
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}<line class="cx" y1="${T}" y2="${H - B}"
-    stroke="#56606b" visibility="hidden"/><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"
-    fill="transparent"/></svg><div class="legend"></div>`;
-  const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
-  const legend = t => leg.innerHTML = series.map((s, i) => {
-    let p = null;
-    for (const q of s.points) { if (nil(q[1])) continue; if (t === null || +new Date(q[0]) <= t) p = q; else break; }
-    return `<span><i style="background:${s.color || COLORS[i % COLORS.length]}"></i>${esc(s.name)}
-      ${p ? f(p[1]) : "–"}</span>`;
-  }).join("") + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
-  legend(null);
-  svg.addEventListener("mousemove", e => {
-    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
-    if (px < L || px > W - R) return;
-    const t = x0 + (px - L) / (W - L - R) * (x1 - x0);
-    cx.setAttribute("x1", px); cx.setAttribute("x2", px); cx.setAttribute("visibility", "visible");
-    legend(t);
+  const W = o.width || 640, L = 52, R = 10, T = 8, B = 20;
+  const fb = (o.bars && o.bars.fmt) || big;
+  const bpts = o.bars ? o.bars.points.filter(p => !nil(p[1])).map(p => [+new Date(p[0]), p[1], p[2]]) : [];
+  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
+  const S = series.map((s, i) => {
+    const pts = s.points.map(p => [+new Date(p[0]), nil(p[1]) ? null : p[1]]);
+    return {s, c: s.color || COLORS[i % COLORS.length], pts, ok: pts.filter(p => p[1] !== null)};
   });
-  svg.addEventListener("mouseleave", () => { cx.setAttribute("visibility", "hidden"); legend(null); });
+  const all = S.flatMap(x => x.ok);
+  if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  const [xmin, x1] = ext([...all, ...bpts].map(p => p[0]));
+  const f = o.fmt || (v => v.toFixed(2));
+  // A range shows when it is shorter than the data and holds 5 points of the longest line.
+  const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
+    && Math.max(...S.map(x => x.ok.filter(p => p[0] >= x1 - d * DAY).length)) >= 5);
+  // The switch takes 16 px of height. The plot loses the same height, so a chart keeps its size on the page.
+  const H = (o.height || 220) - (avail.length ? 16 : 0);
+  // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
+  const BH = o.bars ? o.bars.height || 56 : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
+  const VH = BH ? yb1 + B : H;
+  const draw = () => {
+    const cur = avail.find(r => r[0] === st.range), x0 = cur ? x1 - cur[1] * DAY : xmin;
+    // The points of a line at or after x0, with its value at x0 first.
+    const clip = x => {
+      const out = []; let prev = null;
+      for (const p of x.pts) {
+        if (p[1] === null) { if (p[0] >= x0) out.push(p); prev = null; continue; }
+        if (p[0] < x0) { prev = p; continue; }
+        if (prev && p[0] > x0) out.push([x0, prev[1] + (p[1] - prev[1]) * (x0 - prev[0]) / (p[0] - prev[0])]);
+        prev = null; out.push(p);
+      }
+      return out;
+    };
+    const shown = S.filter(x => !st.hidden.includes(x.s.name));
+    for (const x of S) x.view = clip(x);
+    const inView = xs => xs.flatMap(x => x.view.filter(p => p[1] !== null));
+    let pool = inView(shown);
+    if (!pool.length) pool = inView(S);
+    if (!pool.length) pool = all;
+    let [y0, y1] = ext(pool.map(p => p[1]));
+    if (o.zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+    for (const h of o.hlines || []) { y0 = Math.min(y0, h); y1 = Math.max(y1, h); }
+    if (y0 === y1) { y0 -= 1; y1 += 1; }
+    const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
+    const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (y1 - v) / (y1 - y0) * (Pb - T);
+    let g = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = y0 + (y1 - y0) * i / 4, y = Y(v);
+      g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#1b222c"/>
+            <text x="${L - 6}" y="${y + 3}" fill="#7d8894" font-size="10" text-anchor="end">${f(v)}</text>`;
+    }
+    if (o.zero && y0 < 0 && y1 > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a4450"/>`;
+    for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
+    for (const [t, x, a] of [[x0, L, "start"], [(x0 + x1) / 2, X((x0 + x1) / 2), "middle"], [x1, W - R, "end"]]) {
+      g += `<text x="${x}" y="${VH - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
+    }
+    if (BH) {
+      const vis = bpts.filter(p => p[0] >= x0), top = Math.max(...vis.map(p => p[1]), 0) || 1;
+      const bw = Math.max(1, (W - L - R) / (vis.length || 1) * 0.7);
+      g += `<line x1="${L}" x2="${W - R}" y1="${yb1}" y2="${yb1}" stroke="#3a4450"/>
+        <text x="${L - 6}" y="${yb0 + 8}" fill="#7d8894" font-size="10" text-anchor="end">${fb(top)}</text>
+        <text x="${L - 6}" y="${yb1}" fill="#7d8894" font-size="10" text-anchor="end">0</text>`
+        + vis.map(p => `<rect x="${(X(p[0]) - bw / 2).toFixed(1)}" y="${(yb1 - p[1] / top * BH).toFixed(1)}" width="${bw.toFixed(1)}"
+          height="${(p[1] / top * BH).toFixed(1)}" fill="${p[2] || "#56606b"}" fill-opacity=".6"/>`).join("");
+    }
+    if (o.periodEnds) {
+      const a = new Date(x0), months = (x1 - x0) / DAY / 30.4;
+      let yr = a.getUTCFullYear(), m = a.getUTCMonth();
+      while (months <= 160 && Date.UTC(yr, m, 1) <= x1) {
+        let d = new Date(Date.UTC(yr, m + 1, 0));
+        while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(+d - DAY);
+        const quarter = (m + 1) % 3 === 0;
+        if (+d >= x0 && +d <= x1 && (quarter || months <= 48)) g += `<line x1="${X(+d).toFixed(1)}" x2="${X(+d).toFixed(1)}"
+          y1="${T}" y2="${BH ? yb1 : Pb}" stroke="${quarter ? "#46515f" : "#272f3b"}"/>`;
+        if (++m > 11) { m = 0; yr++; }
+      }
+    }
+    const lines = shown.map(x => {
+      let d = "", pen = false;
+      for (const [t, v] of x.view) {
+        if (v === null) { pen = false; continue; }
+        d += `${pen ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`; pen = true;
+      }
+      return `<path d="${d}" fill="none" stroke="${x.c}" stroke-width="${x.s.width || 1.4}"
+        ${x.s.dash ? `stroke-dasharray="${x.s.dash}"` : ""}/>`;
+    }).join("");
+    const rng = avail.length ? `<div class="rng">${[...avail.map(r => r[0]), "All"].map(k =>
+      `<button data-r="${k}" class="${(cur ? cur[0] : "All") === k ? "on" : ""}">${k}</button>`).join("")}</div>` : "";
+    // One dot for each line that shows, on the point that the readout gives.
+    const dots = shown.map(x => `<circle class="dt" r="3" fill="${x.c}" stroke="#0b0e14" stroke-width="1"
+      visibility="hidden"/>`).join("");
+    const ybot = BH ? yb1 : Pb;
+    el.innerHTML = `${rng}<svg viewBox="0 0 ${W} ${VH}">${g}${lines}<line class="cx" y1="${T}" y2="${ybot}"
+      stroke="#56606b" visibility="hidden"/>${dots}<rect x="${L}" y="${T}" width="${W - L - R}" height="${ybot - T}"
+      fill="transparent"/></svg><div class="legend${S.length > 1 ? " tg" : ""}"></div>`;
+    el.querySelectorAll(".rng button").forEach(b => b.onclick = () => { st.range = b.dataset.r === "All" ? null : b.dataset.r; draw(); });
+    const svg = el.querySelector("svg"), leg = el.querySelector(".legend"), cx = el.querySelector(".cx");
+    const dt = [...svg.querySelectorAll(".dt")];
+    const legend = t => leg.innerHTML = S.map((x, i) => {
+      if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
+      const p = pointAt(x.ok, t);
+      return `<span class="lg" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)} ${p ? f(p[1]) : "–"}</span>`;
+    }).join("") + (BH ? `<span><i style="background:#56606b"></i>${esc(o.bars.name)} ${(q => q ? fb(q[1]) : "–")(pointAt(bpts, t))}</span>` : "")
+      + (o.periodEnds ? '<span class="dim">vertical lines: month ends, brighter at quarter ends</span>' : "")
+      + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
+    legend(null);
+    leg.onclick = e => {
+      const sp = e.target.closest(".lg");
+      if (!sp || S.length < 2) return;
+      const n = S[+sp.dataset.i].s.name, k = st.hidden.indexOf(n);
+      if (k >= 0) st.hidden.splice(k, 1);
+      else if (shown.length > 1) st.hidden.push(n);  // The last line that shows stays.
+      draw();
+    };
+    svg.addEventListener("mousemove", e => {
+      const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
+      if (px < L || px > W - R) return;
+      const t = x0 + (px - L) / (W - L - R) * (x1 - x0);
+      cx.setAttribute("x1", px); cx.setAttribute("x2", px); cx.setAttribute("visibility", "visible");
+      shown.forEach((x, j) => {
+        const q = pointAt(x.ok, t), on = q && q[0] >= x0;
+        if (on) { dt[j].setAttribute("cx", X(q[0]).toFixed(1)); dt[j].setAttribute("cy", Y(q[1]).toFixed(1)); }
+        dt[j].setAttribute("visibility", on ? "visible" : "hidden");
+      });
+      legend(t);
+    });
+    svg.addEventListener("mouseleave", () => {
+      cx.setAttribute("visibility", "hidden"); dt.forEach(d => d.setAttribute("visibility", "hidden")); legend(null);
+    });
+  };
+  draw();
 }
 
 // A chart on a numeric or categorical x axis. Each series is {name, pts: [[x, y, title]]}.
@@ -471,8 +613,11 @@ function xyChart(el, series, o = {}) {
   for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
   for (const v of o.vlines || []) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}" stroke="#56606b" stroke-dasharray="4 3"/>`;
   for (const [x, t] of o.xticks || []) {
-    g += `<line x1="${X(x)}" x2="${X(x)}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
-      <text x="${X(x)}" y="${H - 7}" fill="#7d8894" font-size="10" text-anchor="middle">${esc(t)}</text>`;
+    // A label that would leave the chart is anchored at its edge. A character is about 6 px wide.
+    const w = String(t).length * 6.2, px = X(x);
+    const a = px - w / 2 < 2 ? "start" : px + w / 2 > W - 2 ? "end" : "middle";
+    g += `<line x1="${px}" x2="${px}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
+      <text x="${a === "start" ? Math.max(px, 2) : a === "end" ? Math.min(px, W - 2) : px}" y="${H - 7}" fill="#7d8894" font-size="10" text-anchor="${a}">${esc(t)}</text>`;
   }
   const paths = series.map((s, i) => {
     const c = s.color || COLORS[i % COLORS.length], pts = s.pts.filter(p => !nil(p[1]) && (!o.log || p[1] > 0));
@@ -552,7 +697,8 @@ function applyLayout() {
   }
   $("nav").innerHTML = order.filter(id => !L.hidden.includes(id))
     .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("")
-    + '<a href="#portfolio">portfolio</a><a href="/">data status</a>';
+    + '<a class="sep" href="#portfolio">portfolio</a><a href="/">data status</a>';
+  $("nav").querySelectorAll("a").forEach(a => a.addEventListener("click", () => { $("nav-menu").hidden = true; }));
   const hidden = SECTIONS.filter(id => L.hidden.includes(id));
   $("layout-menu").innerHTML = (hidden.length ? "<div class='dim'>Hidden sections:</div>" + hidden.map(id =>
     `<div><a href="#" data-show="${id}">show ${esc($(id).dataset.nav || id)}</a></div>`).join("")
@@ -578,7 +724,15 @@ function layoutControls() {
       L.order = cur; store.set("sdp.layout", L); applyLayout();
     });
   }
-  $("layout-btn").onclick = () => { $("layout-menu").hidden = !$("layout-menu").hidden; };
+  $("layout-btn").onclick = () => { $("nav-menu").hidden = true; $("layout-menu").hidden = !$("layout-menu").hidden; };
+  $("nav-btn").onclick = () => { $("layout-menu").hidden = true; $("nav-menu").hidden = !$("nav-menu").hidden; };
+  $("src-btn").onclick = () => $("srcbox").classList.toggle("open");
+  $("links-flag").onclick = () => $("srcbox").classList.toggle("open");
+  // A click outside a menu closes it.
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".menu, #layout-btn, #nav-btn")) { $("nav-menu").hidden = true; $("layout-menu").hidden = true; }
+    if (!e.target.closest("#srcbox, #links-flag")) $("srcbox").classList.remove("open");
+  });
 }
 function reveal(id) {
   const L = layout();
@@ -676,16 +830,32 @@ function setupCommand() {
 }
 
 // ---------------------------------------------------------------- the header
+const isCount = s => s.pending !== null && s.pending !== undefined;
+// The state of a source: fresh, late (past its limit) or stale (past 1.5 times its limit).
+// A source with no date counts as late.
+function sourceState(s, today) {
+  if (!s.last_date) return {state: "late", age: null};
+  const age = Math.round((today - new Date(s.last_date)) / 864e5);
+  return {state: age > s.max_age_days * 1.5 ? "stale" : age > s.max_age_days ? "late" : "fresh", age};
+}
 function sources() {
-  const S = DATA.sources || [];
-  const today = new Date();
-  $("sources").innerHTML = S.map(s => {
-    if (s.pending !== null && s.pending !== undefined) return s.pending ? `<span title="${esc(s.note)}"><i
-      style="background:var(--amber)"></i>${esc(s.source)}: ${s.pending} to review</span>` : "";
-    const age = s.last_date ? Math.round((today - new Date(s.last_date)) / 864e5) : null;
-    const c = age === null ? "var(--dim)" : age > s.max_age_days * 1.5 ? "var(--down)" : age > s.max_age_days ? "var(--amber)" : "var(--up)";
-    return `<span title="${esc(s.note)}${s.pulled ? " · pulled " + s.pulled : ""}"><i style="background:${c}"></i>${esc(s.source)} ${esc(s.last_date || "–")}</span>`;
-  }).join("");
+  const S = DATA.sources || [], today = new Date();
+  const flag = S.find(isCount), rows = S.filter(s => !isCount(s)).map(s => ({s, ...sourceState(s, today)}));
+  const late = rows.filter(r => r.state !== "fresh"), color = {fresh: "var(--up)", late: "var(--amber)", stale: "var(--down)"};
+  const worst = late.some(r => r.state === "stale") ? "stale" : late.length ? "late" : "fresh";
+  $("src-btn").className = "stat " + worst;
+  const names = late.map(r => r.s.source);
+  $("src-text").textContent = !late.length ? "sources fresh"
+    : "late: " + names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : "");
+  $("src-pop").innerHTML = '<div class="head">Sources</div>' + rows.map(({s, state, age}) =>
+    `<div title="${esc(s.note)}"><i style="background:${color[state]}"></i>${esc(s.source)} ${esc(s.last_date || "no date")}
+      <span class="dim">${age === null ? "" : age + " d old, limit " + s.max_age_days + " d · "}${esc(s.note)}${s.pulled ? " · pulled " + esc(s.pulled) : ""}</span></div>`).join("")
+    + (flag && flag.pending ? `<div><i style="background:var(--amber)"></i>${esc(flag.source)}
+      <span class="dim">${flag.pending} to review · ${esc(flag.note)}</span></div>` : "");
+  const n = flag ? flag.pending : 0;
+  $("links-flag").hidden = !n;
+  $("links-flag").textContent = n ? `Security links: ${n} to review` : "";
+  $("links-flag").title = flag ? flag.note : "";
 }
 
 // ---------------------------------------------------------------- the sections
@@ -820,20 +990,46 @@ function heatmap() {
   $("heatmap").querySelectorAll("rect.n").forEach(r => r.onclick = () => { location.hash = `stock/${r.dataset.t}`; });
 }
 
+// The groups of a table that the reader has opened. A folded group shows its headline rows,
+// the rows that moved by 2σ or more, and the rows that are selected.
+const OPEN = new Set(store.get("sdp.open", []));
+const HEAD_N = 3, FOLD_Z = 2;
+function toggleOpen(key) {
+  if (!OPEN.delete(key)) OPEN.add(key);
+  store.set("sdp.open", [...OPEN]);
+}
+// The link in a group header: it opens the group, or folds it again.
+const foldLink = (key, folded) => folded ? `<a class="gtog" data-open="${esc(key)}">${OPEN.has(key)
+  ? "show fewer" : `${folded} more · show all`}</a>` : "";
+function foldClicks(table, redraw) {
+  table.querySelectorAll("a.gtog").forEach(a => a.onclick = e => { e.preventDefault(); toggleOpen(a.dataset.open); redraw(); });
+}
+
 function board() {
   if (!DATA.board) return;
-  const rows = DATA.board.rows;
+  const groups = [];
+  for (const r of DATA.board.rows) {
+    let g = groups[groups.length - 1];
+    if (!g || g.name !== r.asset_group) groups.push(g = {name: r.asset_group, rows: []});
+    g.rows.push(r);
+  }
+  const keep = (r, i) => i < HEAD_N || Math.abs(r.z_1d ?? 0) >= FOLD_Z || SELECTED.includes(r.ticker);
   let html = `<tr><th>Instrument</th><th>Last</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>3M</th>
-    <th>YTD</th><th>1Y</th><th>vs 52w hi</th><th>Vol</th><th>1Y</th></tr>`, grp = null;
-  for (const r of rows) {
-    if (r.asset_group !== grp) { grp = r.asset_group; html += `<tr class="grp"><td colspan="12">${esc(grp)}</td></tr>`; }
-    html += `<tr class="row ${SELECTED.includes(r.ticker) ? "sel" : ""}" data-t="${r.ticker}">
-      <td class="l"><b>${r.ticker}</b> <a href="#stock/${r.ticker}" title="Open ${r.ticker}">↗</a> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
+    <th>YTD</th><th>1Y</th><th>vs 52w hi</th><th>Vol</th><th>1Y</th></tr>`;
+  for (const g of groups) {
+    const key = "board:" + g.name;
+    html += `<tr class="grp"><td colspan="12">${esc(g.name)}${foldLink(key, g.rows.filter((r, i) => !keep(r, i)).length)}</td></tr>`;
+    g.rows.forEach((r, i) => {
+      if (!OPEN.has(key) && !keep(r, i)) return;
+      html += `<tr class="row ${SELECTED.includes(r.ticker) ? "sel" : ""}" data-t="${r.ticker}">
+      <td class="l lab"><b>${r.ticker}</b> <a href="#stock/${r.ticker}" title="Open ${r.ticker}">↗</a> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
       ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1w, r.z_1w)}${zcell(r.ret_1m, r.z_1m)}
       <td>${pct(r.ret_3m)}</td><td>${pct(r.ret_ytd)}</td><td>${pct(r.ret_1y)}</td><td>${pct(r.off_52w_high)}</td>
       <td class="dim">${pct(r.vol_20, 0, false)}</td><td>${spark(r.series)}</td></tr>`;
+    });
   }
   $("board").innerHTML = html;
+  foldClicks($("board"), board);
   $("board").querySelectorAll("tr.row").forEach(tr => tr.onclick = e => {
     if (e.target.tagName === "A") return;
     const t = tr.dataset.t;
@@ -842,20 +1038,23 @@ function board() {
   });
 }
 
+// Under 1360 px the chart sits beside the relations, so it takes their height.
+const NARROW = window.matchMedia("(max-width:1360px)");
+NARROW.addEventListener("change", () => { if (DATA) mainChart(); });
 function mainChart() {
   if (!DATA.board) return;
   const by = Object.fromEntries(DATA.board.rows.map(r => [r.ticker, r]));
   const series = SELECTED.filter(t => by[t]).map(t => ({name: t, points: rebase(by[t].dates, by[t].series)}));
-  lineChart($("main-chart"), series, {height: 230, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  lineChart($("main-chart"), series, {height: NARROW.matches ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
 }
 
 function relations() {
   const R = DATA.relations; if (!R) return;
   $("relations").innerHTML = `<tr><th>Relation</th><th>1M</th><th>σ</th><th>Level</th><th>2Y</th></tr>` +
-    R.map(r => `<tr><td class="l" style="white-space:normal;min-width:170px">${esc(r.label)}</td>
+    R.map(r => `<tr><td class="l lab">${esc(r.label)}</td>
       ${r.kind === "corr" ? `<td style="background:${zbg(r.z_21)}">${nil(r.change_21) ? "–" : (r.change_21 > 0 ? "+" : "") + num(r.change_21)}</td>`
         : zcell(r.change_21, r.z_21)}<td>${sig(r.z_21)}</td>
-      <td>${r.kind === "corr" ? num(r.value) : ""} ${pbar(r.pctile)}</td><td>${spark(r.series, 90, 18)}</td></tr>`).join("");
+      <td>${r.kind === "corr" ? num(r.value) : ""} ${pbar(r.pctile)}</td><td>${spark(r.series, 72, 18)}</td></tr>`).join("");
 }
 
 // The level and a change of a FRED measure. pct: percent, with changes in bp. usd_b: billions
@@ -888,11 +1087,11 @@ const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
 
 // Three tables of FRED measures, each with its groups, its selection and its chart.
 const PANELS = [
-  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"],
+  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 230,
    groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"]},
-  {section: "funding", table: "funding-table", chart: "funding-chart", sel: ["reserves", "rrp", "tga"],
+  {section: "funding", table: "funding-table", chart: "funding-chart", sel: ["reserves", "rrp", "tga"], height: 230,
    groups: ["Policy and money markets", "Funding spreads", "Fed balance sheet"]},
-  {section: "fx", table: "fx-table", chart: "fx-chart", sel: ["eurusd", "usdjpy", "gbpusd"],
+  {section: "fx", table: "fx-table", chart: "fx-chart", sel: ["eurusd", "usdjpy", "gbpusd"], height: 350,
    groups: ["Currencies", "Commodities"]},
 ];
 function measureSeries(k) {
@@ -920,7 +1119,7 @@ function measureTable(P) {
     if (r.grp !== grp) { grp = r.grp; html += `<tr class="grp"><td colspan="9">${esc(grp)}</td></tr>`; }
     const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
     html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
-      <td class="l">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
+      <td class="l lab">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
       <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
       <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
       <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
@@ -931,7 +1130,7 @@ function measureTable(P) {
     P.sel = P.sel.includes(k) ? P.sel.filter(x => x !== k) : [...P.sel, k];
     measureTable(P);
   });
-  measureChart($(P.chart), P.sel);
+  measureChart($(P.chart), P.sel, P.height);
 }
 
 let CURVE = {real: true, breakeven: false, date: null};
@@ -1007,11 +1206,11 @@ function funding() {
     .map(([d, v]) => [d, nil(v) ? null : v * scale])});
   lineChart($("corridor-chart"), [ser("iorb", "IORB", "#f85149", 1, "4 3"), ser("rrp_rate", "ON RRP rate", "#3fb950", 1, "4 3"),
     ser("sofr", "SOFR", "#e3b341"), ser("effr", "EFFR", "#58a6ff"), ser("tgcr", "TGCR", "#bc8cff"),
-    ser("sofr_p99", "SOFR 99th pct", "#ffa657", 1, "2 2")], {height: 230, fmt: v => v.toFixed(2) + "%"});
+    ser("sofr_p99", "SOFR 99th pct", "#ffa657", 1, "2 2")], {height: 230, periodEnds: true, fmt: v => v.toFixed(2) + "%"});
   lineChart($("spreads-chart"), [ser("sofr_iorb", "SOFR − IORB", "#e3b341", 100), ser("effr_iorb", "EFFR − IORB", "#58a6ff", 100),
     ser("sofr_tail", "SOFR 99th − SOFR", "#ffa657", 100), ser("tgcr_rrp", "TGCR − RRP rate", "#bc8cff", 100),
     ser("cp_bill", "CP 3M − bill 3M", "#39c5cf", 100), ser("bill_effr", "bill 3M − EFFR", "#7ee787", 100)],
-    {height: 200, zero: true, fmt: v => v.toFixed(0)});
+    {height: 200, zero: true, periodEnds: true, fmt: v => v.toFixed(0)});
   const all = k => ({...ser(k, "", ""), points: measureSeries(k)});
   lineChart($("fedbs-chart"), [["reserves", "reserves", "#58a6ff"], ["rrp", "ON RRP", "#3fb950"], ["tga", "TGA", "#f85149"],
     ["net_liquidity", "net liquidity", "#e3b341"]].map(([k, n, c]) => ({...all(k), name: n, color: c})),
@@ -1071,7 +1270,7 @@ function factorModel() {
     .map(r => riskRow(r, perf["style:" + r.factor])).join("");
   lineChart($("style-chart"), F.curves.filter(c => c.family === "style" && c.factor !== "market")
     .map(c => ({name: LABEL("style", c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
-    {height: 260, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+    {height: 450, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
   const ind = F.risk.filter(r => r.family === "industry");
   bars($("ind-bars"), ind.filter(r => !nil(r.ret_1m)).sort((a, b) => b.ret_1m - a.ret_1m)
     .map(r => ({label: r.label || INDUSTRY[r.factor] || r.factor, value: r.ret_1m})));
@@ -1093,9 +1292,9 @@ function signalsView() {
     return of the next 21 sessions is ${num(ic.mean_ic, 4)} (Newey-West t ${num(ic.t_nw, 1)}, the same sign in ${ic.folds_same_sign ?? "–"} of 4 folds):
     ${ic.mean_ic > 0 ? "the highest names have earned more" : "the lowest names have earned more"}. A t under 3 is weak evidence.` : "";
   const rows = S.names.filter(r => r.signal === SIGNAL);
-  const t = rs => `<tr><th>Name</th><th>Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + rs.map(r =>
+  const t = rs => `<tr><th>Name</th><th class="l">Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + rs.map(r =>
     `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 26))}</span></td>
-     <td class="l dim">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`).join("");
+     <td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`).join("");
   $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high));
   $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high));
 }
@@ -1103,10 +1302,10 @@ function signalsView() {
 function movers() {
   const M = DATA.movers; if (!M) return;
   const spec = [["residual_up", "Largest stock-specific gains"], ["residual_down", "Largest stock-specific losses"]];
-  $("mover-lists").innerHTML = spec.filter(([k]) => M[k]).map(([k, t]) => `<div class="panel"><h3>${t}</h3><table>
-    <tr><th>Ticker</th><th>Industry</th><th>Cap</th><th>Return</th><th>Factors</th><th>Specific</th><th>σ</th>
+  $("mover-lists").innerHTML = spec.filter(([k]) => M[k]).map(([k, t]) => `<div class="panel"><h3>${t}</h3><table class="tight">
+    <tr><th>Ticker</th><th class="l">Industry</th><th>Cap</th><th>Return</th><th>Factors</th><th>Specific</th><th>σ</th>
     <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
-      <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim">${esc(r.industry_name || "")}</td>
+      <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td>
       <td class="dim">${big(r.cap)}</td><td>${pct(r.ret, 1)}</td><td>${pct(r.factor_part, 1)}</td>
       <td style="background:${zbg(r.resid_score)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_score)}</td>
       <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`).join("") + `</table></div>`).join("");
@@ -1114,7 +1313,7 @@ function movers() {
 
 function calendar() {
   const C = DATA.calendar; if (!C) return;
-  $("cal").innerHTML = `<tr><th>Date</th><th>Ticker</th><th>Name</th><th>Type</th><th>Event</th><th>Detail</th>
+  $("cal").innerHTML = `<tr><th>Date</th><th class="l">Ticker</th><th class="l">Name</th><th class="l">Type</th><th class="l">Event</th><th class="l">Detail</th>
     <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
     <td class="l name">${esc((r.name || "").slice(0, 40))}</td><td class="l dim">${esc(r.type || "")}</td>
     <td class="l">${r.kind}</td><td class="l">${r.kind === "split" ? `${r.split_to}-for-${r.split_from} ${esc(r.detail || "")}`
@@ -1344,6 +1543,11 @@ function stockPage(P) {
     <div><span class="k">Days up, 1Y</span>${pct(st.share_up, 0, false)}</div>
     <div><span class="k">Model spread (half)</span>${P.cost ? (P.cost.spread * 1e4).toFixed(1) + " bp" : "–"}</div>
   </div>`;
+  const PR = P.prices;
+  if (PR.dates.length > 1) html += `<div class="panel" style="margin-top:12px"><h3>Price, one year: the adjusted close, the 50 and 200-session averages, and the volume</h3>
+      <div class="chart" id="st-price"></div>
+      <div class="note">The close is adjusted for splits and dividends. The volume is in shares, adjusted for splits. A bar is
+        green when the close is above the close of the session before. An average needs 50 or 200 sessions of history.</div></div>`;
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Where the return came from, one year (sum of daily parts)</h3>
       <div class="chart" id="st-cum"></div></div>
     <div class="panel"><h3>Return attribution</h3><div class="tabs" id="st-attr-tabs"></div><div class="bars" id="st-attr"></div>
@@ -1380,6 +1584,15 @@ function stockPage(P) {
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
 
+  if (PR.dates.length > 1) {
+    const pts = k => PR.dates.map((d, i) => [d, PR[k][i]]);
+    lineChart($("st-price"), [{name: "close", color: "#d6dde6", width: 1.6, points: pts("px")},
+      {name: "50-session average", color: "#e3b341", points: pts("ma50")},
+      {name: "200-session average", color: "#58a6ff", points: pts("ma200")}],
+      {height: 250, width: 1300, fmt: v => v.toFixed(v >= 1000 ? 0 : v >= 100 ? 1 : 2),
+       bars: {name: "volume", height: 64, points: PR.dates.map((d, i) => [d, PR.volume[i],
+         i && PR.px[i] < PR.px[i - 1] ? "var(--down)" : "var(--up)"])}});
+  }
   const C = P.cumulative;
   if (C.dates.length) lineChart($("st-cum"), [
     {name: "total", color: "#e3b341", width: 2, points: C.dates.map((d, i) => [d, C.total[i]])},
@@ -1668,7 +1881,9 @@ async function load() {
   try {
     DATA = await getJSON("/market.json");
   } catch (e) { $("meta").textContent = "cannot read /market.json: " + e.message; return; }
-  $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${(DATA.built || "–").slice(0, 16).replace("T", " ")} UTC`;
+  const built = (DATA.built || "–").slice(0, 16).replace("T", " ");
+  $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${built.slice(5)} UTC`;
+  $("meta").title = `Built ${built} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
   for (const f of [sources, exceptions, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
     breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
