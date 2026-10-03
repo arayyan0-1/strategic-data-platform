@@ -413,7 +413,8 @@ function pointAt(pts, t) {
 // A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
 // dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
 // above the chart picks the range, from the ones that the data covers (o.range = false turns
-// it off). The y range fits the lines that show, over the range.
+// it off). The y range fits the lines that show, over the range. o.periodEnds draws a faint
+// line at the last weekday of each month and a stronger one at each quarter end.
 function lineChart(el, series, o = {}) {
   const W = 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
   const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
@@ -464,6 +465,18 @@ function lineChart(el, series, o = {}) {
     for (const [t, x, a] of [[x0, L, "start"], [(x0 + x1) / 2, X((x0 + x1) / 2), "middle"], [x1, W - R, "end"]]) {
       g += `<text x="${x}" y="${H - 5}" fill="#7d8894" font-size="10" text-anchor="${a}">${new Date(t).toISOString().slice(0, 10)}</text>`;
     }
+    if (o.periodEnds) {
+      const a = new Date(x0), months = (x1 - x0) / DAY / 30.4;
+      let yr = a.getUTCFullYear(), m = a.getUTCMonth();
+      while (months <= 160 && Date.UTC(yr, m, 1) <= x1) {
+        let d = new Date(Date.UTC(yr, m + 1, 0));
+        while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(+d - DAY);
+        const quarter = (m + 1) % 3 === 0;
+        if (+d >= x0 && +d <= x1 && (quarter || months <= 48)) g += `<line x1="${X(+d).toFixed(1)}" x2="${X(+d).toFixed(1)}"
+          y1="${T}" y2="${H - B}" stroke="${quarter ? "#46515f" : "#272f3b"}"/>`;
+        if (++m > 11) { m = 0; yr++; }
+      }
+    }
     const lines = shown.map(x => {
       let d = "", pen = false;
       for (const [t, v] of x.view) {
@@ -488,7 +501,8 @@ function lineChart(el, series, o = {}) {
       if (st.hidden.includes(x.s.name)) return `<span class="lg off" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)}</span>`;
       const p = pointAt(x.ok, t);
       return `<span class="lg" data-i="${i}"><i style="background:${x.c}"></i>${esc(x.s.name)} ${p ? f(p[1]) : "–"}</span>`;
-    }).join("") + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
+    }).join("") + (o.periodEnds ? '<span class="dim">vertical lines: month ends, brighter at quarter ends</span>' : "")
+      + (t === null ? "" : `<span class="dim">${new Date(t).toISOString().slice(0, 10)}</span>`);
     legend(null);
     leg.onclick = e => {
       const sp = e.target.closest(".lg");
@@ -1081,11 +1095,11 @@ function funding() {
     .map(([d, v]) => [d, nil(v) ? null : v * scale])});
   lineChart($("corridor-chart"), [ser("iorb", "IORB", "#f85149", 1, "4 3"), ser("rrp_rate", "ON RRP rate", "#3fb950", 1, "4 3"),
     ser("sofr", "SOFR", "#e3b341"), ser("effr", "EFFR", "#58a6ff"), ser("tgcr", "TGCR", "#bc8cff"),
-    ser("sofr_p99", "SOFR 99th pct", "#ffa657", 1, "2 2")], {height: 230, fmt: v => v.toFixed(2) + "%"});
+    ser("sofr_p99", "SOFR 99th pct", "#ffa657", 1, "2 2")], {height: 230, periodEnds: true, fmt: v => v.toFixed(2) + "%"});
   lineChart($("spreads-chart"), [ser("sofr_iorb", "SOFR − IORB", "#e3b341", 100), ser("effr_iorb", "EFFR − IORB", "#58a6ff", 100),
     ser("sofr_tail", "SOFR 99th − SOFR", "#ffa657", 100), ser("tgcr_rrp", "TGCR − RRP rate", "#bc8cff", 100),
     ser("cp_bill", "CP 3M − bill 3M", "#39c5cf", 100), ser("bill_effr", "bill 3M − EFFR", "#7ee787", 100)],
-    {height: 200, zero: true, fmt: v => v.toFixed(0)});
+    {height: 200, zero: true, periodEnds: true, fmt: v => v.toFixed(0)});
   const all = k => ({...ser(k, "", ""), points: measureSeries(k)});
   lineChart($("fedbs-chart"), [["reserves", "reserves", "#58a6ff"], ["rrp", "ON RRP", "#3fb950"], ["tga", "TGA", "#f85149"],
     ["net_liquidity", "net liquidity", "#e3b341"]].map(([k, n, c]) => ({...all(k), name: n, color: c})),
