@@ -86,6 +86,8 @@
   table.tight th, table.tight td { padding-left:4px; padding-right:4px; }
   tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:8px;
               text-transform:uppercase; border-bottom:1px solid var(--line); }
+  tr.grp td .gtog { float:right; text-transform:none; letter-spacing:0; color:var(--dim); cursor:pointer; }
+  tr.grp td .gtog:hover { color:var(--ink); }
   tr.row:hover { background:var(--hl); cursor:pointer; }
   tr.sel { background:var(--hl); }
   .up { color:var(--up); } .down { color:var(--down); } .dim { color:var(--dim); } .amber { color:var(--amber); }
@@ -988,20 +990,46 @@ function heatmap() {
   $("heatmap").querySelectorAll("rect.n").forEach(r => r.onclick = () => { location.hash = `stock/${r.dataset.t}`; });
 }
 
+// The groups of a table that the reader has opened. A folded group shows its headline rows,
+// the rows that moved by 2σ or more, and the rows that are selected.
+const OPEN = new Set(store.get("sdp.open", []));
+const HEAD_N = 3, FOLD_Z = 2;
+function toggleOpen(key) {
+  if (!OPEN.delete(key)) OPEN.add(key);
+  store.set("sdp.open", [...OPEN]);
+}
+// The link in a group header: it opens the group, or folds it again.
+const foldLink = (key, folded) => folded ? `<a class="gtog" data-open="${esc(key)}">${OPEN.has(key)
+  ? "show fewer" : `${folded} more · show all`}</a>` : "";
+function foldClicks(table, redraw) {
+  table.querySelectorAll("a.gtog").forEach(a => a.onclick = e => { e.preventDefault(); toggleOpen(a.dataset.open); redraw(); });
+}
+
 function board() {
   if (!DATA.board) return;
-  const rows = DATA.board.rows;
+  const groups = [];
+  for (const r of DATA.board.rows) {
+    let g = groups[groups.length - 1];
+    if (!g || g.name !== r.asset_group) groups.push(g = {name: r.asset_group, rows: []});
+    g.rows.push(r);
+  }
+  const keep = (r, i) => i < HEAD_N || Math.abs(r.z_1d ?? 0) >= FOLD_Z || SELECTED.includes(r.ticker);
   let html = `<tr><th>Instrument</th><th>Last</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>3M</th>
-    <th>YTD</th><th>1Y</th><th>vs 52w hi</th><th>Vol</th><th>1Y</th></tr>`, grp = null;
-  for (const r of rows) {
-    if (r.asset_group !== grp) { grp = r.asset_group; html += `<tr class="grp"><td colspan="12">${esc(grp)}</td></tr>`; }
-    html += `<tr class="row ${SELECTED.includes(r.ticker) ? "sel" : ""}" data-t="${r.ticker}">
+    <th>YTD</th><th>1Y</th><th>vs 52w hi</th><th>Vol</th><th>1Y</th></tr>`;
+  for (const g of groups) {
+    const key = "board:" + g.name;
+    html += `<tr class="grp"><td colspan="12">${esc(g.name)}${foldLink(key, g.rows.filter((r, i) => !keep(r, i)).length)}</td></tr>`;
+    g.rows.forEach((r, i) => {
+      if (!OPEN.has(key) && !keep(r, i)) return;
+      html += `<tr class="row ${SELECTED.includes(r.ticker) ? "sel" : ""}" data-t="${r.ticker}">
       <td class="l lab"><b>${r.ticker}</b> <a href="#stock/${r.ticker}" title="Open ${r.ticker}">↗</a> <span class="dim">${esc(r.label)}</span></td><td>${num(r.close)}</td>
       ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1w, r.z_1w)}${zcell(r.ret_1m, r.z_1m)}
       <td>${pct(r.ret_3m)}</td><td>${pct(r.ret_ytd)}</td><td>${pct(r.ret_1y)}</td><td>${pct(r.off_52w_high)}</td>
       <td class="dim">${pct(r.vol_20, 0, false)}</td><td>${spark(r.series)}</td></tr>`;
+    });
   }
   $("board").innerHTML = html;
+  foldClicks($("board"), board);
   $("board").querySelectorAll("tr.row").forEach(tr => tr.onclick = e => {
     if (e.target.tagName === "A") return;
     const t = tr.dataset.t;
@@ -1010,11 +1038,14 @@ function board() {
   });
 }
 
+// Under 1360 px the chart sits beside the relations, so it takes their height.
+const NARROW = window.matchMedia("(max-width:1360px)");
+NARROW.addEventListener("change", () => { if (DATA) mainChart(); });
 function mainChart() {
   if (!DATA.board) return;
   const by = Object.fromEntries(DATA.board.rows.map(r => [r.ticker, r]));
   const series = SELECTED.filter(t => by[t]).map(t => ({name: t, points: rebase(by[t].dates, by[t].series)}));
-  lineChart($("main-chart"), series, {height: 230, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  lineChart($("main-chart"), series, {height: NARROW.matches ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
 }
 
 function relations() {
