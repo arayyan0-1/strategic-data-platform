@@ -418,10 +418,7 @@ function pointAt(pts, t) {
 // width of the drawing (640). o.bars = {name, points: [[date, value, colour]], height, fmt} draws
 // bars under the lines on the same time axis, from 0 to the largest value in the range.
 function lineChart(el, series, o = {}) {
-  const W = o.width || 640, H = o.height || 220, L = 52, R = 10, T = 8, B = 20;
-  // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
-  const BH = o.bars ? o.bars.height || 56 : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
-  const VH = BH ? yb1 + B : H;
+  const W = o.width || 640, L = 52, R = 10, T = 8, B = 20;
   const fb = (o.bars && o.bars.fmt) || big;
   const bpts = o.bars ? o.bars.points.filter(p => !nil(p[1])).map(p => [+new Date(p[0]), p[1], p[2]]) : [];
   const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
@@ -436,9 +433,14 @@ function lineChart(el, series, o = {}) {
   // A range shows when it is shorter than the data and holds 5 points of the longest line.
   const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
     && Math.max(...S.map(x => x.ok.filter(p => p[0] >= x1 - d * DAY).length)) >= 5);
+  // The switch takes 16 px of height. The plot loses the same height, so a chart keeps its size on the page.
+  const H = (o.height || 220) - (avail.length ? 16 : 0);
+  // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
+  const BH = o.bars ? o.bars.height || 56 : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
+  const VH = BH ? yb1 + B : H;
   const draw = () => {
     const cur = avail.find(r => r[0] === st.range), x0 = cur ? x1 - cur[1] * DAY : xmin;
-    // The points of a line from x0 on, with its value at x0 in front.
+    // The points of a line at or after x0, with its value at x0 first.
     const clip = x => {
       const out = []; let prev = null;
       for (const p of x.pts) {

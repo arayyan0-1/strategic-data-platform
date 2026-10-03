@@ -214,7 +214,7 @@ def test_the_price_series_has_one_year_and_the_averages_of_the_sessions_before_i
     assert len(s["dates"]) == 365 and s["dates"][-1] == days[-1].isoformat()
     assert s["dates"][0] > (days[-1] - dt.timedelta(days=365)).isoformat()
     assert s["ma50"][-1] == pytest.approx(px[-50:].mean())
-    # The first row of the chart has an average of 200 sessions, and 135 of them lie before it.
+    # The first row of the chart has an average of 200 sessions, and 199 of them lie before it.
     assert s["ma200"][0] == pytest.approx(px[136:336].mean())
 
 
