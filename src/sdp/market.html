@@ -23,6 +23,7 @@
   header nav { display:grid; grid-template-columns:repeat(2,max-content); gap:3px 22px; }
   header nav a { color:var(--ink); font-size:12px; }
   header nav a:hover { color:var(--amber); }
+  header nav .hint { grid-column:1 / -1; font-size:11px; }
   header nav a.sep { grid-column:1 / -1; border-top:1px solid var(--line); padding-top:3px; margin-top:3px; }
   .meta { color:var(--dim); white-space:nowrap; }
   .srcbox { position:relative; }
@@ -52,19 +53,25 @@
   .btn { background:var(--panel); color:var(--dim); border:1px solid var(--line); font:inherit; font-size:11px;
          padding:2px 8px; border-radius:3px; cursor:pointer; white-space:nowrap; }
   .btn:hover { color:var(--ink); }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .fs { display:flex; gap:2px; }
   #layout-menu div { margin:3px 0; }
-  main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
-  section { margin:18px 0 24px; scroll-margin-top:48px; }
+  main { padding:10px 16px 30px; max-width:1500px; margin:0 auto; }
+  section { margin:14px 0 16px; scroll-margin-top:48px; }
   section.collapsed > :not(h2) { display:none !important; }
   h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
-       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; display:flex; align-items:center; }
+       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 8px; display:flex; align-items:center; }
   h2 .ctl { margin-left:auto; display:flex; gap:2px; }
   h2 .ctl button { background:none; border:none; color:var(--dim); cursor:pointer; font:inherit; padding:0 4px; }
   h2 .ctl button:hover { color:var(--ink); }
   h3 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);
        margin:0 0 6px; font-weight:600; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
-  .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:8px 10px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 8px; }
+  .csvbtn { float:right; margin:-2px 0 -2px 8px; padding:0 6px; line-height:16px; font-size:10px;
+            text-transform:none; letter-spacing:0; }
+  .tile.pf { cursor:pointer; }
+  .tile.pf:hover { background:var(--hl); }
   .tile .k { color:var(--dim); font-size:11px; }
   .tile .v { font-size:18px; margin-top:2px; }
   .tile .s { color:var(--dim); font-size:11px; }
@@ -79,12 +86,12 @@
   th { color:var(--dim); font-weight:600; font-size:11px; text-align:right; padding:3px 6px;
        border-bottom:1px solid var(--line); white-space:nowrap; }
   th:first-child, td:first-child, th.l { text-align:left; }
-  td { text-align:right; padding:2px 6px; border-bottom:1px solid #161c26; white-space:nowrap; }
+  td { text-align:right; padding:1.5px 6px; border-bottom:1px solid #161c26; white-space:nowrap; }
   td.l { text-align:left; }
   td.lab { white-space:normal; min-width:140px; }
   td.ell { max-width:110px; overflow:hidden; text-overflow:ellipsis; }
   table.tight th, table.tight td { padding-left:4px; padding-right:4px; }
-  tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:8px;
+  tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:5px;
               text-transform:uppercase; border-bottom:1px solid var(--line); }
   tr.grp td .gtog { float:right; text-transform:none; letter-spacing:0; color:var(--dim); cursor:pointer; }
   tr.grp td .gtog:hover { color:var(--ink); }
@@ -105,8 +112,9 @@
   .rng button:hover { color:var(--ink); }
   .rng button.on { color:var(--amber); border-color:var(--amber); }
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
-                 font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
+                 font:inherit; padding:3px 9px; border-radius:3px; cursor:pointer; margin:0 4px 6px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
+  .tabs button.lab { background:none; border-color:transparent; cursor:default; padding-left:0; }
   .tabs .sep { display:inline-block; width:10px; }
   .bars .b { display:grid; grid-template-columns:190px 1fr 86px; align-items:center; gap:6px; margin:2px 0; }
   .bars .b > span:last-child { white-space:nowrap; text-align:right; }
@@ -121,11 +129,9 @@
   .note { color:var(--dim); font-size:11px; margin-top:6px; }
   .err { color:var(--down); }
   @media (max-width:900px) { .grid2, .grid2e, .split { grid-template-columns:1fr; } }
-  @media (max-width:1360px) {
-    #crossasset .split { grid-template-columns:minmax(0,1fr); }
-    #crossasset .stack { order:-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
-    #crossasset .stack > * + * { margin-top:0; }
-  }
+  html.narrow #crossasset .split { grid-template-columns:minmax(0,1fr); }
+  html.narrow #crossasset .stack { order:-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  html.narrow #crossasset .stack > * + * { margin-top:0; }
   .exc { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:6px; }
   .ex { display:grid; grid-template-columns:118px 1fr 38px; gap:8px; align-items:center;
         background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 10px;
@@ -133,6 +139,10 @@
   .ex.pos { border-left-color:var(--up); } .ex.neg { border-left-color:var(--down); }
   .ex .area { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
   .ex .score { text-align:right; color:var(--amber); }
+  .lm { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin-top:8px; font-size:12px; color:var(--dim); }
+  .lm:empty { display:none; }
+  .lmi { border:1px dashed var(--line); border-radius:3px; padding:1px 8px; cursor:pointer; color:var(--ink); }
+  .lmi:hover { border-color:var(--amber); }
   .ex.link { cursor:pointer; } .ex.link:hover { background:var(--hl); }
   .pbar { position:relative; display:inline-block; width:56px; height:6px; background:#1b222c;
           border-radius:3px; vertical-align:middle; margin-right:6px; }
@@ -193,6 +203,8 @@
     <span class="push"></span>
     <button class="btn" id="nav-btn" title="Go to a section">sections ▾</button>
     <button class="btn" id="layout-btn" title="Show hidden sections, or reset the layout">layout</button>
+    <span class="fs"><button class="btn" id="fs-dn" title="Smaller text">A−</button><button class="btn"
+      id="fs-up" title="Larger text">A+</button></span>
   </div>
   <div class="menu" id="nav-menu" hidden><nav id="nav"></nav></div>
   <div class="menu" id="layout-menu" hidden></div>
@@ -202,6 +214,7 @@
 
   <section id="exceptions" data-nav="unusual"><h2>What is unusual today</h2>
     <div class="exc" id="exc"></div>
+    <div class="lm" id="exc-lm"></div>
     <div class="note">σ is a score. A score of 3 is as rare as a 3σ move of a normal distribution on the
       history of the measure: about 1 day in 370. The score divides a move by the volatility known
       before the session, then maps that ratio to its rarity in the history of the group. Here are the
@@ -252,10 +265,16 @@
     <div class="split" style="--sl:1.3fr;--sr:1fr">
       <div class="stack">
         <div class="panel"><h3>Rates, spreads and volatility</h3><table id="rates-table" class="tight"></table>
-        </div>
+          <div class="note">FRED, as known before the last session. Changes in basis points for rates
+            and spreads. Colour is the score of the daily change, in σ, red toward
+            stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
+            scale. A date after a label is its last observation: FRED publishes it late, or once
+            a week, so it has no 1D move. The forwards use the simple approximation from the
+            constant-maturity yields. A group shows its headline rows and the rows that moved 2σ or more.
+            Click rows to chart them.</div></div>
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
       </div>
       <div class="stack">
-        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
         <div class="panel"><h3>US Treasury yield curve</h3>
           <div class="tabs inline" id="curve-tabs"></div>
           <div class="chart" id="curve-chart"></div>
@@ -267,18 +286,12 @@
         <div class="panel"><h3>Credit spreads by rating (OAS)</h3><div class="chart" id="ladder-chart"></div>
           <div class="note">ICE BofA option-adjusted spreads on a log scale. FRED serves three years, so the
             history starts in 2023-09.</div></div>
-        <div class="note">FRED, as known before the last session. Changes in basis points for rates
-          and spreads. Colour is the score of the daily change, in σ, red toward
-          stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
-          scale. A date after a label is its last observation: FRED publishes it late, or once
-          a week, so it has no 1D move. The forwards use the simple approximation from the
-          constant-maturity yields. Click rows to chart them.</div>
       </div>
     </div>
   </section>
 
   <section id="funding" data-nav="funding"><h2>Funding and liquidity</h2>
-    <div class="split" style="--sl:1.2fr;--sr:1fr">
+    <div class="split" style="--sl:1.5fr;--sr:1fr">
       <div class="stack">
         <div class="panel"><h3>Money markets and the Federal Reserve balance sheet</h3>
           <table id="funding-table" class="tight"></table>
@@ -323,8 +336,8 @@
     <div class="panel" style="margin-top:8px"><h3>Style factors</h3><table id="risk" class="tight"></table></div>
     <div class="split" style="margin-top:12px">
       <div class="panel"><h3>Style factors, cumulative, one year</h3><div class="chart" id="style-chart"></div></div>
-      <div class="panel"><h3>Industries against the market, one month</h3><div class="bars" id="ind-bars"></div>
-        <table id="ind-table" class="tight" style="margin-top:8px"></table></div>
+      <div class="panel"><h3>Industries against the market, sorted by the one-month return</h3>
+        <table id="ind-table" class="tight"></table></div>
     </div>
   </section>
 
@@ -354,7 +367,8 @@
       <div class="panel"><h3>Short across the universe, share of cap</h3><div class="chart" id="si-share"></div></div>
       <div class="panel"><h3>Median days to cover, and names at 10 days or more</h3><div class="chart" id="si-dtc-chart"></div></div>
     </div>
-    <div class="grid2e" style="margin-top:12px">
+    <div class="tabs" id="si-caps" style="margin:12px 0 0"></div>
+    <div class="grid2e" style="margin-top:8px">
       <div class="panel"><h3>Most days to cover</h3><table id="si-dtc" class="tight"></table></div>
       <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up" class="tight"></table></div>
     </div></section>
@@ -684,6 +698,30 @@ const INDUSTRY = {nodur: "Consumer nondurables", durbl: "Consumer durables", man
   enrgy: "Energy", chems: "Chemicals", buseq: "Business equipment", telcm: "Telecom", utils: "Utilities",
   shops: "Shops", hlth: "Health care", money: "Finance", other: "Other", unknown: "No industry yet"};
 
+// ---------------------------------------------------------------- the size of the text
+// The page scales in steps with the CSS property zoom. Under 1360 CSS pixels of width the page
+// takes its narrow layout, so a larger size gives the layout that a narrower window gives.
+const ZOOMS = [0.85, 0.92, 1, 1.1, 1.2, 1.35];
+let ZOOM = ZOOMS.includes(store.get("sdp.zoom", 1)) ? store.get("sdp.zoom", 1) : 1;
+function applyZoom() {
+  document.body.style.zoom = ZOOM === 1 ? "" : String(ZOOM);
+  $("fs-dn").disabled = ZOOM === ZOOMS[0];
+  $("fs-up").disabled = ZOOM === ZOOMS[ZOOMS.length - 1];
+  fitLayout();
+}
+function fitLayout() {
+  const narrow = window.innerWidth / ZOOM <= 1360, root = document.documentElement;
+  if (root.classList.contains("narrow") === narrow) return;
+  root.classList.toggle("narrow", narrow);
+  if (typeof DATA !== "undefined" && DATA) { mainChart(); if (DATA.rates) rates(); }
+}
+function zoomStep(d) {
+  const i = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(ZOOM) + d));
+  ZOOM = ZOOMS[i];
+  store.set("sdp.zoom", ZOOM);
+  applyZoom();
+}
+
 // ---------------------------------------------------------------- layout and navigation
 const SECTIONS = [...document.querySelectorAll("main > section")].map(s => s.id);
 function layout() { return store.get("sdp.layout", {order: [], collapsed: [], hidden: []}); }
@@ -697,7 +735,8 @@ function applyLayout() {
   }
   $("nav").innerHTML = order.filter(id => !L.hidden.includes(id))
     .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("")
-    + '<a class="sep" href="#portfolio">portfolio</a><a href="/">data status</a>';
+    + '<a class="sep" href="#portfolio">portfolio</a><a href="/">data status</a>'
+    + '<span class="dim hint">Keys j and k: next and previous section.</span>';
   $("nav").querySelectorAll("a").forEach(a => a.addEventListener("click", () => { $("nav-menu").hidden = true; }));
   const hidden = SECTIONS.filter(id => L.hidden.includes(id));
   $("layout-menu").innerHTML = (hidden.length ? "<div class='dim'>Hidden sections:</div>" + hidden.map(id =>
@@ -726,6 +765,10 @@ function layoutControls() {
   }
   $("layout-btn").onclick = () => { $("nav-menu").hidden = true; $("layout-menu").hidden = !$("layout-menu").hidden; };
   $("nav-btn").onclick = () => { $("layout-menu").hidden = true; $("nav-menu").hidden = !$("nav-menu").hidden; };
+  $("fs-dn").onclick = () => zoomStep(-1);
+  $("fs-up").onclick = () => zoomStep(1);
+  window.addEventListener("resize", fitLayout);
+  applyZoom();
   $("src-btn").onclick = () => $("srcbox").classList.toggle("open");
   $("links-flag").onclick = () => $("srcbox").classList.toggle("open");
   // A click outside a menu closes it.
@@ -734,6 +777,62 @@ function layoutControls() {
     if (!e.target.closest("#srcbox, #links-flag")) $("srcbox").classList.remove("open");
   });
 }
+// ---------------------------------------------------------------- copy a table
+// A button in the header of each panel with a table copies the table as CSV: the header row and the
+// rows that show. When the browser refuses the clipboard, the button selects the text of the table.
+const csvField = t => /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+function tableCsv(table) {
+  const rows = [];
+  table.querySelectorAll("tr").forEach(tr => {
+    if (!tr.getClientRects().length) return;
+    const row = [];
+    for (const c of tr.children) {
+      const x = c.cloneNode(true);
+      x.querySelectorAll(".gtog, .csvbtn, svg, .pbar").forEach(n => n.remove());
+      row.push(x.textContent.replace(/[↗⇄]/g, "").replace(/\s+/g, " ").trim());
+      for (let i = 1; i < (c.colSpan || 1); i++) row.push("");
+    }
+    if (row.some(Boolean)) rows.push(row);
+  });
+  const width = Math.max(0, ...rows.map(r => r.length));
+  // A column with no text under the header (a sparkline) is left out.
+  const keep = [...Array(width).keys()].filter(i => rows.slice(1).some(r => r[i]));
+  return rows.map(r => keep.map(i => csvField(r[i] ?? "")).join(",")).join("\n");
+}
+function selectText(el) {
+  const range = document.createRange(), sel = window.getSelection();
+  range.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+async function copyTables(panel, btn) {
+  const tables = [...panel.querySelectorAll("table")];
+  const done = text => { btn.textContent = text; setTimeout(() => { btn.textContent = "csv"; }, 1600); };
+  try {
+    await navigator.clipboard.writeText(tables.map(tableCsv).join("\n\n"));
+    done("copied");
+  } catch {
+    selectText(tables[0]);
+    done("selected");
+  }
+}
+function addCsvButtons(root) {
+  root.querySelectorAll(".panel").forEach(panel => {
+    const h = panel.querySelector(":scope > h3");
+    if (!h || !panel.querySelector("table") || h.querySelector(".csvbtn")) return;
+    h.insertAdjacentHTML("afterbegin", '<button class="btn csvbtn" title="Copy the table as CSV">csv</button>');
+    h.querySelector(".csvbtn").onclick = () => copyTables(panel, h.querySelector(".csvbtn"));
+  });
+}
+// The sections draw their tables again on a click, so the buttons come back after each drawing.
+function watchCsvButtons() {
+  let queued = false;
+  const run = () => { queued = false; addCsvButtons(document.querySelector("main")); addCsvButtons($("ov-body")); };
+  const obs = new MutationObserver(() => { if (!queued) { queued = true; setTimeout(run, 0); } });
+  for (const el of [document.querySelector("main"), $("ov-body")]) obs.observe(el, {childList: true, subtree: true});
+  run();
+}
+
 function reveal(id) {
   const L = layout();
   if (L.collapsed.includes(id) || L.hidden.includes(id)) {
@@ -823,10 +922,25 @@ function setupCommand() {
     } else if (e.key === "Escape") { inp.value = ""; $("cmd-list").hidden = true; inp.blur(); }
   });
   document.addEventListener("keydown", e => {
-    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+    const a = document.activeElement, typing = ["INPUT", "TEXTAREA", "SELECT"].includes(a.tagName) || a.isContentEditable;
     if (e.key === "/" && !typing) { e.preventDefault(); inp.focus(); }
     if (e.key === "Escape" && !$("overlay").hidden && !typing) closeOverlay();
+    if ((e.key === "j" || e.key === "k") && !typing && $("overlay").hidden && !(e.ctrlKey || e.metaKey || e.altKey)) {
+      e.preventDefault(); stepSection(e.key === "j" ? 1 : -1);
+    }
   });
+}
+// j and k: scroll to the next or the previous section that shows. A section is at the top when its
+// top edge sits under the header. When the page is inside a section, k first goes to its top.
+function stepSection(dir) {
+  const secs = [...document.querySelectorAll("main > section")].filter(s => !s.hidden);
+  const edge = (parseFloat(getComputedStyle(secs[0] || document.body).scrollMarginTop) || 0) * ZOOM, tol = 4;
+  let cur = -1;
+  secs.forEach((s, i) => { if (s.getBoundingClientRect().top <= edge + tol) cur = i; });
+  let to = cur + dir;
+  if (dir < 0 && cur >= 0 && secs[cur].getBoundingClientRect().top < edge - tol) to = cur;
+  if (to >= secs.length) return;
+  if (to < 0) window.scrollTo(0, 0); else secs[to].scrollIntoView({block: "start"});
 }
 
 // ---------------------------------------------------------------- the header
@@ -882,8 +996,62 @@ function exceptions() {
   if (more) more.onclick = ev => { ev.preventDefault(); ALL_EXC = !ALL_EXC; exceptions(); };
 }
 
+// The three largest day scores of the cross-asset board that stay under the limit of an exception.
+const Z_LIMIT = 3;
+function largestMoves() {
+  const rows = (DATA.board ? DATA.board.rows : []).filter(r => !nil(r.z_1d) && Math.abs(r.z_1d) < Z_LIMIT)
+    .sort((a, b) => Math.abs(b.z_1d) - Math.abs(a.z_1d)).slice(0, 3);
+  $("exc-lm").innerHTML = !rows.length ? "" : `<span class="badge none">not exceptions</span>
+    <span>Largest moves today, below the limit:</span>` + rows.map(r => `<span class="lmi" data-t="${esc(r.ticker)}"
+    title="Show ${esc(r.ticker)} in the chart of the cross-asset board"><b>${esc(r.ticker)}</b> ${esc(r.label)}
+    ${pct(r.ret_1d, 2)} ${sig(r.z_1d)} <a href="#stock/${esc(r.ticker)}" title="Open ${esc(r.ticker)}">↗</a></span>`).join("");
+  $("exc-lm").querySelectorAll(".lmi").forEach(el => el.onclick = e => {
+    if (e.target.tagName === "A") return;
+    const t = el.dataset.t;
+    if (!SELECTED.includes(t)) SELECTED = [...SELECTED, t];
+    board(); mainChart(); reveal("crossasset");
+  });
+}
+
+// The saved portfolio of the browser, as a tile. The browser sends its lines once for each saved
+// version of the portfolio, and the server keeps no copy.
+const PF = {key: null, R: null, error: null, busy: false};
+function savedPortfolio() {
+  const saved = store.get("sdp.portfolios", {}), names = Object.keys(saved).sort();
+  if (!names.length) return null;
+  const cur = store.get("sdp.portfolio.current", ""), name = names.includes(cur) ? cur : names[0];
+  return {name, text: String(saved[name] ?? "")};
+}
+async function readPortfolioTile(text) {
+  const key = PF.key;
+  PF.busy = true;
+  try {
+    const {holdings} = parseHoldings(text);
+    if (!holdings.length) throw new Error("The saved portfolio has no holdings.");
+    const R = await postJSON("/market/portfolio.json", {holdings});
+    if (PF.key === key) PF.R = R;
+  } catch (e) { if (PF.key === key) PF.error = e.message; }
+  PF.busy = false;
+  if (DATA) overview();
+}
+function portfolioTile() {
+  const p = savedPortfolio();
+  if (!p) { Object.assign(PF, {key: null, R: null, error: null}); return ""; }
+  const key = p.name + "\n" + p.text;
+  if (key !== PF.key && !PF.busy) { Object.assign(PF, {key, R: null, error: null}); readPortfolioTile(p.text); }
+  const head = `<div class="k">Portfolio · ${esc(p.name)}</div>`;
+  let body = '<div class="v dim">…</div><div class="s">reading</div>';
+  if (PF.error) body = `<div class="v dim">–</div><div class="s err">${esc(PF.error.slice(0, 90))}</div>`;
+  else if (PF.R) {
+    const m = PF.R.moves.find(x => x.span === "1d"), top = m && m.contributors[0], k = PF.R.risk;
+    body = `<div class="v">${m ? pct(m.parts.ret, 2) : "–"}</div><div class="s">${esc(PF.R.as_of)} · vol
+      ${k ? pct(k.vol, 1, false) : "–"}<br>top ${top ? esc(top.ticker) + " " + pct(top.contribution, 2) : "–"}</div>`;
+  }
+  return `<div class="tile pf" title="Open the portfolio page" style="box-shadow:inset 3px 0 0 var(--amber)">${head}${body}</div>`;
+}
+
 function overview() {
-  const tiles = [], rows = DATA.board ? DATA.board.rows : [];
+  const tiles = [portfolioTile()].filter(Boolean), rows = DATA.board ? DATA.board.rows : [];
   const by = Object.fromEntries(rows.map(r => [r.ticker, r]));
   for (const t of ["SPY", "QQQ", "IWM", "VT", "TLT", "GLD", "USO", "IBIT"]) {
     const r = by[t]; if (!r) continue;
@@ -893,7 +1061,7 @@ function overview() {
   }
   // The measured rates, spreads and volatility, from FRED.
   const q = Object.fromEntries((DATA.rates ? DATA.rates.rows : []).map(r => [r.measure, r]));
-  for (const k of ["t_10y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd"]) {
+  for (const k of ["t_10y", "t_2y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd", "gbpusd"]) {
     const r = q[k]; if (!r) continue;
     tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(rz(r))}">
       <div class="k">${esc(r.label)}${r.fresh ? "" : ` (${esc((r.obs_date || "").slice(5))})`}</div>
@@ -901,7 +1069,32 @@ function overview() {
       <div class="s">1D ${rchg(r, r.chg_1d)}${UNIT_SUFFIX[r.unit] || ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
   }
   $("tiles").innerHTML = tiles.join("");
+  const pf = $("tiles").querySelector(".pf");
+  if (pf) pf.onclick = () => { location.hash = "portfolio"; };
+  fitTiles();
 }
+// The tiles take whole rows: pick the count of columns that leaves the fewest empty cells in the
+// last row, and let the tiles of the last row share its width.
+function fitTiles() {
+  const box = $("tiles"), tiles = [...box.children], n = tiles.length, gap = 8, minW = 132;
+  if (!n || !box.clientWidth) return;
+  const max = Math.max(1, Math.floor((box.clientWidth + gap) / (minW + gap)));
+  let cols = max, empty = Infinity;
+  for (let c = max; c >= Math.max(1, max - 3); c--) {
+    const e = (c - n % c) % c;
+    if (e < empty) { empty = e; cols = c; }
+  }
+  box.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  tiles.forEach(t => { t.style.gridColumn = ""; });
+  const last = n % cols;
+  for (let i = 0; i < last; i++) {
+    tiles[n - last + i].style.gridColumn = `span ${Math.floor(cols / last) + (i < cols % last ? 1 : 0)}`;
+  }
+}
+let TILES_W = 0;
+const refitTiles = () => { if ($("tiles").clientWidth !== TILES_W) { TILES_W = $("tiles").clientWidth; fitTiles(); } };
+new ResizeObserver(refitTiles).observe($("tiles"));
+window.addEventListener("resize", refitTiles);
 
 let ATTR = {span: "1d", weighting: "cap"};
 function attribution() {
@@ -965,7 +1158,7 @@ function heatmap() {
                  ["resid_score", "stock-specific σ", 3]];
   tabs($("hm-tabs"), modes.map(m => [m[0], m[1]]), HM, k => { HM = k; heatmap(); });
   const lim = modes.find(m => m[0] === HM)[2];
-  const W = 1200, H = 560, groups = {};
+  const W = 1200, H = 420, groups = {};
   for (const r of R) (groups[r.industry_name || "No industry yet"] ||= []).push(r);
   const inds = Object.entries(groups).map(([k, v]) => ({k, v: v.reduce((s, r) => s + r.cap, 0), names: v}))
     .sort((a, b) => b.v - a.v);
@@ -1005,6 +1198,14 @@ function foldClicks(table, redraw) {
   table.querySelectorAll("a.gtog").forEach(a => a.onclick = e => { e.preventDefault(); toggleOpen(a.dataset.open); redraw(); });
 }
 
+// A list of table rows shows its first rows, and a last row holds the link that shows the rest.
+const LIST_N = 5;
+function foldList(key, rows, cols, n = LIST_N) {
+  const rest = rows.length - n;
+  return (OPEN.has(key) ? rows : rows.slice(0, n)).join("")
+    + (rest > 0 ? `<tr class="grp"><td colspan="${cols}">${foldLink(key, rest)}</td></tr>` : "");
+}
+
 function board() {
   if (!DATA.board) return;
   const groups = [];
@@ -1038,14 +1239,11 @@ function board() {
   });
 }
 
-// Under 1360 px the chart sits beside the relations, so it takes their height.
-const NARROW = window.matchMedia("(max-width:1360px)");
-NARROW.addEventListener("change", () => { if (DATA) mainChart(); });
 function mainChart() {
   if (!DATA.board) return;
   const by = Object.fromEntries(DATA.board.rows.map(r => [r.ticker, r]));
   const series = SELECTED.filter(t => by[t]).map(t => ({name: t, points: rebase(by[t].dates, by[t].series)}));
-  lineChart($("main-chart"), series, {height: NARROW.matches ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  lineChart($("main-chart"), series, {height: document.documentElement.classList.contains("narrow") ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
 }
 
 function relations() {
@@ -1087,8 +1285,12 @@ const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
 
 // Three tables of FRED measures, each with its groups, its selection and its chart.
 const PANELS = [
-  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 230,
-   groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"]},
+  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 170,
+   groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"],
+   head: {"Nominal curve": ["t_3m", "t_2y", "t_5y", "t_10y", "t_30y"],
+          "Curve": ["curve_10y_2y", "curve_10y_3m", "curve_30y_5y", "fly_2_5_10"],
+          "Real yields and inflation": ["real_5y", "real_10y", "breakeven_5y", "breakeven_10y"],
+          "Credit": ["ig_oas", "oas_bbb", "hy_oas", "oas_ccc"]}},
   {section: "funding", table: "funding-table", chart: "funding-chart", sel: ["reserves", "rrp", "tga"], height: 230,
    groups: ["Policy and money markets", "Funding spreads", "Fed balance sheet"]},
   {section: "fx", table: "fx-table", chart: "fx-chart", sel: ["eurusd", "usdjpy", "gbpusd"], height: 350,
@@ -1114,17 +1316,25 @@ function measureChart(el, sel, height = 230) {
 function measureTable(P) {
   const rows = DATA.rates.rows.filter(r => P.groups.includes(r.grp));
   let html = `<tr><th>Measure</th><th>Level</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>1Y</th>
-    <th>Level vs history</th><th>2Y</th></tr>`, grp = null;
-  for (const r of rows) {
-    if (r.grp !== grp) { grp = r.grp; html += `<tr class="grp"><td colspan="9">${esc(grp)}</td></tr>`; }
-    const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
-    html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
-      <td class="l lab">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
-      <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
-      <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
-      <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
+    <th>Level vs history</th><th>2Y</th></tr>`;
+  for (const grp of P.groups) {
+    const g = rows.filter(r => r.grp === grp), head = (P.head || {})[grp], key = P.section + ":" + grp;
+    if (!g.length) continue;
+    // A group with no headline list shows every row.
+    const keep = r => !head || head.includes(r.measure) || Math.abs(r.z_1d ?? 0) >= FOLD_Z || P.sel.includes(r.measure);
+    html += `<tr class="grp"><td colspan="9">${esc(grp)}${foldLink(key, g.filter(r => !keep(r)).length)}</td></tr>`;
+    for (const r of g) {
+      if (!OPEN.has(key) && !keep(r)) continue;
+      const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
+      html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
+        <td class="l lab">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
+        <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
+        <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
+        <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
+    }
   }
   $(P.table).innerHTML = html;
+  foldClicks($(P.table), () => measureTable(P));
   $(P.table).querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
     const k = tr.dataset.m;
     P.sel = P.sel.includes(k) ? P.sel.filter(x => x !== k) : [...P.sel, k];
@@ -1153,7 +1363,8 @@ function rates() {
   lines.push({name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4});
   if (CURVE.real) lines.push({name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"});
   if (CURVE.breakeven) lines.push({name: "breakeven, now", pts: pts(bev, "value"), color: "#f778ba", dash: "2 2"});
-  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%", height: 260});
+  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%",
+    height: document.documentElement.classList.contains("narrow") ? 430 : 330});
   $("curve-tabs").innerHTML = `<button class="${CURVE.real ? "on" : ""}" data-k="real">real</button>
     <button class="${CURVE.breakeven ? "on" : ""}" data-k="breakeven">breakeven</button>
     <span class="dim" style="margin:0 6px">compare with</span><input type="date" id="curve-date"
@@ -1239,17 +1450,17 @@ function breadthCharts() {
     `<div class="panel"><h3>${t}</h3><div class="chart" id="bc${i}"></div></div>`).join("");
   const p0 = v => (v * 100).toFixed(0) + "%", p2 = v => (v * 100).toFixed(2) + "%";
   lineChart($("bc0"), [{name: "equal weight", points: rebase(dates, cut.map(r => r.ew_index))},
-                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0});
+                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0, height: 150});
   lineChart($("bc1"), [{name: "> 50d", points: pp(cut, "pct_above_ma50")},
-                       {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0});
+                       {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0, height: 150});
   lineChart($("bc2"), [{name: "highs", points: pp(cut, "new_highs"), color: "#3fb950"},
-                       {name: "lows", points: pp(cut, "new_lows"), color: "#f85149"}], {fmt: v => v.toFixed(0)});
+                       {name: "lows", points: pp(cut, "new_lows"), color: "#f85149"}], {fmt: v => v.toFixed(0), height: 150});
   lineChart($("bc3"), [{name: "all", points: pp(cut, "dispersion_21")},
-                       {name: "stock-specific", points: pp(cut, "resid_dispersion_21")}], {fmt: p2});
+                       {name: "stock-specific", points: pp(cut, "resid_dispersion_21")}], {fmt: p2, height: 150});
   lineChart($("bc4"), [{name: "avg corr 21d", points: pp(cut, "avg_corr_21")},
                        {name: "absorption", points: pp(cut, "absorption")},
-                       {name: "model R² 21d", points: pp(cut, "style_r2_21")}], {fmt: v => v.toFixed(2)});
-  lineChart($("bc5"), [{name: "median spread", points: pp(cut, "median_spread")}], {fmt: p2});
+                       {name: "model R² 21d", points: pp(cut, "style_r2_21")}], {fmt: v => v.toFixed(2), height: 150});
+  lineChart($("bc5"), [{name: "median spread", points: pp(cut, "median_spread")}], {fmt: p2, height: 150});
 }
 
 const riskRow = (r, perf) => `<tr><td class="l">${esc(r.label || r.factor)}</td>${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>
@@ -1270,13 +1481,18 @@ function factorModel() {
     .map(r => riskRow(r, perf["style:" + r.factor])).join("");
   lineChart($("style-chart"), F.curves.filter(c => c.family === "style" && c.factor !== "market")
     .map(c => ({name: LABEL("style", c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
-    {height: 450, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
-  const ind = F.risk.filter(r => r.family === "industry");
-  bars($("ind-bars"), ind.filter(r => !nil(r.ret_1m)).sort((a, b) => b.ret_1m - a.ret_1m)
-    .map(r => ({label: r.label || INDUSTRY[r.factor] || r.factor, value: r.ret_1m})));
+    {height: 330, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  // The one-month return of an industry against the market, sorted, with a bar in its cell.
+  const ind = F.risk.filter(r => r.family === "industry").sort((a, b) => (b.ret_1m ?? -9) - (a.ret_1m ?? -9));
+  const top = Math.max(...ind.map(r => Math.abs(r.ret_1m ?? 0)), 1e-12);
+  const dbar = r => { // a bar behind the number, in the colour of the sign
+    if (nil(r.ret_1m)) return "";
+    const w = (Math.abs(r.ret_1m) / top * 100).toFixed(0), c = r.ret_1m > 0 ? "63,185,80" : "248,81,73";
+    return `background:linear-gradient(90deg,rgba(${c},.45) ${w}%,transparent ${w}%)`;
+  };
   $("ind-table").innerHTML = `<tr><th>Industry</th><th>1D</th><th>σ</th><th>1M</th><th>σ</th><th>YTD</th>
     <th>Vol</th><th>DD vs history</th></tr>` + ind.map(r => `<tr><td class="l">${esc(r.label || r.factor)}</td>
-    ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1m, r.z_1m)}<td>${sig(r.z_1m)}</td>
+    ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td><td style="${dbar(r)}" title="${nil(r.z_1m) ? "" : (r.z_1m > 0 ? "+" : "") + Number(r.z_1m).toFixed(1) + "σ"}">${pct(r.ret_1m, 1)}</td><td>${sig(r.z_1m)}</td>
     <td>${pct(perf["industry:" + r.factor]?.ret_ytd)}</td><td class="dim">${pct(r.vol_63, 1, false)}</td>
     <td>${pbar(r.dd_pctile, "high")}</td></tr>`).join("");
 }
@@ -1292,11 +1508,12 @@ function signalsView() {
     return of the next 21 sessions is ${num(ic.mean_ic, 4)} (Newey-West t ${num(ic.t_nw, 1)}, the same sign in ${ic.folds_same_sign ?? "–"} of 4 folds):
     ${ic.mean_ic > 0 ? "the highest names have earned more" : "the lowest names have earned more"}. A t under 3 is weak evidence.` : "";
   const rows = S.names.filter(r => r.signal === SIGNAL);
-  const t = rs => `<tr><th>Name</th><th class="l">Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + rs.map(r =>
+  const t = (rs, key) => `<tr><th>Name</th><th class="l">Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + foldList(key, rs.map(r =>
     `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 26))}</span></td>
-     <td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`).join("");
-  $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high));
-  $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high));
+     <td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`), 5);
+  $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high), "signals:top");
+  $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high), "signals:bottom");
+  foldClicks($("sig-top"), signalsView); foldClicks($("sig-bottom"), signalsView);
 }
 
 function movers() {
@@ -1304,33 +1521,49 @@ function movers() {
   const spec = [["residual_up", "Largest stock-specific gains"], ["residual_down", "Largest stock-specific losses"]];
   $("mover-lists").innerHTML = spec.filter(([k]) => M[k]).map(([k, t]) => `<div class="panel"><h3>${t}</h3><table class="tight">
     <tr><th>Ticker</th><th class="l">Industry</th><th>Cap</th><th>Return</th><th>Factors</th><th>Specific</th><th>σ</th>
-    <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
+    <th>Rel vol</th></tr>` + foldList("movers:" + k, M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
       <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td>
       <td class="dim">${big(r.cap)}</td><td>${pct(r.ret, 1)}</td><td>${pct(r.factor_part, 1)}</td>
       <td style="background:${zbg(r.resid_score)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_score)}</td>
-      <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`).join("") + `</table></div>`).join("");
+      <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`), 8) + `</table></div>`).join("");
+  foldClicks($("mover-lists"), movers);
 }
 
+const CAL_N = 10;
 function calendar() {
   const C = DATA.calendar; if (!C) return;
+  const open = OPEN.has("calendar"), rows = open ? C : C.slice(0, CAL_N);
   $("cal").innerHTML = `<tr><th>Date</th><th class="l">Ticker</th><th class="l">Name</th><th class="l">Type</th><th class="l">Event</th><th class="l">Detail</th>
-    <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
+    <th>Yield</th><th>$ vol</th></tr>` + rows.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
     <td class="l name">${esc((r.name || "").slice(0, 40))}</td><td class="l dim">${esc(r.type || "")}</td>
     <td class="l">${r.kind}</td><td class="l">${r.kind === "split" ? `${r.split_to}-for-${r.split_from} ${esc(r.detail || "")}`
       : `$${num(r.cash_amount, 4)} ${esc(r.detail || "")}`}</td><td>${r.kind === "dividend" ? pct(r.dividend_yield, 2, false) : ""}</td>
-    <td class="dim">${big(r.dollar_volume)}</td></tr>`).join("");
+    <td class="dim">${big(r.dollar_volume)}</td></tr>`).join("")
+    + (C.length > CAL_N ? `<tr class="grp"><td colspan="8">${foldLink("calendar", C.length - CAL_N)}</td></tr>` : "");
+  foldClicks($("cal"), calendar);
 }
 
+// The cap filter of the two lists. The payload holds the top rows of each floor.
+const SI_CAPS = [[0, "all caps"], [2e9, "$2B or more"], [1e10, "$10B or more"]];
+let SI_FLOOR = store.get("sdp.si.cap", 0);
 function shorts() {
   const S = DATA.short_interest; if (!S) return;
   $("si-note").textContent = `Settlement ${S.settlement_date}. ` + (S.effective_date ? `Public from ${S.effective_date}.`
     : "FINRA publishes about eight sessions after settlement, so a backtest must not use this settlement yet.")
     + " Names with $10M or more of short interest. Crowding by factor is in the factor table.";
-  const t = rows => `<tr><th>Ticker</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
-    rows.map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
-      <td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
-      <td class="dim">${big(r.short_value)}</td></tr>`).join("");
-  $("si-dtc").innerHTML = t(S.days_to_cover); $("si-up").innerHTML = t(S.increase);
+  if (!SI_CAPS.some(c => c[0] === SI_FLOOR)) SI_FLOOR = 0;
+  tabs($("si-caps"), [["cap", "Market cap:"], ...SI_CAPS.map(([f, t]) => [String(f), t])], String(SI_FLOOR), k => {
+    if (k === "cap") return;
+    SI_FLOOR = +k; store.set("sdp.si.cap", SI_FLOOR); shorts();
+  });
+  $("si-caps").querySelector("button").className = "lab dim";
+  const pass = r => SI_FLOOR <= 0 || (!nil(r.cap) && r.cap >= SI_FLOOR);
+  const t = (rows, key) => `<tr><th>Ticker</th><th>Cap</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
+    (foldList(key, rows.filter(pass).slice(0, 10).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
+      <td class="dim">${big(r.cap)}</td><td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
+      <td class="dim">${big(r.short_value)}</td></tr>`), 6) || '<tr><td class="dim" colspan="6">No name has this cap.</td></tr>');
+  $("si-dtc").innerHTML = t(S.days_to_cover, "shorts:dtc"); $("si-up").innerHTML = t(S.increase, "shorts:up");
+  foldClicks($("si-dtc"), shorts); foldClicks($("si-up"), shorts);
   const H = DATA.short_history || [];
   const P = H.map(r => ({...r, date: r.settlement_date}));
   lineChart($("si-share"), [{name: "short value / cap", points: pp(P, "short_share_of_cap")}], {height: 180, fmt: v => (v * 100).toFixed(2) + "%"});
@@ -1396,7 +1629,7 @@ function events() {
   const col = {shock_up: "#3fb950", shock_down: "#f85149", split_forward: "#58a6ff", split_reverse: "#bc8cff", short_jump: "#e3b341"};
   xyChart($("event-chart"), EVENTS.map(k => ({name: kinds.find(x => x[0] === k)[1], color: col[k],
     pts: R.events.filter(r => r.event === k && r.day >= 1).map(r => [r.day, r.car_post, `day ${r.day}`])})),
-    {height: 220, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
+    {height: 180, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
      fmt: v => (v * 100).toFixed(2) + "%"});
   $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Dates</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
     kinds.map(([k, t]) => {
@@ -1885,12 +2118,14 @@ async function load() {
   $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${built.slice(5)} UTC`;
   $("meta").title = `Built ${built} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
-  for (const f of [sources, exceptions, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
+  for (const f of [sources, exceptions, largestMoves, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
     breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
 }
-layoutControls(); applyLayout(); setupCommand();
+layoutControls(); applyLayout(); setupCommand(); watchCsvButtons();
 load().then(route);
 window.addEventListener("hashchange", route);
+// A closed portfolio page may have saved a new version, so the tile reads it again.
+window.addEventListener("hashchange", () => { if (DATA && location.hash !== "#portfolio") overview(); });
 setInterval(() => { if ($("overlay").hidden) load(); }, 5 * 60 * 1000);
 </script>
 </body>

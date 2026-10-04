@@ -131,3 +131,49 @@ def test_a_foreign_host_cannot_read_the_payload(warehouse):
 def test_the_exceptions_come_most_unusual_first(warehouse):
     e = market.snapshot()["exceptions"]
     assert [x["score"] for x in e] == [3.1, 2.4, 2.2]
+
+
+def _short_interest_warehouse() -> None:
+    """Add the short interest mart and the universe: twelve small caps with the most days to
+    cover, then twelve mid caps, then twelve large caps, and one name with no cap."""
+    names = ([(f"S{i:02d}", 1e8, 50.0 - i, 2.0 - i / 100) for i in range(12)]
+             + [(f"M{i:02d}", 5e9, 20.0 - i, 1.0 - i / 100) for i in range(12)]
+             + [(f"L{i:02d}", 2e10, 5.0 - i / 10, 0.5 - i / 100) for i in range(12)]
+             + [("NOCAP", None, 90.0, 3.0)])
+    con = duckdb.connect(str(settings.warehouse_path))
+    con.execute("create schema intermediate")
+    con.execute("create table intermediate.int_universe (date date, ticker varchar, "
+                "market_cap double, in_universe boolean)")
+    con.execute("""create table monitor.market_short_interest (
+        settlement_date date, effective_date date, ticker varchar, name varchar, close double,
+        short_interest double, prev_short_interest double, change double, days_to_cover double,
+        days_to_cover_computed double, short_value double)""")
+    for t, cap, dtc, change in names:
+        con.execute("insert into intermediate.int_universe values (date '2026-09-24', ?, ?, true)",
+                    [t, cap])
+        con.execute("insert into monitor.market_short_interest values "
+                    "(date '2026-09-15', date '2026-09-25', ?, ?, 10.0, 2e6, 1e6, ?, ?, ?, 2e7)",
+                    [t, t + " Inc", change, dtc, dtc])
+    con.close()
+
+
+def test_a_cap_floor_keeps_ten_names_when_the_top_rows_are_small_caps(warehouse):
+    _short_interest_warehouse()
+    s = market.snapshot()["short_interest"]
+    for key in ("days_to_cover", "increase"):
+        rows = s[key]
+        assert all("cap" in r for r in rows)
+        for floor in (0, 2e9, 1e10):
+            kept = [r for r in rows if floor <= 0 or (r["cap"] or 0) >= floor]
+            assert len(kept) >= 10, (key, floor)
+    top = [r["ticker"] for r in s["days_to_cover"]]
+    assert top[:2] == ["NOCAP", "S00"]
+    large = [r["ticker"] for r in s["days_to_cover"] if (r["cap"] or 0) >= 1e10]
+    assert large[:2] == ["L00", "L01"]
+    json.dumps(s, allow_nan=False)
+
+
+def test_top_by_cap_keeps_the_order_and_drops_a_missing_cap_from_a_floor():
+    rows = [{"ticker": "A", "cap": None}, {"ticker": "B", "cap": 3e9}, {"ticker": "C", "cap": 1e8}]
+    assert [r["ticker"] for r in market._top_by_cap(rows, floors=(0, 2e9), n=1)] == ["A", "B"]
+    assert [r["ticker"] for r in market._top_by_cap(rows, floors=(0, 2e9), n=3)] == ["A", "B", "C"]
