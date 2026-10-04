@@ -450,6 +450,33 @@ function spark(vals, w = 72, h = 18) {
 // What the reader changes on a line chart (the lines hidden and the range), by the id of the
 // chart. It lasts while the page is open.
 const CHART_STATE = {};
+// A chart is drawn at the width of its element, so one unit of the drawing is one CSS pixel and
+// the text keeps its size. The chart is drawn again, after a short wait, when its element changes
+// width by 2 px or more. There is one observer for each element, and it ends when the element
+// leaves the page. A hidden element has no width: the chart takes its design width, and the
+// observer draws it again when the element shows.
+const CHART_WATCH = new WeakMap();
+function chartWidth(el, fallback) {
+  const w = Math.round(el.clientWidth);
+  return w > 0 ? Math.max(w, 240) : fallback;
+}
+function watchWidth(el, redraw) {
+  let w = CHART_WATCH.get(el);
+  if (!w) {
+    w = {timer: 0};
+    w.ro = new ResizeObserver(() => {
+      clearTimeout(w.timer);
+      w.timer = setTimeout(() => {
+        if (!el.isConnected) { w.ro.disconnect(); CHART_WATCH.delete(el); return; }
+        const now = Math.round(el.clientWidth);
+        if (now > 0 && Math.abs(now - w.width) >= 2) w.redraw();
+      }, 120);
+    });
+    w.ro.observe(el);
+    CHART_WATCH.set(el, w);
+  }
+  w.width = Math.round(el.clientWidth); w.redraw = redraw;
+}
 const DAY = 864e5;
 const RANGES = [["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
 const ext = a => a.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
@@ -465,29 +492,31 @@ function pointAt(pts, t) {
 // dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
 // above the chart picks the range, from the ones that the data covers (o.range = false turns
 // it off). The y range fits the lines that show, over the range. o.periodEnds draws a faint
-// line at the last weekday of each month and a stronger one at each quarter end. o.width is the
-// width of the drawing (640). o.bars = {name, points: [[date, value, colour]], height, fmt} draws
-// bars under the lines on the same time axis, from 0 to the largest value in the range.
+// line at the last weekday of each month and a stronger one at each quarter end. o.bars =
+// {name, points: [[date, value, colour]], height, fmt} draws bars under the lines on the same time
+// axis, from 0 to the largest value in the range. o.height and the bar height are for a drawing
+// o.width wide (640). The drawing is as wide as the element, and its height keeps the same ratio.
 function lineChart(el, series, o = {}) {
-  const W = o.width || 640, L = 52, R = 10, T = 8, B = 20;
+  const W0 = o.width || 640, W = chartWidth(el, W0), k = W / W0, L = 52, R = 10, T = 8, B = 20;
   const fb = (o.bars && o.bars.fmt) || big;
   const bpts = o.bars ? o.bars.points.filter(p => !nil(p[1])).map(p => [+new Date(p[0]), p[1], p[2]]) : [];
-  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : {hidden: [], range: null};
+  const st = el.id ? (CHART_STATE[el.id] ||= {hidden: [], range: null}) : (el._state ||= {hidden: [], range: null});
   const S = series.map((s, i) => {
     const pts = s.points.map(p => [+new Date(p[0]), nil(p[1]) ? null : p[1]]);
     return {s, c: s.color || COLORS[i % COLORS.length], pts, ok: pts.filter(p => p[1] !== null)};
   });
   const all = S.flatMap(x => x.ok);
   if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  watchWidth(el, () => lineChart(el, series, o));
   const [xmin, x1] = ext([...all, ...bpts].map(p => p[0]));
   const f = o.fmt || (v => v.toFixed(2));
   // A range shows when it is shorter than the data and holds 5 points of the longest line.
   const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
     && Math.max(...S.map(x => x.ok.filter(p => p[0] >= x1 - d * DAY).length)) >= 5);
   // The switch takes 16 px of height. The plot loses the same height, so a chart keeps its size on the page.
-  const H = (o.height || 220) - (avail.length ? 16 : 0);
+  const H = Math.round((o.height || 220) * k) - (avail.length ? 16 : 0);
   // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
-  const BH = o.bars ? o.bars.height || 56 : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
+  const BH = o.bars ? Math.round((o.bars.height || 56) * k) : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
   const VH = BH ? yb1 + B : H;
   const draw = () => {
     const cur = avail.find(r => r[0] === st.range), x0 = cur ? x1 - cur[1] * DAY : xmin;
@@ -605,9 +634,10 @@ function lineChart(el, series, o = {}) {
 // A chart on a numeric or categorical x axis. Each series is {name, pts: [[x, y, title]]}.
 // o.xticks is [[x, label]], o.log draws y on a log scale, o.xlog x on a log scale.
 function xyChart(el, series, o = {}) {
-  const W = 640, H = o.height || 240, L = 48, R = 14, T = 10, B = 24;
+  const W = chartWidth(el, 640), H = Math.round((o.height || 240) * W / 640), L = 48, R = 14, T = 10, B = 24;
   const all = series.flatMap(s => s.pts.filter(p => !nil(p[1]) && (!o.log || p[1] > 0)));
   if (!all.length) { el.innerHTML = '<div class="note">No data.</div>'; return; }
+  watchWidth(el, () => xyChart(el, series, o));
   const fy = o.log ? Math.log : v => v, fx = o.xlog ? Math.log : v => v;
   const xs = [...all.map(p => p[0]), ...(o.xticks || []).map(t => t[0])];
   let x0 = fx(Math.min(...xs)), x1 = fx(Math.max(...xs));
