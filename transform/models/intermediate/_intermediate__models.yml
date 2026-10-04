@@ -106,7 +106,7 @@ models:
           special dividend also lowers the price.
 
   - name: int_prices_adjusted
-    description: Unadjusted prices, the two factors and the adjusted columns, from two as-of joins. At
+    description: Unadjusted prices, the two factors and the adjusted columns, from two lookups of the next event. At
       a ticker change, the rows of the earlier ticker also take the factors of the later ticker of the
       same security.
     columns:
