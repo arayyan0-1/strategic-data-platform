@@ -23,6 +23,7 @@
   header nav { display:grid; grid-template-columns:repeat(2,max-content); gap:3px 22px; }
   header nav a { color:var(--ink); font-size:12px; }
   header nav a:hover { color:var(--amber); }
+  header nav .hint { grid-column:1 / -1; font-size:11px; }
   header nav a.sep { grid-column:1 / -1; border-top:1px solid var(--line); padding-top:3px; margin-top:3px; }
   .meta { color:var(--dim); white-space:nowrap; }
   .srcbox { position:relative; }
@@ -704,7 +705,8 @@ function applyLayout() {
   }
   $("nav").innerHTML = order.filter(id => !L.hidden.includes(id))
     .map(id => `<a href="#${id}">${esc($(id).dataset.nav || id)}</a>`).join("")
-    + '<a class="sep" href="#portfolio">portfolio</a><a href="/">data status</a>';
+    + '<a class="sep" href="#portfolio">portfolio</a><a href="/">data status</a>'
+    + '<span class="dim hint">Keys j and k: next and previous section.</span>';
   $("nav").querySelectorAll("a").forEach(a => a.addEventListener("click", () => { $("nav-menu").hidden = true; }));
   const hidden = SECTIONS.filter(id => L.hidden.includes(id));
   $("layout-menu").innerHTML = (hidden.length ? "<div class='dim'>Hidden sections:</div>" + hidden.map(id =>
@@ -830,10 +832,25 @@ function setupCommand() {
     } else if (e.key === "Escape") { inp.value = ""; $("cmd-list").hidden = true; inp.blur(); }
   });
   document.addEventListener("keydown", e => {
-    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+    const a = document.activeElement, typing = ["INPUT", "TEXTAREA", "SELECT"].includes(a.tagName) || a.isContentEditable;
     if (e.key === "/" && !typing) { e.preventDefault(); inp.focus(); }
     if (e.key === "Escape" && !$("overlay").hidden && !typing) closeOverlay();
+    if ((e.key === "j" || e.key === "k") && !typing && $("overlay").hidden && !(e.ctrlKey || e.metaKey || e.altKey)) {
+      e.preventDefault(); stepSection(e.key === "j" ? 1 : -1);
+    }
   });
+}
+// j and k: scroll to the next or the previous section that shows. A section is at the top when its
+// top edge sits under the header. When the page is inside a section, k first goes to its top.
+function stepSection(dir) {
+  const secs = [...document.querySelectorAll("main > section")].filter(s => !s.hidden);
+  const edge = parseFloat(getComputedStyle(secs[0] || document.body).scrollMarginTop) || 0, tol = 4;
+  let cur = -1;
+  secs.forEach((s, i) => { if (s.getBoundingClientRect().top <= edge + tol) cur = i; });
+  let to = cur + dir;
+  if (dir < 0 && cur >= 0 && secs[cur].getBoundingClientRect().top < edge - tol) to = cur;
+  if (to >= secs.length) return;
+  if (to < 0) window.scrollTo(0, 0); else secs[to].scrollIntoView({block: "start"});
 }
 
 // ---------------------------------------------------------------- the header
