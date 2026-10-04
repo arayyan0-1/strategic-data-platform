@@ -53,6 +53,8 @@
   .btn { background:var(--panel); color:var(--dim); border:1px solid var(--line); font:inherit; font-size:11px;
          padding:2px 8px; border-radius:3px; cursor:pointer; white-space:nowrap; }
   .btn:hover { color:var(--ink); }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .fs { display:flex; gap:2px; }
   #layout-menu div { margin:3px 0; }
   main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
   section { margin:16px 0 18px; scroll-margin-top:48px; }
@@ -126,11 +128,9 @@
   .note { color:var(--dim); font-size:11px; margin-top:6px; }
   .err { color:var(--down); }
   @media (max-width:900px) { .grid2, .grid2e, .split { grid-template-columns:1fr; } }
-  @media (max-width:1360px) {
-    #crossasset .split { grid-template-columns:minmax(0,1fr); }
-    #crossasset .stack { order:-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
-    #crossasset .stack > * + * { margin-top:0; }
-  }
+  html.narrow #crossasset .split { grid-template-columns:minmax(0,1fr); }
+  html.narrow #crossasset .stack { order:-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  html.narrow #crossasset .stack > * + * { margin-top:0; }
   .exc { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:6px; }
   .ex { display:grid; grid-template-columns:118px 1fr 38px; gap:8px; align-items:center;
         background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 10px;
@@ -202,6 +202,8 @@
     <span class="push"></span>
     <button class="btn" id="nav-btn" title="Go to a section">sections ▾</button>
     <button class="btn" id="layout-btn" title="Show hidden sections, or reset the layout">layout</button>
+    <span class="fs"><button class="btn" id="fs-dn" title="Smaller text">A−</button><button class="btn"
+      id="fs-up" title="Larger text">A+</button></span>
   </div>
   <div class="menu" id="nav-menu" hidden><nav id="nav"></nav></div>
   <div class="menu" id="layout-menu" hidden></div>
@@ -694,6 +696,30 @@ const INDUSTRY = {nodur: "Consumer nondurables", durbl: "Consumer durables", man
   enrgy: "Energy", chems: "Chemicals", buseq: "Business equipment", telcm: "Telecom", utils: "Utilities",
   shops: "Shops", hlth: "Health care", money: "Finance", other: "Other", unknown: "No industry yet"};
 
+// ---------------------------------------------------------------- the size of the text
+// The page scales in steps with the CSS property zoom. Under 1360 CSS pixels of width the page
+// takes its narrow layout, so a larger size gives the layout that a narrower window gives.
+const ZOOMS = [0.85, 0.92, 1, 1.1, 1.2, 1.35];
+let ZOOM = ZOOMS.includes(store.get("sdp.zoom", 1)) ? store.get("sdp.zoom", 1) : 1;
+function applyZoom() {
+  document.body.style.zoom = ZOOM === 1 ? "" : String(ZOOM);
+  $("fs-dn").disabled = ZOOM === ZOOMS[0];
+  $("fs-up").disabled = ZOOM === ZOOMS[ZOOMS.length - 1];
+  fitLayout();
+}
+function fitLayout() {
+  const narrow = window.innerWidth / ZOOM <= 1360, root = document.documentElement;
+  if (root.classList.contains("narrow") === narrow) return;
+  root.classList.toggle("narrow", narrow);
+  if (typeof DATA !== "undefined" && DATA) mainChart();
+}
+function zoomStep(d) {
+  const i = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(ZOOM) + d));
+  ZOOM = ZOOMS[i];
+  store.set("sdp.zoom", ZOOM);
+  applyZoom();
+}
+
 // ---------------------------------------------------------------- layout and navigation
 const SECTIONS = [...document.querySelectorAll("main > section")].map(s => s.id);
 function layout() { return store.get("sdp.layout", {order: [], collapsed: [], hidden: []}); }
@@ -737,6 +763,10 @@ function layoutControls() {
   }
   $("layout-btn").onclick = () => { $("nav-menu").hidden = true; $("layout-menu").hidden = !$("layout-menu").hidden; };
   $("nav-btn").onclick = () => { $("layout-menu").hidden = true; $("nav-menu").hidden = !$("nav-menu").hidden; };
+  $("fs-dn").onclick = () => zoomStep(-1);
+  $("fs-up").onclick = () => zoomStep(1);
+  window.addEventListener("resize", fitLayout);
+  applyZoom();
   $("src-btn").onclick = () => $("srcbox").classList.toggle("open");
   $("links-flag").onclick = () => $("srcbox").classList.toggle("open");
   // A click outside a menu closes it.
@@ -902,7 +932,7 @@ function setupCommand() {
 // top edge sits under the header. When the page is inside a section, k first goes to its top.
 function stepSection(dir) {
   const secs = [...document.querySelectorAll("main > section")].filter(s => !s.hidden);
-  const edge = parseFloat(getComputedStyle(secs[0] || document.body).scrollMarginTop) || 0, tol = 4;
+  const edge = (parseFloat(getComputedStyle(secs[0] || document.body).scrollMarginTop) || 0) * ZOOM, tol = 4;
   let cur = -1;
   secs.forEach((s, i) => { if (s.getBoundingClientRect().top <= edge + tol) cur = i; });
   let to = cur + dir;
@@ -1199,14 +1229,11 @@ function board() {
   });
 }
 
-// Under 1360 px the chart sits beside the relations, so it takes their height.
-const NARROW = window.matchMedia("(max-width:1360px)");
-NARROW.addEventListener("change", () => { if (DATA) mainChart(); });
 function mainChart() {
   if (!DATA.board) return;
   const by = Object.fromEntries(DATA.board.rows.map(r => [r.ticker, r]));
   const series = SELECTED.filter(t => by[t]).map(t => ({name: t, points: rebase(by[t].dates, by[t].series)}));
-  lineChart($("main-chart"), series, {height: NARROW.matches ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  lineChart($("main-chart"), series, {height: document.documentElement.classList.contains("narrow") ? 440 : 300, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
 }
 
 function relations() {
