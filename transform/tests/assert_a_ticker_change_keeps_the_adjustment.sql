@@ -5,7 +5,14 @@ with series as (
     from {{ ref('int_prices_adjusted') }} p
     inner join {{ ref('int_universe') }} u
         on u.ticker = p.ticker and u.date = p.date
+    -- A change needs two tickers, so the windows skip a security with one ticker.
     where u.is_primary_line
+      and u.security_key in (
+        select security_key from {{ ref('int_universe') }}
+        where is_primary_line
+        group by security_key
+        having count(distinct ticker) > 1
+      )
 ), steps as (
     select
         *,
