@@ -13,14 +13,27 @@
 
 with wide as (
 
-    -- One row per name and session, one rank column per signal.
-    pivot (
-        select date, security_key, signal, avg_rank
-        from {{ ref('signal_panel') }}
+    -- One row per name and session, one rank column per signal. The rank is the
+    -- panel rank, found again with the same rule from the in_universe rows of
+    -- signals. A rank window for each signal costs less than a pivot of the panel.
+    select
+        date,
+        {%- for s in signals %}
+        case when {{ s }} is not null
+             then (rank() over w_{{ s }} + count(*) over w_{{ s }}) / 2.0 end as {{ s }}
+        {{- "," if not loop.last }}
+        {%- endfor %}
+    from (
+        select date, {{ signals | join(', ') }}
+        from {{ ref('signals') }}
+        where in_universe
     )
-    on signal in ({% for s in signals %}'{{ s }}'{{ ", " if not loop.last }}{% endfor %})
-    using max(avg_rank)
-    group by date, security_key
+    window
+        {%- for s in signals %}
+        w_{{ s }} as (partition by date order by {{ s }} nulls last
+                      range between unbounded preceding and current row)
+        {{- "," if not loop.last }}
+        {%- endfor %}
 
 ), per_day as (
 
