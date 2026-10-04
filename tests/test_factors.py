@@ -101,6 +101,47 @@ def test_standardize_apply_uses_the_parameters_of_the_session_of_the_row():
     assert list(known) == [True, True, False] and not Zc[2].any()
 
 
+def _ragged_panel(seed=20):
+    """Sessions that stress the fit: ties, a flat column, empty and short columns, missing and
+    infinite values, weights that add up to zero, and rows out of order."""
+    rng = np.random.default_rng(seed)
+    day = np.repeat(np.arange(6), 40)
+    n = day.size
+    X = rng.normal(0, 3, (n, 5))
+    X[:, 1] = np.round(X[:, 1])
+    X[:, 2] = 4.0
+    X[day == 2, 3] = np.nan
+    X[(day == 3) & (np.arange(n) % 40 > 1), 3] = np.nan
+    X[rng.random(X.shape) < 0.1] = np.nan
+    X[rng.random(X.shape) < 0.01] = np.inf
+    w = rng.uniform(0.5, 3, n)
+    w[day == 4] = 0.0
+    shuffle = rng.permutation(n)
+    return day[shuffle], X[shuffle], w[shuffle]
+
+
+def test_standardize_fit_gives_the_parameters_of_zscore_fit_for_each_session_and_column():
+    day, X, w = _ragged_panel()
+    days, P = factors.standardize_fit(day, X, w)
+    assert list(days) == list(range(6))
+    for i, d in enumerate(days):
+        rows = day == d
+        for j in range(X.shape[1]):
+            expected = factors.zscore_fit(X[rows, j], w[rows])
+            assert np.allclose(P[i, j], expected, rtol=1e-12, atol=1e-12), (d, j)
+
+
+def test_standardize_gives_the_zscore_of_each_session_and_column():
+    day, X, w = _ragged_panel(21)
+    for clip in (3.0, 1.5):
+        Z = factors.standardize(day, X, w, clip)
+        for d in np.unique(day):
+            rows = day == d
+            for j in range(X.shape[1]):
+                expected = factors.zscore(X[rows, j], w[rows], clip)
+                assert np.allclose(Z[rows, j], expected, rtol=1e-12, atol=1e-12), (d, j)
+
+
 def test_style_returns_recover_the_factor_returns():
     rng = np.random.default_rng(2)
     days, names, k = 40, 600, 3
