@@ -250,6 +250,33 @@ class TestUpdate:
         with daily._update_lock(), pytest.raises(daily.UpdateInProgress):
             daily.update()
 
+    def test_the_lock_message_names_the_time_and_the_pid(self, tmp_data_root):
+        since = dt.datetime(2026, 10, 1, 8, 5, tzinfo=dt.UTC).timestamp()
+        with daily._update_lock():
+            os.utime(daily._lock_dir() / "pid", (since, since))
+            with pytest.raises(daily.UpdateInProgress) as err, daily._update_lock():
+                pass
+        text = str(err.value)
+        assert text.startswith("An update is in progress since 2026-10-01 08:05 UTC "
+                               f"(pid {os.getpid()}). Lock: ")
+        assert str(daily._lock_dir()) in text
+
+    def test_the_backfill_lock_message_names_the_time_and_the_pid(self, tmp_data_root,
+                                                                 stub_run):
+        b = daily._backfill_lock_dir()
+        b.mkdir(parents=True)
+        (b / "pid").write_text(str(os.getpid()))
+        since = dt.datetime(2026, 10, 1, 8, 5, tzinfo=dt.UTC).timestamp()
+        os.utime(b / "pid", (since, since))
+        with pytest.raises(daily.UpdateInProgress) as err:
+            daily.update()
+        assert str(err.value).startswith("A backfill is in progress since 2026-10-01 "
+                                         f"08:05 UTC (pid {os.getpid()}). Lock: ")
+
+    def test_the_lock_message_keeps_the_old_form_when_the_time_is_unreadable(
+            self, tmp_path):
+        assert daily._lock_holder(tmp_path / "missing") == ""
+
     def test_a_stale_lock_is_reclaimed(self, tmp_data_root):
         lock = daily._lock_dir()
         lock.mkdir(parents=True)  # No pid file, so the lock reads as stale.
