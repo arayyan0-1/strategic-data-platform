@@ -20,7 +20,7 @@
     component. The _21 columns are their 21-session means.
 #}
 
-with s as (
+with s as materialized (
 
     select
         u.security_key, p.date, u.in_universe, u.adv, u.market_cap, p.dollar_volume,
@@ -29,18 +29,35 @@ with s as (
     join {{ ref('int_universe') }} u using (ticker, date)
     where u.is_primary_line
 
-), f as (
+), ma as materialized (
+
+    -- The moving averages read every security, as they always did. The sum of a window
+    -- depends on the place of its rows in the sorted input. When the price equals its
+    -- average (a flat price), the last bits of the sum decide px > ma50, so a change of
+    -- the input changes the share above the average.
+    select
+        security_key, date,
+        avg(px)   over (partition by security_key order by date
+                        rows between 49 preceding and current row)          as ma50,
+        avg(px)   over (partition by security_key order by date
+                        rows between 199 preceding and current row)         as ma200
+    from s
+
+), kept as (
+
+    -- A security that is never in the universe has no row in the result, and the windows
+    -- of one security read no other security. So the windows below skip such a security.
+    select * from s
+    where security_key in (select security_key from {{ ref('int_universe') }} where in_universe)
+
+), f1 as (
 
     select
         *,
         px / lag(px) over w - 1                                             as ret,
         lag(market_cap) over w                                              as cap_before,
-        avg(px)   over (partition by security_key order by date
-                        rows between 49 preceding and current row)          as ma50,
         count(px) over (partition by security_key order by date
                         rows between 49 preceding and current row)          as n50,
-        avg(px)   over (partition by security_key order by date
-                        rows between 199 preceding and current row)         as ma200,
         count(px) over (partition by security_key order by date
                         rows between 199 preceding and current row)         as n200,
         max(px)   over (partition by security_key order by date
@@ -49,8 +66,14 @@ with s as (
                         rows between 251 preceding and current row)         as lo252,
         count(px) over (partition by security_key order by date
                         rows between 251 preceding and current row)         as n252
-    from s
+    from kept
     window w as (partition by security_key order by date)
+
+), f as (
+
+    select f1.*, m.ma50, m.ma200
+    from f1
+    join ma m using (security_key, date)
 
 ), g as (
 

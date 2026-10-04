@@ -15,7 +15,7 @@ import json
 
 import numpy as np
 
-from sdp.factors import STYLE_SQL, filled, standardize_apply, standardize_fit
+from sdp.factors import STYLE_SQL, filled, stack, standardize_apply, standardize_fit
 
 
 def model(dbt, session):
@@ -44,52 +44,47 @@ def model(dbt, session):
     session.execute(f"""
         create or replace temp table cov_panel as
         with days as (
-            select date, lead(date) over (order by date) as next_date
+            select date, lead(date) over (order by date) as next_date,
+                   row_number() over (order by date) - 1 as day
             from (select distinct date from cov_signals)
-        ), bars as (
-            select security_key, date,
-                   lead(date) over (partition by security_key order by date) as bar_next
-            from cov_signals
-            where date >= {first}
         )
         select
-            row_number() over (order by s.date, s.security_key) - 1  as rid,
-            dense_rank() over (order by s.date) - 1                  as day,
+            d.day,
             s.security_key, s.ticker, s.date, u.type_filled, u.industry, u.market_cap,
             not s.in_universe                                        as is_cov,
             e.{weight}                                               as w,
             {", ".join(f"{expr} as x_{name}" for name, expr in STYLE_SQL.items())},
-            case when b.bar_next = d.next_date then f.fwd_ret_1 end  as r
+            case when exists (
+                select 1 from cov_signals n
+                where n.security_key = s.security_key and n.date = d.next_date
+            ) then f.fwd_ret_1 end                                   as r
         from cov_signals s
         join cov_universe u on u.ticker = s.ticker and u.date = s.date
-        join bars b on b.security_key = s.security_key and b.date = s.date
         join days d on d.date = s.date
         left join cov_forward f on f.security_key = s.security_key and f.date = s.date
         left join cov_style e on e.security_key = s.security_key and e.date = s.date
-        where (s.in_universe and u.adv > 0)
-           or (not s.in_universe and u.type_filled in ({listed}) and u.close > 0)""")
+        where s.date >= {first}
+          and ((s.in_universe and u.adv > 0)
+               or (not s.in_universe and u.type_filled in ({listed}) and u.close > 0))""")
     p = session.sql(f"""
-        select is_cov, day, w, {", ".join(f"x_{n}" for n in STYLE_SQL)}
-        from cov_panel order by rid""").fetchnumpy()
+        select rowid as rid, is_cov, day, w, {", ".join(f"x_{n}" for n in STYLE_SQL)}
+        from cov_panel""").fetchnumpy()
 
     cov = np.asarray(p["is_cov"], dtype=bool)
     day, w = np.asarray(p["day"]), filled(p["w"])
     if not np.isfinite(w[~cov]).all():
         raise ValueError("A universe name has no regression weight in style_exposures.")
-    X = np.column_stack([filled(p[f"x_{n}"]) for n in STYLE_SQL])
-    X[~np.isfinite(X)] = np.nan
+    X = stack(p[f"x_{n}"] for n in STYLE_SQL)
     days, params = standardize_fit(day[~cov], X[~cov], w[~cov])
     Z, known = standardize_apply(day[cov], X[cov], days, params, clip)
 
-    rid = np.flatnonzero(cov).astype(np.int64)
+    rid = np.asarray(p["rid"], dtype=np.int64)[cov]
     out = {"rid": rid[known]}
     for j, n in enumerate(STYLE_SQL):
         out[f"z_{n}"] = Z[known, j]
     session.register("cov_arrays", out)
-    session.execute("""
-        create or replace temp table cov_final as
+    return session.sql("""
         select e.security_key, e.ticker, e.date, e.type_filled, e.industry, e.market_cap,
                a.* exclude (rid), e.r as fwd_ret_1
-        from cov_panel e join cov_arrays a using (rid)
+        from cov_panel e join cov_arrays a on a.rid = e.rowid
         order by e.date, e.security_key""")
-    return session.table("cov_final")

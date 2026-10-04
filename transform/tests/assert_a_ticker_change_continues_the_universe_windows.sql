@@ -18,7 +18,14 @@ with series as (
         lag(adv) over w         as prev_adv,
         lag(bars_seen) over w   as prev_bars_seen
     from {{ ref('int_universe') }}
+    -- A change needs two tickers, so the windows skip a security with one ticker.
     where is_primary_line
+      and security_key in (
+        select security_key from {{ ref('int_universe') }}
+        where is_primary_line
+        group by security_key
+        having count(distinct ticker) > 1
+      )
     window w as (partition by security_key order by date)
 ), changes as (
     select * from series where prev_ticker <> ticker

@@ -6,40 +6,54 @@
 
 with lines as (
 
-    select l.security_key, l.ticker, l.date, l.key_rule, t.name, t.type_filled
-    from {{ ref('int_security_lines') }} l
-    join {{ ref('int_tickers_keyed') }} t using (ticker, date)
-    where l.is_primary_line
+    select security_key, ticker, date, key_rule
+    from {{ ref('int_security_lines') }}
+    where is_primary_line
+
+), summary as (
+
+    select
+        security_key,
+        arg_max(ticker, date)     as ticker,
+        arg_max(key_rule, date)   as key_rule,
+        min(date)                 as first_date,
+        max(date)                 as last_date,
+        count(*)                  as n_sessions,
+        min(ticker) = max(ticker) as one_ticker
+    from lines
+    group by security_key
+
+), runs as (
+
+    -- The runs of tickers in order, so a ticker that comes back shows twice. A security
+    -- with one ticker has one run, so only the other securities need the order.
+    select security_key, ticker, date
+    from lines
+    semi join (select security_key from summary where not one_ticker) using (security_key)
+    qualify ticker is distinct from lag(ticker) over (partition by security_key order by date)
 
 ), histories as (
 
-    -- The runs of tickers in order, so a ticker that comes back shows twice.
-    select security_key, string_agg(ticker, ' > ' order by first_date) as tickers
-    from (
-        select security_key, ticker, min(date) as first_date
-        from (
-            select
-                security_key, ticker, date,
-                row_number() over (partition by security_key order by date)
-                  - row_number() over (partition by security_key, ticker order by date) as run
-            from lines
-        )
-        group by security_key, ticker, run
-    )
+    select security_key, string_agg(ticker, ' > ' order by date) as tickers
+    from runs
     group by security_key
 
 )
 
 select
-    l.security_key,
-    arg_max(l.ticker, l.date)          as ticker,
-    arg_max(l.name, l.date)            as name,
-    arg_max(l.type_filled, l.date)     as type,
-    arg_max(l.key_rule, l.date)        as key_rule,
-    min(l.date)                        as first_date,
-    max(l.date)                        as last_date,
-    count(*)                           as n_sessions,
-    any_value(h.tickers)               as tickers
-from lines l
-join histories h using (security_key)
-group by l.security_key
+    s.security_key,
+    s.ticker,
+    t.name,
+    t.type_filled                 as type,
+    s.key_rule,
+    s.first_date,
+    s.last_date,
+    s.n_sessions,
+    coalesce(h.tickers, s.ticker) as tickers
+from summary s
+-- The name and the type of the last session.
+inner join {{ ref('int_tickers_keyed') }} t
+    on t.ticker = s.ticker
+   and t.date   = s.last_date
+left join histories h
+    on h.security_key = s.security_key

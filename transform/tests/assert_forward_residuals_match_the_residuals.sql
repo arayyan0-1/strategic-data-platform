@@ -17,5 +17,8 @@ join days d using (date)
 join {{ ref('style_residuals') }} r
     on r.security_key = f.security_key and r.date = d.next_date
 where f.date in (select date from recent)
+  -- The join already limits r to the sessions after the recent ones. The filter lets the
+  -- join read these rows of style_residuals only.
+  and r.date in (select next_date from days where date in (select date from recent))
   and ((f.fwd_resid_1 is null) <> (r.resid is null)
        or abs(f.fwd_resid_1 - r.resid) > 1e-9)

@@ -20,14 +20,48 @@ from the close of session d - 1 to the close of session d.
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 
 from sdp.risk import eligible
 
 
+def _each(fn, n: int) -> None:
+    """Call fn(i) for each i in range(n), in threads. A call writes only to the slice of its
+    own i in the arrays that it fills, so the order of the calls does not change the result.
+    NumPy releases the GIL in the sorts, the ufuncs and the LAPACK calls that dominate fn."""
+    workers = min(8, os.cpu_count() or 1)
+    if workers == 1 or n < 2 * workers:
+        for i in range(n):
+            fn(i)
+        return
+    step = -(-n // (4 * workers))
+
+    def run(first: int) -> None:
+        for i in range(first, min(first + step, n)):
+            fn(i)
+
+    with ThreadPoolExecutor(workers) as pool:
+        for future in [pool.submit(run, first) for first in range(0, n, step)]:
+            future.result()
+
+
 def filled(a) -> np.ndarray:
     """Return a float array with NaN where a masked array from DuckDB has a NULL."""
     return np.ma.filled(np.ma.asarray(a, dtype=float), np.nan)
+
+
+def stack(columns) -> np.ndarray:
+    """Return the columns of a fetch from DuckDB as one float array, a column each, with NaN
+    for a NULL and for an infinite value."""
+    columns = list(columns)
+    X = np.empty((len(columns[0]), len(columns)))
+    for j, c in enumerate(columns):
+        X[:, j] = filled(c)
+    X[np.isinf(X)] = np.nan
+    return X
 
 
 # The warehouse expression of each style characteristic. The alias u is int_universe and
@@ -87,6 +121,55 @@ def zscore(x: np.ndarray, w: np.ndarray, clip: float = 3.0) -> np.ndarray:
     return zscore_apply(x, zscore_fit(x, w), clip)
 
 
+def _medians(V: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
+    """Return the median of each row of V, where a row has its finite values first in the
+    sort order and NaN last. lower and upper are the positions of the two middle values.
+    A partition finds them with less work than a sort."""
+    out = np.empty(V.shape[0])
+    for i in range(V.shape[0]):
+        p = np.partition(V[i], (lower[i], upper[i]))
+        out[i] = (p[lower[i]] + p[upper[i]]) / 2
+    return out
+
+
+def _block_fit(B: np.ndarray, w: np.ndarray) -> np.ndarray:
+    """Return zscore_fit for each column of the block B (rows by columns) as an array of
+    shape (columns, 4). The columns share one pass: one sort for each median."""
+    k = B.shape[1]
+    P = np.zeros((k, 4))
+    P[:, 0], P[:, 1] = -np.inf, np.inf
+    ok = np.isfinite(B)
+    cnt = ok.sum(axis=0)
+    use = np.flatnonzero(cnt >= 3)
+    if use.size == 0:
+        return P
+    c, ok = cnt[use], np.ascontiguousarray(ok.T[use])
+    V = np.where(ok, np.ascontiguousarray(B.T[use]), np.nan)
+    lower, upper = (c - 1) // 2, c // 2
+    med = _medians(V, lower, upper)
+    mad = 1.4826 * _medians(np.abs(V - med[:, None]), lower, upper)
+    lo = np.where(mad > 0, med - 5 * mad, -np.inf)
+    hi = np.where(mad > 0, med + 5 * mad, np.inf)
+    V = np.where(ok, np.clip(V, lo[:, None], hi[:, None]), 0.0)
+    ww = np.where(ok, w[None, :], 0.0)
+    total = ww.sum(axis=1)
+    mean = V.sum(axis=1) / c
+    mu = np.where(total > 0, (V * ww).sum(axis=1) / np.where(total > 0, total, 1.0), mean)
+    sd = np.sqrt((np.where(ok, V - mean[:, None], 0.0) ** 2).sum(axis=1) / c)
+    P[use] = np.column_stack([lo, hi, mu, sd])
+    return P
+
+
+def _block_apply(B: np.ndarray, P: np.ndarray, clip: float) -> np.ndarray:
+    """Return zscore_apply for each column of the block B, with the parameters P of shape
+    (columns, 4). The operations on each value are those of zscore_apply."""
+    lo, hi, mu, sd = P.T
+    live = sd > 0
+    with np.errstate(invalid="ignore", divide="ignore"):
+        Z = np.clip((np.clip(B, lo, hi) - mu) / np.where(live, sd, 1.0), -clip, clip)
+    return np.where(np.isfinite(B) & live, Z, 0.0)
+
+
 def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
                 clip: float = 3.0) -> np.ndarray:
     """Return the z-score of each column of X within each session (zscore), centered on
@@ -98,8 +181,8 @@ def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
     ends = np.append(starts[1:], day.size)
     for a, b in zip(starts, ends, strict=True):
         rows = order[a:b]
-        for j in range(X.shape[1]):
-            Z[rows, j] = zscore(X[rows, j], w[rows], clip)
+        B = X[rows]
+        Z[rows] = _block_apply(B, _block_fit(B, w[rows]), clip)
     return Z
 
 
@@ -114,8 +197,7 @@ def standardize_fit(day: np.ndarray, X: np.ndarray, w: np.ndarray
     P = np.zeros((days.size, X.shape[1], 4))
     for i, (a, b) in enumerate(zip(starts, ends, strict=True)):
         rows = order[a:b]
-        for j in range(X.shape[1]):
-            P[i, j] = zscore_fit(X[rows, j], w[rows])
+        P[i] = _block_fit(X[rows], w[rows])
     return days, P
 
 
@@ -135,8 +217,7 @@ def standardize_apply(day: np.ndarray, X: np.ndarray, days: np.ndarray, P: np.nd
         if i >= days.size or days[i] != d:
             continue
         rows = order[a:b]
-        for j in range(X.shape[1]):
-            Z[rows, j] = zscore_apply(X[rows, j], tuple(P[i, j]), clip)
+        Z[rows] = _block_apply(X[rows], P[i], clip)
     return Z, known
 
 
@@ -258,20 +339,31 @@ def pca_returns(
     F = np.full((T, k), np.nan)
     share = np.full((T, k), np.nan)
     used = np.zeros(T, dtype=int)
-    prev: np.ndarray | None = None
-    for d in range(window, T, step):
-        cols = eligible(R, U, A, d, window, n_names)
+    rebalances = list(range(window, T, step))
+    fits: list = [None] * len(rebalances)
+
+    def fit(i: int) -> None:
+        cols = eligible(R, U, A, rebalances[i], window, n_names)
         if cols.size < 2 * k:
-            continue
-        X = R[d - window:d, cols]
+            return
+        X = R[rebalances[i] - window:rebalances[i], cols]
         sd = X.std(axis=0, ddof=1)
         live = sd > 0
         cols, X, sd = cols[live], X[:, live], sd[live]
         Z = (X - X.mean(axis=0)) / sd
         _, s, Vt = np.linalg.svd(Z, full_matrices=False)
-        ev = s ** 2
+        fits[i] = (cols, sd, Vt[:k].copy(), s ** 2)
+
+    # The decompositions are independent. The sign of a component follows the rebalance
+    # before it, so the weights come in order.
+    _each(fit, len(rebalances))
+    prev: np.ndarray | None = None
+    for d, found in zip(rebalances, fits, strict=True):
+        if found is None:
+            continue
+        cols, sd, Vk, ev = found
         W = np.zeros((N, k))
-        W[cols] = Vt[:k].T / sd[:, None]
+        W[cols] = Vk.T / sd[:, None]
         W /= np.abs(W).sum(axis=0)
         for j in range(k):
             flip = W[:, j].sum() < 0 if prev is None else W[:, j] @ prev[:, j] < 0
@@ -335,6 +427,19 @@ def ridge_loadings(
     return beta, ym - mu @ beta
 
 
+def _same_rows(fin: np.ndarray, cols: np.ndarray) -> list[np.ndarray]:
+    """Split cols into the groups of columns of fin with the same pattern of true values. A
+    group keeps the order of cols. The bits of a column are packed into 64-bit words, which
+    sort faster than the rows of a byte array."""
+    packed = np.packbits(fin[:, cols], axis=0)
+    packed = np.vstack([packed, np.zeros((-packed.shape[0] % 8, packed.shape[1]), dtype=np.uint8)])
+    words = np.ascontiguousarray(packed.T).view(np.uint64)
+    order = np.lexsort(words.T[::-1])
+    ordered = words[order]
+    cuts = np.flatnonzero((ordered[1:] != ordered[:-1]).any(axis=1)) + 1
+    return np.split(cols[order], cuts)
+
+
 def fund_loadings(
     R: np.ndarray, X: np.ndarray, U: np.ndarray, *,
     window: int = 252, step: int = 21, min_obs: int = 126, min_returns: int = 252,
@@ -357,19 +462,18 @@ def fund_loadings(
     alpha = np.full((rows.size, N), np.nan)
     r2 = np.full((rows.size, N), np.nan)
     n_obs = np.zeros((rows.size, N), dtype=int)
-    for i, d in enumerate(rows):
+
+    def fit(i: int) -> None:
+        d = rows[i]
         Xw, Rw = X[d - window:d], R[d - window:d]
         fin = np.isfinite(Rw) & np.isfinite(Xw).all(axis=1)[:, None]
         n_obs[i] = fin.sum(axis=0)
         ok = U[d] & (n_obs[i] >= min_obs) & (seen[d - 1] >= min_returns)
         cols = np.flatnonzero(ok)
         if cols.size == 0:
-            continue
+            return
         # Funds with the same usable rows share one design, so they share one solve.
-        _, group = np.unique(np.packbits(fin[:, cols], axis=0).T, axis=0, return_inverse=True)
-        group = group.reshape(-1)
-        for g in np.unique(group):
-            c = cols[group == g]
+        for c in _same_rows(fin, cols):
             use = fin[:, c[0]]
             y = Rw[use][:, c]
             b, a = ridge_loadings(y, Xw[use], penalty)
@@ -378,4 +482,6 @@ def fund_loadings(
             ss_tot = ((y - y.mean(axis=0)) ** 2).sum(axis=0)
             ss_res = ((y - a - Xw[use] @ b) ** 2).sum(axis=0)
             r2[i, c] = np.where(ss_tot > 0, 1 - ss_res / np.where(ss_tot > 0, ss_tot, 1), np.nan)
+
+    _each(fit, rows.size)
     return rows, B, alpha, r2, n_obs

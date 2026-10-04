@@ -112,14 +112,3 @@
     from ranked
     )
 {%- endmacro %}
-
-{#
-  The share q of the pool of a family and a horizon that is at least as large as
-  |value|, for a value that may not be in the pool. It counts the rows of the relation
-  scores, so it gives a pool row the q that calibrated gives it.
-#}
-{% macro pool_q(value, scores, family, h) -%}
-    (greatest((select count(*) from {{ scores }}
-               where family = '{{ family }}' and h = {{ h }} and abs(z_raw) >= abs({{ value }})), 1) - 0.5)
-        / (select count(*) from {{ scores }} where family = '{{ family }}' and h = {{ h }})
-{%- endmacro %}

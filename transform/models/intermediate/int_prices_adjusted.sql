@@ -1,8 +1,12 @@
 {#
-  Adjusted prices from two as-of joins. The vendor factor is cumulative, so the
+  Adjusted prices from two lookups. The vendor factor is cumulative, so the
   adjustment is one lookup: for a price on D, take the first event strictly after
   D and multiply. Strictly after, not on, or every split gets one false return.
   Splits and dividends are independent factors and multiply.
+
+  Each lookup is a join on a span, not an as-of join. A span runs from the previous
+  event of a ticker to the next one, so a price row falls in one span at most. An
+  as-of join sorts every price row, and a join on spans does not.
 
   The vendor chains a factor inside one ticker only. When a security changes its
   ticker, the rows of the earlier ticker also take the factor that the later ticker
@@ -25,14 +29,22 @@ with recursive bars as (
 
 ), splits as (
 
-    select ticker, event_date, factor, is_collapsed
+    -- A price row on or after the previous event and before this event has this event
+    -- as its next.
+    select
+        ticker, event_date, factor, is_collapsed,
+        coalesce(lag(event_date) over (partition by ticker order by event_date),
+                 date '0001-01-01')                 as prev_event_date
     from {{ ref('int_corporate_actions') }}
     where kind = 'split'
       and event_date <= (select last_bar_date from panel_end)
 
 ), dividends as (
 
-    select ticker, event_date, factor, is_collapsed
+    select
+        ticker, event_date, factor, is_collapsed,
+        coalesce(lag(event_date) over (partition by ticker order by event_date),
+                 date '0001-01-01')                 as prev_event_date
     from {{ ref('int_corporate_actions') }}
     where kind = 'dividend'
       and event_date <= (select last_bar_date from panel_end)
@@ -45,9 +57,10 @@ with recursive bars as (
         s.factor        as next_split_factor,
         s.is_collapsed  as split_is_collapsed
     from bars b
-    asof left join splits s
+    left join splits s
       on b.ticker = s.ticker
-     and b.date < s.event_date
+     and b.date  >= s.prev_event_date
+     and b.date   < s.event_date
 
 ), with_both as (
 
@@ -57,9 +70,10 @@ with recursive bars as (
         d.factor        as next_dividend_factor,
         d.is_collapsed  as dividend_is_collapsed
     from with_split w
-    asof left join dividends d
+    left join dividends d
       on w.ticker = d.ticker
-     and w.date < d.event_date
+     and w.date  >= d.prev_event_date
+     and w.date   < d.event_date
 
 ), factors as (
 
@@ -73,12 +87,22 @@ with recursive bars as (
             as own_dividend_factor
     from with_both
 
+), changing as (
+
+    -- Only a security with two tickers can change its ticker. The check reads every
+    -- line, so it can add a security with no change, and that does no harm.
+    select security_key
+    from {{ ref('int_tickers_keyed') }}
+    group by security_key
+    having min(ticker) <> max(ticker)
+
 ), series as (
 
     -- The series of each security: its primary line on each session.
     select security_key, ticker, date
     from {{ ref('int_security_lines') }}
     where is_primary_line
+      and security_key in (select security_key from changing)
 
 ), segments as (
 
@@ -236,9 +260,21 @@ with recursive bars as (
     inner join linked l on l.id = c.id
     where c.next_id is null
 
-), with_split_carry as (
+), carry_spans as (
 
     -- A row takes the carry of the first change of its ticker on or after its date.
+    -- The span of a change starts on the day after the previous change of the ticker.
+    select
+        ticker,
+        kind,
+        old_last_date,
+        coalesce(lag(old_last_date) over (partition by ticker, kind order by old_last_date),
+                 date '0001-01-01')                 as prev_last_date,
+        new_ticker, carry, carry_event_date, carry_collapsed
+    from carries
+
+), with_split_carry as (
+
     select
         f.*,
         cs.new_ticker                       as later_ticker,
@@ -246,9 +282,10 @@ with recursive bars as (
         cs.carry_event_date                 as carry_split_date,
         coalesce(cs.carry_collapsed, false) as split_carry_collapsed
     from factors f
-    asof left join (select * from carries where kind = 'split') cs
+    left join (select * from carry_spans where kind = 'split') cs
         on cs.ticker = f.ticker
        and f.date <= cs.old_last_date
+       and f.date >  cs.prev_last_date
 
 ), with_carries as (
 
@@ -259,9 +296,10 @@ with recursive bars as (
         cd.carry_event_date                 as carry_dividend_date,
         coalesce(cd.carry_collapsed, false) as dividend_carry_collapsed
     from with_split_carry w
-    asof left join (select * from carries where kind = 'dividend') cd
+    left join (select * from carry_spans where kind = 'dividend') cd
         on cd.ticker = w.ticker
        and w.date <= cd.old_last_date
+       and w.date >  cd.prev_last_date
 
 ), adjusted as (
 

@@ -5,14 +5,14 @@
 -- of style_exposures must equal it too, which proves that the parameters are those of the
 -- estimation.
 {% set styles = {
-    'size': 'case when u.market_cap > 0 then ln(u.market_cap) end',
-    'liquidity': 'case when u.adv > 0 and u.market_cap > 0 then ln(u.adv / u.market_cap) end',
-    'beta': 's.beta_252',
-    'momentum': 's.momentum_12_1',
-    'reversal': 's.reversal_5',
-    'volatility': 's.vol_60',
-    'dividend_yield': 's.dividend_yield',
-    'high_52w': 's.high_52w',
+    'size': 'case when b.market_cap > 0 then ln(b.market_cap) end',
+    'liquidity': 'case when b.adv > 0 and b.market_cap > 0 then ln(b.adv / b.market_cap) end',
+    'beta': 'b.beta_252',
+    'momentum': 'b.momentum_12_1',
+    'reversal': 'b.reversal_5',
+    'volatility': 'b.vol_60',
+    'dividend_yield': 'b.dividend_yield',
+    'high_52w': 'b.high_52w',
 } %}
 {% set weight = 'weight_cap' if var('style_center') == 'cap' else 'weight' %}
 {% set clip = var('style_clip') %}
@@ -24,30 +24,47 @@ with sample as (
           from (select distinct date from {{ ref('coverage_exposures') }}))
     where t % 37 = 0
 
-), actual as (
+), wide as materialized (
 
-    {% for name in styles %}
-    select '{{ name }}' as style, 'coverage' as source, security_key, date, z_{{ name }} as z
+    -- One read of each table of exposures for every style.
+    select 'coverage' as source, security_key, date,
+           {% for name in styles %}z_{{ name }}{{ ',' if not loop.last }} {% endfor %}
     from {{ ref('coverage_exposures') }}
     where date in (select date from sample)
     union all
-    select '{{ name }}', 'universe', security_key, date, z_{{ name }}
+    select 'universe', security_key, date,
+           {% for name in styles %}z_{{ name }}{{ ',' if not loop.last }} {% endfor %}
     from {{ ref('style_exposures') }}
     where date in (select date from sample)
+
+), actual as (
+
+    {% for name in styles %}
+    select '{{ name }}' as style, source, security_key, date, z_{{ name }} as z
+    from wide
     {{ 'union all' if not loop.last }}
     {% endfor %}
 
 ), keys as (
 
-    select distinct security_key, date from actual
+    select distinct security_key, date from wide
+
+), base as materialized (
+
+    -- One read of the signals and the universe for every style.
+    select
+        s.security_key, s.date,
+        s.beta_252, s.momentum_12_1, s.reversal_5, s.vol_60, s.dividend_yield, s.high_52w,
+        u.market_cap, u.adv
+    from {{ ref('signals') }} s
+    inner join {{ ref('int_universe') }} u on u.ticker = s.ticker and u.date = s.date
+    inner join keys k on k.security_key = s.security_key and k.date = s.date
 
 ), characteristics as (
 
     {% for name, expr in styles.items() %}
-    select '{{ name }}' as style, s.security_key, s.date, {{ expr }} as x
-    from {{ ref('signals') }} s
-    inner join {{ ref('int_universe') }} u on u.ticker = s.ticker and u.date = s.date
-    inner join keys k on k.security_key = s.security_key and k.date = s.date
+    select '{{ name }}' as style, b.security_key, b.date, {{ expr }} as x
+    from base b
     {{ 'union all' if not loop.last }}
     {% endfor %}
 

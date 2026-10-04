@@ -61,17 +61,25 @@ def model(dbt, session):
 
     session.execute(f"""
         create or replace temp table fund_lines as
+        with lines as materialized (
+            select security_key, ticker, date, ret, adv from fund_returns
+        )
         select security_key, ticker, date, ret, adv
-        from fund_returns
+        from lines
         where security_key in (
-            select security_key from fund_returns
+            select security_key from lines
             group by security_key
             having max(adv) >= {min_adv} and count(ret) >= {min_returns})""")
-    q = session.sql("select security_key, date, ret, adv from fund_lines").fetchnumpy()
+    # The code of a fund is its rank in the sorted keys, as np.unique would give it.
+    q = session.sql("""
+        select dense_rank() over (order by security_key) - 1 as col, date, ret, adv
+        from fund_lines""").fetchnumpy()
+    keys = session.sql(
+        "select distinct security_key from fund_lines order by security_key").fetchnumpy()
+    keys, col = np.asarray(keys["security_key"], dtype=str), np.asarray(q["col"])
     qdate = np.asarray(q["date"]).astype("datetime64[D]")
     day = np.minimum(np.searchsorted(dates, qdate), dates.size - 1)
     inside = dates[day] == qdate
-    keys, col = np.unique(np.asarray(q["security_key"], dtype=str), return_inverse=True)
     R = np.full((dates.size, keys.size), np.nan)
     A = np.full((dates.size, keys.size), np.nan)
     R[day[inside], col[inside]] = filled(q["ret"])[inside]

@@ -17,13 +17,19 @@
   tests, fails an identity test and has no decision: it looks like one security.
 #}
 
-with episodes as (
+with episodes as not materialized (
 
     select
-        ticker, date, name, name_word, cik, episode_cik, episode_key, key_rule,
-        -- The name with no spaces and no punctuation.
-        lower(regexp_replace(name, '[^A-Za-z0-9]', '', 'g')) as name_letters
+        ticker, date, name, name_word, cik, episode_cik, episode_key, key_rule
     from {{ ref('int_ticker_episodes') }}
+
+), multi_key_tickers as (
+
+    -- A change needs two keys on one ticker, so the windows below read only these tickers.
+    select ticker
+    from (select ticker, episode_key from episodes group by ticker, episode_key)
+    group by ticker
+    having count(*) > 1
 
 ), changes as (
 
@@ -48,7 +54,14 @@ with episodes as (
             name_word                                   as new_word,
             last_value(name_letters ignore nulls) over earlier as old_letters,
             name_letters                                as new_letters
-        from episodes
+        from (
+            select
+                ticker, date, name, name_word, cik, episode_cik, episode_key, key_rule,
+                -- The name with no spaces and no punctuation.
+                lower(regexp_replace(name, '[^A-Za-z0-9]', '', 'g')) as name_letters
+            from episodes
+            semi join multi_key_tickers using (ticker)
+        )
         window
             w as (partition by ticker order by date),
             earlier as (
