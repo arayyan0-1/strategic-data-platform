@@ -13,7 +13,7 @@ read this table.
 """
 import numpy as np
 
-from sdp.factors import STYLE_SQL, filled, standardize
+from sdp.factors import STYLE_SQL, filled, stack, standardize
 
 STYLES = STYLE_SQL
 
@@ -31,8 +31,7 @@ def model(dbt, session):
     session.execute(f"""
         create or replace temp table exp_panel as
         select
-            row_number() over (order by s.date, s.security_key) - 1  as rid,
-            dense_rank() over (order by s.date) - 1                  as day,
+            s.date - date '1970-01-01'                               as day,
             s.security_key, s.ticker, s.date, u.industry,
             u.market_cap, u.adv,
             {", ".join(f"{expr} as x_{name}" for name, expr in STYLES.items())},
@@ -42,8 +41,8 @@ def model(dbt, session):
         left join exp_forward f on f.security_key = s.security_key and f.date = s.date
         where s.in_universe and u.adv > 0""")
     p = session.sql(f"""
-        select day, market_cap, adv, {", ".join(f"x_{n}" for n in STYLES)}
-        from exp_panel order by rid""").fetchnumpy()
+        select rowid as rid, day, market_cap, adv, {", ".join(f"x_{n}" for n in STYLES)}
+        from exp_panel""").fetchnumpy()
 
     day = np.asarray(p["day"])
     cap, adv = filled(p["market_cap"]), filled(p["adv"])
@@ -60,19 +59,16 @@ def model(dbt, session):
         cap_filled[rows[gap]] = adv[rows[gap]] * med
     w = np.sqrt(cap_filled)
 
-    X = np.column_stack([filled(p[f"x_{n}"]) for n in STYLES])
-    X[~np.isfinite(X)] = np.nan
+    X = stack(p[f"x_{n}"] for n in STYLES)
     Z = standardize(day, X, cap_filled if center == "cap" else w, clip)
 
-    out = {"rid": np.arange(day.size, dtype=np.int64), "cap": cap_filled, "w": w}
+    out = {"rid": np.asarray(p["rid"], dtype=np.int64), "cap": cap_filled, "w": w}
     for j, n in enumerate(STYLES):
         out[f"z_{n}"] = Z[:, j]
     session.register("exp_arrays", out)
-    session.execute("""
-        create or replace temp table exp_final as
+    return session.sql("""
         select e.security_key, e.ticker, e.date, e.industry, e.market_cap,
                a.cap as weight_cap, a.w as weight, a.* exclude (rid, cap, w),
                e.r as fwd_ret_1
-        from exp_panel e join exp_arrays a using (rid)
+        from exp_panel e join exp_arrays a on a.rid = e.rowid
         order by e.date, e.security_key""")
-    return session.table("exp_final")
