@@ -4,8 +4,6 @@
   is_primary_line picks one line per security and session, and every series of a
   security reads that line only.
 #}
-{{ config(materialized='view') }}
-
 select
     b.ticker,
     b.date,
