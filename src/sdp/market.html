@@ -54,7 +54,7 @@
   .btn:hover { color:var(--ink); }
   #layout-menu div { margin:3px 0; }
   main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
-  section { margin:18px 0 24px; scroll-margin-top:48px; }
+  section { margin:16px 0 18px; scroll-margin-top:48px; }
   section.collapsed > :not(h2) { display:none !important; }
   h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
        border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; display:flex; align-items:center; }
@@ -252,10 +252,16 @@
     <div class="split" style="--sl:1.3fr;--sr:1fr">
       <div class="stack">
         <div class="panel"><h3>Rates, spreads and volatility</h3><table id="rates-table" class="tight"></table>
-        </div>
+          <div class="note">FRED, as known before the last session. Changes in basis points for rates
+            and spreads. Colour is the score of the daily change, in σ, red toward
+            stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
+            scale. A date after a label is its last observation: FRED publishes it late, or once
+            a week, so it has no 1D move. The forwards use the simple approximation from the
+            constant-maturity yields. A group shows its headline rows and the rows that moved 2σ or more.
+            Click rows to chart them.</div></div>
+        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
       </div>
       <div class="stack">
-        <div class="panel"><h3>Selected, two years</h3><div class="chart" id="rates-chart"></div></div>
         <div class="panel"><h3>US Treasury yield curve</h3>
           <div class="tabs inline" id="curve-tabs"></div>
           <div class="chart" id="curve-chart"></div>
@@ -267,18 +273,12 @@
         <div class="panel"><h3>Credit spreads by rating (OAS)</h3><div class="chart" id="ladder-chart"></div>
           <div class="note">ICE BofA option-adjusted spreads on a log scale. FRED serves three years, so the
             history starts in 2023-09.</div></div>
-        <div class="note">FRED, as known before the last session. Changes in basis points for rates
-          and spreads. Colour is the score of the daily change, in σ, red toward
-          stress. A group that moves in steps (policy rates, weekly indexes, the balance sheet) has its own
-          scale. A date after a label is its last observation: FRED publishes it late, or once
-          a week, so it has no 1D move. The forwards use the simple approximation from the
-          constant-maturity yields. Click rows to chart them.</div>
       </div>
     </div>
   </section>
 
   <section id="funding" data-nav="funding"><h2>Funding and liquidity</h2>
-    <div class="split" style="--sl:1.2fr;--sr:1fr">
+    <div class="split" style="--sl:1.5fr;--sr:1fr">
       <div class="stack">
         <div class="panel"><h3>Money markets and the Federal Reserve balance sheet</h3>
           <table id="funding-table" class="tight"></table>
@@ -323,8 +323,8 @@
     <div class="panel" style="margin-top:8px"><h3>Style factors</h3><table id="risk" class="tight"></table></div>
     <div class="split" style="margin-top:12px">
       <div class="panel"><h3>Style factors, cumulative, one year</h3><div class="chart" id="style-chart"></div></div>
-      <div class="panel"><h3>Industries against the market, one month</h3><div class="bars" id="ind-bars"></div>
-        <table id="ind-table" class="tight" style="margin-top:8px"></table></div>
+      <div class="panel"><h3>Industries against the market, sorted by the one-month return</h3>
+        <table id="ind-table" class="tight"></table></div>
     </div>
   </section>
 
@@ -965,7 +965,7 @@ function heatmap() {
                  ["resid_score", "stock-specific σ", 3]];
   tabs($("hm-tabs"), modes.map(m => [m[0], m[1]]), HM, k => { HM = k; heatmap(); });
   const lim = modes.find(m => m[0] === HM)[2];
-  const W = 1200, H = 560, groups = {};
+  const W = 1200, H = 480, groups = {};
   for (const r of R) (groups[r.industry_name || "No industry yet"] ||= []).push(r);
   const inds = Object.entries(groups).map(([k, v]) => ({k, v: v.reduce((s, r) => s + r.cap, 0), names: v}))
     .sort((a, b) => b.v - a.v);
@@ -1087,8 +1087,12 @@ const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
 
 // Three tables of FRED measures, each with its groups, its selection and its chart.
 const PANELS = [
-  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 230,
-   groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"]},
+  {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 170,
+   groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"],
+   head: {"Nominal curve": ["t_3m", "t_2y", "t_5y", "t_10y", "t_30y"],
+          "Curve": ["curve_10y_2y", "curve_10y_3m", "curve_30y_5y", "fly_2_5_10"],
+          "Real yields and inflation": ["real_5y", "real_10y", "breakeven_5y", "breakeven_10y"],
+          "Credit": ["ig_oas", "oas_bbb", "hy_oas", "oas_ccc"]}},
   {section: "funding", table: "funding-table", chart: "funding-chart", sel: ["reserves", "rrp", "tga"], height: 230,
    groups: ["Policy and money markets", "Funding spreads", "Fed balance sheet"]},
   {section: "fx", table: "fx-table", chart: "fx-chart", sel: ["eurusd", "usdjpy", "gbpusd"], height: 350,
@@ -1114,17 +1118,25 @@ function measureChart(el, sel, height = 230) {
 function measureTable(P) {
   const rows = DATA.rates.rows.filter(r => P.groups.includes(r.grp));
   let html = `<tr><th>Measure</th><th>Level</th><th>1D</th><th>σ</th><th>1W</th><th>1M</th><th>1Y</th>
-    <th>Level vs history</th><th>2Y</th></tr>`, grp = null;
-  for (const r of rows) {
-    if (r.grp !== grp) { grp = r.grp; html += `<tr class="grp"><td colspan="9">${esc(grp)}</td></tr>`; }
-    const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
-    html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
-      <td class="l lab">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
-      <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
-      <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
-      <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
+    <th>Level vs history</th><th>2Y</th></tr>`;
+  for (const grp of P.groups) {
+    const g = rows.filter(r => r.grp === grp), head = (P.head || {})[grp], key = P.section + ":" + grp;
+    if (!g.length) continue;
+    // A group with no headline list shows every row.
+    const keep = r => !head || head.includes(r.measure) || Math.abs(r.z_1d ?? 0) >= FOLD_Z || P.sel.includes(r.measure);
+    html += `<tr class="grp"><td colspan="9">${esc(grp)}${foldLink(key, g.filter(r => !keep(r)).length)}</td></tr>`;
+    for (const r of g) {
+      if (!OPEN.has(key) && !keep(r)) continue;
+      const old = r.fresh ? "" : ` <span class="dim">(${esc((r.obs_date || "").slice(5))})</span>`;
+      html += `<tr class="row ${P.sel.includes(r.measure) ? "sel" : ""}" data-m="${r.measure}">
+        <td class="l lab">${esc(r.label)}${old}</td><td>${rlevel(r, r.value)}</td>
+        <td style="background:${zbg(rz(r))}">${rchg(r, r.chg_1d)}</td><td>${sig(r.z_1d)}</td>
+        <td>${rchg(r, r.chg_1w)}</td><td>${rchg(r, r.chg_1m)}</td><td>${rchg(r, r.chg_1y)}</td>
+        <td>${pbar(r.pctile, r.stress)}</td><td>${spark(r.series)}</td></tr>`;
+    }
   }
   $(P.table).innerHTML = html;
+  foldClicks($(P.table), () => measureTable(P));
   $(P.table).querySelectorAll("tr.row").forEach(tr => tr.onclick = () => {
     const k = tr.dataset.m;
     P.sel = P.sel.includes(k) ? P.sel.filter(x => x !== k) : [...P.sel, k];
@@ -1153,7 +1165,7 @@ function rates() {
   lines.push({name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4});
   if (CURVE.real) lines.push({name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"});
   if (CURVE.breakeven) lines.push({name: "breakeven, now", pts: pts(bev, "value"), color: "#f778ba", dash: "2 2"});
-  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%", height: 260});
+  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%", height: 330});
   $("curve-tabs").innerHTML = `<button class="${CURVE.real ? "on" : ""}" data-k="real">real</button>
     <button class="${CURVE.breakeven ? "on" : ""}" data-k="breakeven">breakeven</button>
     <span class="dim" style="margin:0 6px">compare with</span><input type="date" id="curve-date"
@@ -1270,13 +1282,18 @@ function factorModel() {
     .map(r => riskRow(r, perf["style:" + r.factor])).join("");
   lineChart($("style-chart"), F.curves.filter(c => c.family === "style" && c.factor !== "market")
     .map(c => ({name: LABEL("style", c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
-    {height: 450, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
-  const ind = F.risk.filter(r => r.family === "industry");
-  bars($("ind-bars"), ind.filter(r => !nil(r.ret_1m)).sort((a, b) => b.ret_1m - a.ret_1m)
-    .map(r => ({label: r.label || INDUSTRY[r.factor] || r.factor, value: r.ret_1m})));
+    {height: 330, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
+  // The one-month return of an industry against the market, sorted, with a bar in its cell.
+  const ind = F.risk.filter(r => r.family === "industry").sort((a, b) => (b.ret_1m ?? -9) - (a.ret_1m ?? -9));
+  const top = Math.max(...ind.map(r => Math.abs(r.ret_1m ?? 0)), 1e-12);
+  const dbar = r => { // a bar behind the number, in the colour of the sign
+    if (nil(r.ret_1m)) return "";
+    const w = (Math.abs(r.ret_1m) / top * 100).toFixed(0), c = r.ret_1m > 0 ? "63,185,80" : "248,81,73";
+    return `background:linear-gradient(90deg,rgba(${c},.45) ${w}%,transparent ${w}%)`;
+  };
   $("ind-table").innerHTML = `<tr><th>Industry</th><th>1D</th><th>σ</th><th>1M</th><th>σ</th><th>YTD</th>
     <th>Vol</th><th>DD vs history</th></tr>` + ind.map(r => `<tr><td class="l">${esc(r.label || r.factor)}</td>
-    ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>${zcell(r.ret_1m, r.z_1m)}<td>${sig(r.z_1m)}</td>
+    ${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td><td style="${dbar(r)}" title="${nil(r.z_1m) ? "" : (r.z_1m > 0 ? "+" : "") + Number(r.z_1m).toFixed(1) + "σ"}">${pct(r.ret_1m, 1)}</td><td>${sig(r.z_1m)}</td>
     <td>${pct(perf["industry:" + r.factor]?.ret_ytd)}</td><td class="dim">${pct(r.vol_63, 1, false)}</td>
     <td>${pbar(r.dd_pctile, "high")}</td></tr>`).join("");
 }
@@ -1311,14 +1328,18 @@ function movers() {
       <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`).join("") + `</table></div>`).join("");
 }
 
+const CAL_N = 10;
 function calendar() {
   const C = DATA.calendar; if (!C) return;
+  const open = OPEN.has("calendar"), rows = open ? C : C.slice(0, CAL_N);
   $("cal").innerHTML = `<tr><th>Date</th><th class="l">Ticker</th><th class="l">Name</th><th class="l">Type</th><th class="l">Event</th><th class="l">Detail</th>
-    <th>Yield</th><th>$ vol</th></tr>` + C.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
+    <th>Yield</th><th>$ vol</th></tr>` + rows.map(r => `<tr><td class="l">${r.event_date}</td><td class="l">${tk(r.ticker)}</td>
     <td class="l name">${esc((r.name || "").slice(0, 40))}</td><td class="l dim">${esc(r.type || "")}</td>
     <td class="l">${r.kind}</td><td class="l">${r.kind === "split" ? `${r.split_to}-for-${r.split_from} ${esc(r.detail || "")}`
       : `$${num(r.cash_amount, 4)} ${esc(r.detail || "")}`}</td><td>${r.kind === "dividend" ? pct(r.dividend_yield, 2, false) : ""}</td>
-    <td class="dim">${big(r.dollar_volume)}</td></tr>`).join("");
+    <td class="dim">${big(r.dollar_volume)}</td></tr>`).join("")
+    + (C.length > CAL_N ? `<tr class="grp"><td colspan="8">${foldLink("calendar", C.length - CAL_N)}</td></tr>` : "");
+  foldClicks($("cal"), calendar);
 }
 
 function shorts() {
