@@ -133,6 +133,10 @@
   .ex.pos { border-left-color:var(--up); } .ex.neg { border-left-color:var(--down); }
   .ex .area { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
   .ex .score { text-align:right; color:var(--amber); }
+  .lm { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin-top:8px; font-size:12px; color:var(--dim); }
+  .lm:empty { display:none; }
+  .lmi { border:1px dashed var(--line); border-radius:3px; padding:1px 8px; cursor:pointer; color:var(--ink); }
+  .lmi:hover { border-color:var(--amber); }
   .ex.link { cursor:pointer; } .ex.link:hover { background:var(--hl); }
   .pbar { position:relative; display:inline-block; width:56px; height:6px; background:#1b222c;
           border-radius:3px; vertical-align:middle; margin-right:6px; }
@@ -202,6 +206,7 @@
 
   <section id="exceptions" data-nav="unusual"><h2>What is unusual today</h2>
     <div class="exc" id="exc"></div>
+    <div class="lm" id="exc-lm"></div>
     <div class="note">σ is a score. A score of 3 is as rare as a 3σ move of a normal distribution on the
       history of the measure: about 1 day in 370. The score divides a move by the volatility known
       before the session, then maps that ratio to its rarity in the history of the group. Here are the
@@ -880,6 +885,23 @@ function exceptions() {
   });
   const more = $("exc-more");
   if (more) more.onclick = ev => { ev.preventDefault(); ALL_EXC = !ALL_EXC; exceptions(); };
+}
+
+// The three largest day scores of the cross-asset board that stay under the limit of an exception.
+const Z_LIMIT = 3;
+function largestMoves() {
+  const rows = (DATA.board ? DATA.board.rows : []).filter(r => !nil(r.z_1d) && Math.abs(r.z_1d) < Z_LIMIT)
+    .sort((a, b) => Math.abs(b.z_1d) - Math.abs(a.z_1d)).slice(0, 3);
+  $("exc-lm").innerHTML = !rows.length ? "" : `<span class="badge none">not exceptions</span>
+    <span>Largest moves today, below the limit:</span>` + rows.map(r => `<span class="lmi" data-t="${esc(r.ticker)}"
+    title="Show ${esc(r.ticker)} in the chart of the cross-asset board"><b>${esc(r.ticker)}</b> ${esc(r.label)}
+    ${pct(r.ret_1d, 2)} ${sig(r.z_1d)} <a href="#stock/${esc(r.ticker)}" title="Open ${esc(r.ticker)}">↗</a></span>`).join("");
+  $("exc-lm").querySelectorAll(".lmi").forEach(el => el.onclick = e => {
+    if (e.target.tagName === "A") return;
+    const t = el.dataset.t;
+    if (!SELECTED.includes(t)) SELECTED = [...SELECTED, t];
+    board(); mainChart(); reveal("crossasset");
+  });
 }
 
 function overview() {
@@ -1906,7 +1928,7 @@ async function load() {
   $("meta").textContent = `as of ${DATA.as_of || "–"} · built ${built.slice(5)} UTC`;
   $("meta").title = `Built ${built} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
-  for (const f of [sources, exceptions, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
+  for (const f of [sources, exceptions, largestMoves, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
     breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
 }
 layoutControls(); applyLayout(); setupCommand();
