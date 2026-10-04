@@ -56,18 +56,18 @@
   .btn:disabled { opacity:.4; cursor:default; }
   .fs { display:flex; gap:2px; }
   #layout-menu div { margin:3px 0; }
-  main { padding:12px 16px 60px; max-width:1500px; margin:0 auto; }
-  section { margin:16px 0 18px; scroll-margin-top:48px; }
+  main { padding:10px 16px 30px; max-width:1500px; margin:0 auto; }
+  section { margin:14px 0 16px; scroll-margin-top:48px; }
   section.collapsed > :not(h2) { display:none !important; }
   h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
-       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 10px; display:flex; align-items:center; }
+       border-bottom:1px solid var(--line); padding-bottom:4px; margin:0 0 8px; display:flex; align-items:center; }
   h2 .ctl { margin-left:auto; display:flex; gap:2px; }
   h2 .ctl button { background:none; border:none; color:var(--dim); cursor:pointer; font:inherit; padding:0 4px; }
   h2 .ctl button:hover { color:var(--ink); }
   h3 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);
        margin:0 0 6px; font-weight:600; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
-  .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:8px 10px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 8px; }
   .csvbtn { float:right; margin:-2px 0 -2px 8px; padding:0 6px; line-height:16px; font-size:10px;
             text-transform:none; letter-spacing:0; }
   .tile.pf { cursor:pointer; }
@@ -86,12 +86,12 @@
   th { color:var(--dim); font-weight:600; font-size:11px; text-align:right; padding:3px 6px;
        border-bottom:1px solid var(--line); white-space:nowrap; }
   th:first-child, td:first-child, th.l { text-align:left; }
-  td { text-align:right; padding:2px 6px; border-bottom:1px solid #161c26; white-space:nowrap; }
+  td { text-align:right; padding:1.5px 6px; border-bottom:1px solid #161c26; white-space:nowrap; }
   td.l { text-align:left; }
   td.lab { white-space:normal; min-width:140px; }
   td.ell { max-width:110px; overflow:hidden; text-overflow:ellipsis; }
   table.tight th, table.tight td { padding-left:4px; padding-right:4px; }
-  tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:8px;
+  tr.grp td { color:var(--amber); font-size:11px; letter-spacing:.06em; padding-top:5px;
               text-transform:uppercase; border-bottom:1px solid var(--line); }
   tr.grp td .gtog { float:right; text-transform:none; letter-spacing:0; color:var(--dim); cursor:pointer; }
   tr.grp td .gtog:hover { color:var(--ink); }
@@ -112,7 +112,7 @@
   .rng button:hover { color:var(--ink); }
   .rng button.on { color:var(--amber); border-color:var(--amber); }
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
-                 font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
+                 font:inherit; padding:3px 9px; border-radius:3px; cursor:pointer; margin:0 4px 6px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
   .tabs button.lab { background:none; border-color:transparent; cursor:default; padding-left:0; }
   .tabs .sep { display:inline-block; width:10px; }
@@ -713,7 +713,7 @@ function fitLayout() {
   const narrow = window.innerWidth / ZOOM <= 1360, root = document.documentElement;
   if (root.classList.contains("narrow") === narrow) return;
   root.classList.toggle("narrow", narrow);
-  if (typeof DATA !== "undefined" && DATA) mainChart();
+  if (typeof DATA !== "undefined" && DATA) { mainChart(); if (DATA.rates) rates(); }
 }
 function zoomStep(d) {
   const i = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(ZOOM) + d));
@@ -1158,7 +1158,7 @@ function heatmap() {
                  ["resid_score", "stock-specific σ", 3]];
   tabs($("hm-tabs"), modes.map(m => [m[0], m[1]]), HM, k => { HM = k; heatmap(); });
   const lim = modes.find(m => m[0] === HM)[2];
-  const W = 1200, H = 480, groups = {};
+  const W = 1200, H = 420, groups = {};
   for (const r of R) (groups[r.industry_name || "No industry yet"] ||= []).push(r);
   const inds = Object.entries(groups).map(([k, v]) => ({k, v: v.reduce((s, r) => s + r.cap, 0), names: v}))
     .sort((a, b) => b.v - a.v);
@@ -1196,6 +1196,14 @@ const foldLink = (key, folded) => folded ? `<a class="gtog" data-open="${esc(key
   ? "show fewer" : `${folded} more · show all`}</a>` : "";
 function foldClicks(table, redraw) {
   table.querySelectorAll("a.gtog").forEach(a => a.onclick = e => { e.preventDefault(); toggleOpen(a.dataset.open); redraw(); });
+}
+
+// A list of table rows shows its first rows, and a last row holds the link that shows the rest.
+const LIST_N = 5;
+function foldList(key, rows, cols, n = LIST_N) {
+  const rest = rows.length - n;
+  return (OPEN.has(key) ? rows : rows.slice(0, n)).join("")
+    + (rest > 0 ? `<tr class="grp"><td colspan="${cols}">${foldLink(key, rest)}</td></tr>` : "");
 }
 
 function board() {
@@ -1355,7 +1363,8 @@ function rates() {
   lines.push({name: "nominal, now", pts: pts(nominal, "value"), color: "#e3b341", width: 2.4});
   if (CURVE.real) lines.push({name: "real (TIPS), now", pts: pts(real, "value"), color: "#3fb950", dash: "5 3"});
   if (CURVE.breakeven) lines.push({name: "breakeven, now", pts: pts(bev, "value"), color: "#f778ba", dash: "2 2"});
-  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%", height: 330});
+  xyChart($("curve-chart"), lines, {xlog: true, xticks: TENORS, fmt: v => v.toFixed(2) + "%",
+    height: document.documentElement.classList.contains("narrow") ? 430 : 330});
   $("curve-tabs").innerHTML = `<button class="${CURVE.real ? "on" : ""}" data-k="real">real</button>
     <button class="${CURVE.breakeven ? "on" : ""}" data-k="breakeven">breakeven</button>
     <span class="dim" style="margin:0 6px">compare with</span><input type="date" id="curve-date"
@@ -1441,17 +1450,17 @@ function breadthCharts() {
     `<div class="panel"><h3>${t}</h3><div class="chart" id="bc${i}"></div></div>`).join("");
   const p0 = v => (v * 100).toFixed(0) + "%", p2 = v => (v * 100).toFixed(2) + "%";
   lineChart($("bc0"), [{name: "equal weight", points: rebase(dates, cut.map(r => r.ew_index))},
-                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0});
+                       {name: "cap weight", points: rebase(dates, cut.map(r => r.cap_index))}], {zero: true, fmt: p0, height: 150});
   lineChart($("bc1"), [{name: "> 50d", points: pp(cut, "pct_above_ma50")},
-                       {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0});
+                       {name: "> 200d", points: pp(cut, "pct_above_ma200")}], {fmt: p0, height: 150});
   lineChart($("bc2"), [{name: "highs", points: pp(cut, "new_highs"), color: "#3fb950"},
-                       {name: "lows", points: pp(cut, "new_lows"), color: "#f85149"}], {fmt: v => v.toFixed(0)});
+                       {name: "lows", points: pp(cut, "new_lows"), color: "#f85149"}], {fmt: v => v.toFixed(0), height: 150});
   lineChart($("bc3"), [{name: "all", points: pp(cut, "dispersion_21")},
-                       {name: "stock-specific", points: pp(cut, "resid_dispersion_21")}], {fmt: p2});
+                       {name: "stock-specific", points: pp(cut, "resid_dispersion_21")}], {fmt: p2, height: 150});
   lineChart($("bc4"), [{name: "avg corr 21d", points: pp(cut, "avg_corr_21")},
                        {name: "absorption", points: pp(cut, "absorption")},
-                       {name: "model R² 21d", points: pp(cut, "style_r2_21")}], {fmt: v => v.toFixed(2)});
-  lineChart($("bc5"), [{name: "median spread", points: pp(cut, "median_spread")}], {fmt: p2});
+                       {name: "model R² 21d", points: pp(cut, "style_r2_21")}], {fmt: v => v.toFixed(2), height: 150});
+  lineChart($("bc5"), [{name: "median spread", points: pp(cut, "median_spread")}], {fmt: p2, height: 150});
 }
 
 const riskRow = (r, perf) => `<tr><td class="l">${esc(r.label || r.factor)}</td>${zcell(r.ret_1d, r.z_1d, 2)}<td>${sig(r.z_1d)}</td>
@@ -1499,11 +1508,12 @@ function signalsView() {
     return of the next 21 sessions is ${num(ic.mean_ic, 4)} (Newey-West t ${num(ic.t_nw, 1)}, the same sign in ${ic.folds_same_sign ?? "–"} of 4 folds):
     ${ic.mean_ic > 0 ? "the highest names have earned more" : "the lowest names have earned more"}. A t under 3 is weak evidence.` : "";
   const rows = S.names.filter(r => r.signal === SIGNAL);
-  const t = rs => `<tr><th>Name</th><th class="l">Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + rs.map(r =>
+  const t = (rs, key) => `<tr><th>Name</th><th class="l">Industry</th><th>Cap</th><th>Value</th><th>z</th></tr>` + foldList(key, rs.map(r =>
     `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 26))}</span></td>
-     <td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`).join("");
-  $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high));
-  $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high));
+     <td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td><td class="dim">${big(r.cap)}</td><td>${num(r.value, 4)}</td><td>${num(r.z, 2)}</td></tr>`), 5);
+  $("sig-top").innerHTML = t(rows.filter(r => r.rank_high <= 10).sort((a, b) => a.rank_high - b.rank_high), "signals:top");
+  $("sig-bottom").innerHTML = t(rows.filter(r => r.rank_high > r.n_names - 10).sort((a, b) => b.rank_high - a.rank_high), "signals:bottom");
+  foldClicks($("sig-top"), signalsView); foldClicks($("sig-bottom"), signalsView);
 }
 
 function movers() {
@@ -1511,11 +1521,12 @@ function movers() {
   const spec = [["residual_up", "Largest stock-specific gains"], ["residual_down", "Largest stock-specific losses"]];
   $("mover-lists").innerHTML = spec.filter(([k]) => M[k]).map(([k, t]) => `<div class="panel"><h3>${t}</h3><table class="tight">
     <tr><th>Ticker</th><th class="l">Industry</th><th>Cap</th><th>Return</th><th>Factors</th><th>Specific</th><th>σ</th>
-    <th>Rel vol</th></tr>` + M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
+    <th>Rel vol</th></tr>` + foldList("movers:" + k, M[k].map(r => `<tr><td class="l">${tk(r.ticker)}
       <span class="name">${esc((r.name || "").slice(0, 24))}</span></td><td class="l dim ell" title="${esc(r.industry_name || "")}">${esc(r.industry_name || "")}</td>
       <td class="dim">${big(r.cap)}</td><td>${pct(r.ret, 1)}</td><td>${pct(r.factor_part, 1)}</td>
       <td style="background:${zbg(r.resid_score)}">${pct(r.resid, 1)}</td><td>${sig(r.resid_score)}</td>
-      <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`).join("") + `</table></div>`).join("");
+      <td class="dim">${num(r.rel_volume, 1)}x</td></tr>`), 8) + `</table></div>`).join("");
+  foldClicks($("mover-lists"), movers);
 }
 
 const CAL_N = 10;
@@ -1547,11 +1558,12 @@ function shorts() {
   });
   $("si-caps").querySelector("button").className = "lab dim";
   const pass = r => SI_FLOOR <= 0 || (!nil(r.cap) && r.cap >= SI_FLOOR);
-  const t = rows => `<tr><th>Ticker</th><th>Cap</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
-    (rows.filter(pass).slice(0, 10).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
+  const t = (rows, key) => `<tr><th>Ticker</th><th>Cap</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
+    (foldList(key, rows.filter(pass).slice(0, 10).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
       <td class="dim">${big(r.cap)}</td><td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
-      <td class="dim">${big(r.short_value)}</td></tr>`).join("") || '<tr><td class="dim" colspan="6">No name has this cap.</td></tr>');
-  $("si-dtc").innerHTML = t(S.days_to_cover); $("si-up").innerHTML = t(S.increase);
+      <td class="dim">${big(r.short_value)}</td></tr>`), 6) || '<tr><td class="dim" colspan="6">No name has this cap.</td></tr>');
+  $("si-dtc").innerHTML = t(S.days_to_cover, "shorts:dtc"); $("si-up").innerHTML = t(S.increase, "shorts:up");
+  foldClicks($("si-dtc"), shorts); foldClicks($("si-up"), shorts);
   const H = DATA.short_history || [];
   const P = H.map(r => ({...r, date: r.settlement_date}));
   lineChart($("si-share"), [{name: "short value / cap", points: pp(P, "short_share_of_cap")}], {height: 180, fmt: v => (v * 100).toFixed(2) + "%"});
@@ -1617,7 +1629,7 @@ function events() {
   const col = {shock_up: "#3fb950", shock_down: "#f85149", split_forward: "#58a6ff", split_reverse: "#bc8cff", short_jump: "#e3b341"};
   xyChart($("event-chart"), EVENTS.map(k => ({name: kinds.find(x => x[0] === k)[1], color: col[k],
     pts: R.events.filter(r => r.event === k && r.day >= 1).map(r => [r.day, r.car_post, `day ${r.day}`])})),
-    {height: 220, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
+    {height: 180, dots: false, vlines: [0], hlines: [0], xticks: [[1, "+1"], [5, "+5"], [10, "+10"], [15, "+15"], [21, "+21"]],
      fmt: v => (v * 100).toFixed(2) + "%"});
   $("event-table").innerHTML = `<tr><th>Event</th><th>Events</th><th>Dates</th><th>Day 0 (from −5)</th><th>+1 to +21</th><th>t</th></tr>` +
     kinds.map(([k, t]) => {
