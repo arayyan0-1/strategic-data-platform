@@ -66,6 +66,8 @@
        margin:0 0 6px; font-weight:600; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
   .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:8px 10px; }
+  .csvbtn { float:right; margin:-2px 0 -2px 8px; padding:0 6px; line-height:16px; font-size:10px;
+            text-transform:none; letter-spacing:0; }
   .tile.pf { cursor:pointer; }
   .tile.pf:hover { background:var(--hl); }
   .tile .k { color:var(--dim); font-size:11px; }
@@ -743,6 +745,62 @@ function layoutControls() {
     if (!e.target.closest("#srcbox, #links-flag")) $("srcbox").classList.remove("open");
   });
 }
+// ---------------------------------------------------------------- copy a table
+// A button in the header of each panel with a table copies the table as CSV: the header row and the
+// rows that show. When the browser refuses the clipboard, the button selects the text of the table.
+const csvField = t => /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+function tableCsv(table) {
+  const rows = [];
+  table.querySelectorAll("tr").forEach(tr => {
+    if (!tr.getClientRects().length) return;
+    const row = [];
+    for (const c of tr.children) {
+      const x = c.cloneNode(true);
+      x.querySelectorAll(".gtog, .csvbtn, svg, .pbar").forEach(n => n.remove());
+      row.push(x.textContent.replace(/[↗⇄]/g, "").replace(/\s+/g, " ").trim());
+      for (let i = 1; i < (c.colSpan || 1); i++) row.push("");
+    }
+    if (row.some(Boolean)) rows.push(row);
+  });
+  const width = Math.max(0, ...rows.map(r => r.length));
+  // A column with no text under the header (a sparkline) is left out.
+  const keep = [...Array(width).keys()].filter(i => rows.slice(1).some(r => r[i]));
+  return rows.map(r => keep.map(i => csvField(r[i] ?? "")).join(",")).join("\n");
+}
+function selectText(el) {
+  const range = document.createRange(), sel = window.getSelection();
+  range.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+async function copyTables(panel, btn) {
+  const tables = [...panel.querySelectorAll("table")];
+  const done = text => { btn.textContent = text; setTimeout(() => { btn.textContent = "csv"; }, 1600); };
+  try {
+    await navigator.clipboard.writeText(tables.map(tableCsv).join("\n\n"));
+    done("copied");
+  } catch {
+    selectText(tables[0]);
+    done("selected");
+  }
+}
+function addCsvButtons(root) {
+  root.querySelectorAll(".panel").forEach(panel => {
+    const h = panel.querySelector(":scope > h3");
+    if (!h || !panel.querySelector("table") || h.querySelector(".csvbtn")) return;
+    h.insertAdjacentHTML("afterbegin", '<button class="btn csvbtn" title="Copy the table as CSV">csv</button>');
+    h.querySelector(".csvbtn").onclick = () => copyTables(panel, h.querySelector(".csvbtn"));
+  });
+}
+// The sections draw their tables again on a click, so the buttons come back after each drawing.
+function watchCsvButtons() {
+  let queued = false;
+  const run = () => { queued = false; addCsvButtons(document.querySelector("main")); addCsvButtons($("ov-body")); };
+  const obs = new MutationObserver(() => { if (!queued) { queued = true; setTimeout(run, 0); } });
+  for (const el of [document.querySelector("main"), $("ov-body")]) obs.observe(el, {childList: true, subtree: true});
+  run();
+}
+
 function reveal(id) {
   const L = layout();
   if (L.collapsed.includes(id) || L.hidden.includes(id)) {
@@ -2012,7 +2070,7 @@ async function load() {
   for (const f of [sources, exceptions, largestMoves, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
     breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
 }
-layoutControls(); applyLayout(); setupCommand();
+layoutControls(); applyLayout(); setupCommand(); watchCsvButtons();
 load().then(route);
 window.addEventListener("hashchange", route);
 // A closed portfolio page may have saved a new version, so the tile reads it again.
