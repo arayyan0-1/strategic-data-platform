@@ -69,6 +69,34 @@ def test_too_many_failures_stop_the_pull(vendor):
     assert not dal.TICKER_DETAILS.partition_file(MONTH_END).exists()
 
 
+def test_a_lost_network_stops_the_pull_early(tmp_data_root, monkeypatch):
+    names = [f"T{i:04d}" for i in range(td.MIN_ROWS + 10)]
+    monkeypatch.setattr(td, "tickers_for", lambda d: names)
+    sent = []
+
+    def get(client, path, params=None, *, attempts=5):
+        sent.append(path)
+        raise RuntimeError("ConnectError: network is down")
+
+    monkeypatch.setattr(td.rest, "_get", get)
+    with pytest.raises(RuntimeError, match="stopped early") as err:
+        td.fetch(MONTH_END)
+    assert f"of {len(names)} requested tickers failed" in str(err.value)
+    assert "ConnectError: network is down" in str(err.value)
+    # The limit is 5% of the tickers. Each worker may send one request past it.
+    assert len(sent) <= td.MAX_MISSING * len(names) + td.WORKERS + 1
+    assert len(sent) < len(names) / 2
+    assert not td._vendor_file(MONTH_END).exists()
+
+
+def test_a_pull_under_the_limit_writes_the_vendor_file(vendor, caplog):
+    names = vendor(fail={"T0003", "T0004"})
+    with caplog.at_level("INFO"):
+        path = td.fetch(MONTH_END)
+    assert path == td._vendor_file(MONTH_END) and path.exists()
+    assert f"2 of {len(names)} tickers have no details" in caplog.text
+
+
 def test_a_duplicate_ticker_is_not_published(vendor):
     vendor(dupe=True)
     with pytest.raises(AuditFailure, match="duplicate"):
