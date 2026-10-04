@@ -65,6 +65,8 @@
        margin:0 0 6px; font-weight:600; }
   .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
   .tile { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:8px 10px; }
+  .tile.pf { cursor:pointer; }
+  .tile.pf:hover { background:var(--hl); }
   .tile .k { color:var(--dim); font-size:11px; }
   .tile .v { font-size:18px; margin-top:2px; }
   .tile .s { color:var(--dim); font-size:11px; }
@@ -904,8 +906,45 @@ function largestMoves() {
   });
 }
 
+// The saved portfolio of the browser, as a tile. The browser sends its lines once for each saved
+// version of the portfolio, and the server keeps no copy.
+const PF = {key: null, R: null, error: null, busy: false};
+function savedPortfolio() {
+  const saved = store.get("sdp.portfolios", {}), names = Object.keys(saved).sort();
+  if (!names.length) return null;
+  const cur = store.get("sdp.portfolio.current", ""), name = names.includes(cur) ? cur : names[0];
+  return {name, text: String(saved[name] ?? "")};
+}
+async function readPortfolioTile(text) {
+  const key = PF.key;
+  PF.busy = true;
+  try {
+    const {holdings} = parseHoldings(text);
+    if (!holdings.length) throw new Error("The saved portfolio has no holdings.");
+    const R = await postJSON("/market/portfolio.json", {holdings});
+    if (PF.key === key) PF.R = R;
+  } catch (e) { if (PF.key === key) PF.error = e.message; }
+  PF.busy = false;
+  if (DATA) overview();
+}
+function portfolioTile() {
+  const p = savedPortfolio();
+  if (!p) { Object.assign(PF, {key: null, R: null, error: null}); return ""; }
+  const key = p.name + "\n" + p.text;
+  if (key !== PF.key && !PF.busy) { Object.assign(PF, {key, R: null, error: null}); readPortfolioTile(p.text); }
+  const head = `<div class="k">Portfolio · ${esc(p.name)}</div>`;
+  let body = '<div class="v dim">…</div><div class="s">reading</div>';
+  if (PF.error) body = `<div class="v dim">–</div><div class="s err">${esc(PF.error.slice(0, 90))}</div>`;
+  else if (PF.R) {
+    const m = PF.R.moves.find(x => x.span === "1d"), top = m && m.contributors[0], k = PF.R.risk;
+    body = `<div class="v">${m ? pct(m.parts.ret, 2) : "–"}</div><div class="s">${esc(PF.R.as_of)} · vol
+      ${k ? pct(k.vol, 1, false) : "–"}<br>top ${top ? esc(top.ticker) + " " + pct(top.contribution, 2) : "–"}</div>`;
+  }
+  return `<div class="tile pf" title="Open the portfolio page" style="box-shadow:inset 3px 0 0 var(--amber)">${head}${body}</div>`;
+}
+
 function overview() {
-  const tiles = [], rows = DATA.board ? DATA.board.rows : [];
+  const tiles = [portfolioTile()].filter(Boolean), rows = DATA.board ? DATA.board.rows : [];
   const by = Object.fromEntries(rows.map(r => [r.ticker, r]));
   for (const t of ["SPY", "QQQ", "IWM", "VT", "TLT", "GLD", "USO", "IBIT"]) {
     const r = by[t]; if (!r) continue;
@@ -923,6 +962,8 @@ function overview() {
       <div class="s">1D ${rchg(r, r.chg_1d)}${UNIT_SUFFIX[r.unit] || ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
   }
   $("tiles").innerHTML = tiles.join("");
+  const pf = $("tiles").querySelector(".pf");
+  if (pf) pf.onclick = () => { location.hash = "portfolio"; };
   fitTiles();
 }
 // The tiles take whole rows: pick the count of columns that leaves the fewest empty cells in the
@@ -1957,6 +1998,8 @@ async function load() {
 layoutControls(); applyLayout(); setupCommand();
 load().then(route);
 window.addEventListener("hashchange", route);
+// A closed portfolio page may have saved a new version, so the tile reads it again.
+window.addEventListener("hashchange", () => { if (DATA && location.hash !== "#portfolio") overview(); });
 setInterval(() => { if ($("overlay").hidden) load(); }, 5 * 60 * 1000);
 </script>
 </body>
