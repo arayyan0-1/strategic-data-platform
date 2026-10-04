@@ -27,14 +27,38 @@ with last_session as (
       and r.resid_z is not null
       and (r.weight_cap >= 2e9 or u.adv >= 2e7)
 
+), pool as (
+
+    -- For each size in the pool of specific scores, the count of scores at least as large.
+    -- Ties count, as the rank of calibrated counts them.
+    select
+        abs(z_raw) as a,
+        count(*) over (order by abs(z_raw) desc
+                       range between unbounded preceding and current row) as n_ge
+    from {{ ref('market_scores') }}
+    where family = 'specific' and h = 1
+
+), counted as (
+
+    -- The smallest size in the pool that is at least abs(resid_z) gives the count. No such
+    -- size means a count of 0. This reads the sorted pool once, where a join on
+    -- abs(z_raw) >= abs(resid_z) would pair every mover with every pool row.
+    select t.*, coalesce(p.n_ge, 0) as n_ge
+    from (select *, abs(resid_z) as a from today) t
+    asof left join pool p on t.a <= p.a
+
 ), scored as (
 
     select
-        * exclude (q),
+        * exclude (a, n_ge, q),
         sign(resid_z) * {{ two_sided_z('q') }} as resid_score
     from (
-        select *, {{ pool_q('resid_z', ref('market_scores'), 'specific', 1) }} as q
-        from today
+        select
+            *,
+            (greatest(n_ge, 1) - 0.5)
+                / (select count(*) from {{ ref('market_scores') }}
+                   where family = 'specific' and h = 1)                  as q
+        from counted
     )
 
 ), lists as (
