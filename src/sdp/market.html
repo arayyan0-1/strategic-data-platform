@@ -114,6 +114,7 @@
   .tabs button { background:var(--panel); color:var(--dim); border:1px solid var(--line);
                  font:inherit; padding:3px 10px; border-radius:3px; cursor:pointer; margin:0 4px 8px 0; }
   .tabs button.on { color:var(--bg); background:var(--amber); border-color:var(--amber); }
+  .tabs button.lab { background:none; border-color:transparent; cursor:default; padding-left:0; }
   .tabs .sep { display:inline-block; width:10px; }
   .bars .b { display:grid; grid-template-columns:190px 1fr 86px; align-items:center; gap:6px; margin:2px 0; }
   .bars .b > span:last-child { white-space:nowrap; text-align:right; }
@@ -366,7 +367,8 @@
       <div class="panel"><h3>Short across the universe, share of cap</h3><div class="chart" id="si-share"></div></div>
       <div class="panel"><h3>Median days to cover, and names at 10 days or more</h3><div class="chart" id="si-dtc-chart"></div></div>
     </div>
-    <div class="grid2e" style="margin-top:12px">
+    <div class="tabs" id="si-caps" style="margin:12px 0 0"></div>
+    <div class="grid2e" style="margin-top:8px">
       <div class="panel"><h3>Most days to cover</h3><table id="si-dtc" class="tight"></table></div>
       <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up" class="tight"></table></div>
     </div></section>
@@ -1530,15 +1532,25 @@ function calendar() {
   foldClicks($("cal"), calendar);
 }
 
+// The cap filter of the two lists. The payload holds the top rows of each floor.
+const SI_CAPS = [[0, "all caps"], [2e9, "$2B or more"], [1e10, "$10B or more"]];
+let SI_FLOOR = store.get("sdp.si.cap", 0);
 function shorts() {
   const S = DATA.short_interest; if (!S) return;
   $("si-note").textContent = `Settlement ${S.settlement_date}. ` + (S.effective_date ? `Public from ${S.effective_date}.`
     : "FINRA publishes about eight sessions after settlement, so a backtest must not use this settlement yet.")
     + " Names with $10M or more of short interest. Crowding by factor is in the factor table.";
-  const t = rows => `<tr><th>Ticker</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
-    rows.map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
-      <td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
-      <td class="dim">${big(r.short_value)}</td></tr>`).join("");
+  if (!SI_CAPS.some(c => c[0] === SI_FLOOR)) SI_FLOOR = 0;
+  tabs($("si-caps"), [["cap", "Market cap:"], ...SI_CAPS.map(([f, t]) => [String(f), t])], String(SI_FLOOR), k => {
+    if (k === "cap") return;
+    SI_FLOOR = +k; store.set("sdp.si.cap", SI_FLOOR); shorts();
+  });
+  $("si-caps").querySelector("button").className = "lab dim";
+  const pass = r => SI_FLOOR <= 0 || (!nil(r.cap) && r.cap >= SI_FLOOR);
+  const t = rows => `<tr><th>Ticker</th><th>Cap</th><th>Short int.</th><th>Change</th><th>Days to cover</th><th>Value</th></tr>` +
+    (rows.filter(pass).slice(0, 10).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
+      <td class="dim">${big(r.cap)}</td><td>${big(r.short_interest)}</td><td>${pct(r.change, 0)}</td><td>${num(r.days_to_cover, 1)}</td>
+      <td class="dim">${big(r.short_value)}</td></tr>`).join("") || '<tr><td class="dim" colspan="6">No name has this cap.</td></tr>');
   $("si-dtc").innerHTML = t(S.days_to_cover); $("si-up").innerHTML = t(S.increase);
   const H = DATA.short_history || [];
   const P = H.map(r => ({...r, date: r.settlement_date}));

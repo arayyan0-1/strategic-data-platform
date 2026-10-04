@@ -19,6 +19,11 @@ import duckdb
 
 from sdp import dal
 
+# The page filters the short interest lists by market cap. The payload holds the top rows
+# of each floor, so a floor still has ten names when the top rows overall are small caps.
+SHORT_CAP_FLOORS = (0.0, 2e9, 1e10)
+SHORT_LIST_LENGTH = 10
+
 _lock = threading.Lock()
 _cache: dict[str, Any] = {"stamp": None, "payload": None}
 
@@ -41,6 +46,17 @@ def _rows(wh: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
     rel = wh.sql(sql)
     cols = rel.columns
     return [{c: _clean(v) for c, v in zip(cols, row, strict=True)} for row in rel.fetchall()]
+
+
+def _top_by_cap(rows: list[dict], floors: tuple = SHORT_CAP_FLOORS,
+                n: int = SHORT_LIST_LENGTH) -> list[dict]:
+    """Keep the first n rows of each cap floor, in the order of the input. A row with no cap
+    passes only the floor of 0."""
+    keep: set[str] = set()
+    for floor in floors:
+        passed = [r for r in rows if floor <= 0 or (r["cap"] is not None and r["cap"] >= floor)]
+        keep.update(r["ticker"] for r in passed[:n])
+    return [r for r in rows if r["ticker"] in keep]
 
 
 def _section(errors: list[str], name: str, fn):
@@ -211,14 +227,19 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
             order by settlement_date""")
 
     def short_interest():
-        dtc = _rows(wh, """
-            select * from monitor.market_short_interest
-            where days_to_cover is not null and short_value >= 1e7
-            order by days_to_cover desc limit 10""")
-        up = _rows(wh, """
-            select * from monitor.market_short_interest
-            where change is not null and prev_short_interest >= 1e5 and short_value >= 1e7
-            order by change desc limit 10""")
+        # The market cap of the last session, from the universe that the mart reads.
+        base = """
+            select s.*, u.market_cap as cap
+            from monitor.market_short_interest s
+            left join (select ticker, market_cap from intermediate.int_universe
+                       where date = (select max(date) from intermediate.int_universe)
+                         and in_universe) u using (ticker)"""
+        dtc = _top_by_cap(_rows(wh, base + """
+            where s.days_to_cover is not null and s.short_value >= 1e7
+            order by s.days_to_cover desc"""))
+        up = _top_by_cap(_rows(wh, base + """
+            where s.change is not null and s.prev_short_interest >= 1e5 and s.short_value >= 1e7
+            order by s.change desc"""))
         head = _rows(wh, """
             select max(settlement_date) as settlement_date, max(effective_date) as effective_date
             from monitor.market_short_interest""")
