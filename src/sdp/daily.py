@@ -287,6 +287,25 @@ def _lock_is_stale(d: Path) -> bool:
     return False
 
 
+def _lock_holder(d: Path) -> str:
+    """Return " since <time> UTC (pid <n>)" for a lock, or "" when the time is unknown.
+    The time is the mtime of the pid file, else of the lock directory."""
+    pid_file = d / "pid"
+    try:
+        mtime = pid_file.stat().st_mtime
+    except OSError:
+        try:
+            mtime = d.stat().st_mtime
+        except OSError:
+            return ""
+    since = dt.datetime.fromtimestamp(mtime, dt.UTC).strftime("%Y-%m-%d %H:%M UTC")
+    try:
+        pid = f" (pid {int(pid_file.read_text())})"
+    except (OSError, ValueError):
+        pid = ""
+    return f" since {since}{pid}"
+
+
 @contextmanager
 def _update_lock():
     """A one-writer lock. mkdir is the test and the claim in one step, the same
@@ -294,14 +313,16 @@ def _update_lock():
     next update reclaims."""
     backfill_lock = _backfill_lock_dir()
     if backfill_lock.exists() and not _lock_is_stale(backfill_lock):
-        raise UpdateInProgress(f"A backfill is in progress. Lock: {backfill_lock}")
+        raise UpdateInProgress(f"A backfill is in progress{_lock_holder(backfill_lock)}. "
+                               f"Lock: {backfill_lock}")
     d = _lock_dir()
     d.parent.mkdir(parents=True, exist_ok=True)
     try:
         d.mkdir()
     except FileExistsError:
         if not _lock_is_stale(d):
-            raise UpdateInProgress(f"An update is in progress. Lock: {d}") from None
+            raise UpdateInProgress(f"An update is in progress{_lock_holder(d)}. "
+                                   f"Lock: {d}") from None
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir()
     (d / "pid").write_text(str(os.getpid()))
