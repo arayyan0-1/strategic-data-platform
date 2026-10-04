@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Run the local post-commit command of this clone, if it sets one:
+#     git config sdp.postcommit "<command>"
+# The commit is already made, so a failure only prints a warning.
+#
+cmd=$(git config --get sdp.postcommit) || exit 0
+sh -c "$cmd" || echo "post-commit: the local command failed." >&2
+exit 0
