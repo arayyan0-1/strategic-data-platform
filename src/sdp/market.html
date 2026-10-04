@@ -915,7 +915,7 @@ function overview() {
   }
   // The measured rates, spreads and volatility, from FRED.
   const q = Object.fromEntries((DATA.rates ? DATA.rates.rows : []).map(r => [r.measure, r]));
-  for (const k of ["t_10y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd"]) {
+  for (const k of ["t_10y", "t_2y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd", "gbpusd"]) {
     const r = q[k]; if (!r) continue;
     tiles.push(`<div class="tile" style="box-shadow:inset 3px 0 0 ${zbg(rz(r))}">
       <div class="k">${esc(r.label)}${r.fresh ? "" : ` (${esc((r.obs_date || "").slice(5))})`}</div>
@@ -923,7 +923,30 @@ function overview() {
       <div class="s">1D ${rchg(r, r.chg_1d)}${UNIT_SUFFIX[r.unit] || ""} · ${sig(r.z_1d)} · 1M ${rchg(r, r.chg_1m)}</div></div>`);
   }
   $("tiles").innerHTML = tiles.join("");
+  fitTiles();
 }
+// The tiles take whole rows: pick the count of columns that leaves the fewest empty cells in the
+// last row, and let the tiles of the last row share its width.
+function fitTiles() {
+  const box = $("tiles"), tiles = [...box.children], n = tiles.length, gap = 8, minW = 132;
+  if (!n || !box.clientWidth) return;
+  const max = Math.max(1, Math.floor((box.clientWidth + gap) / (minW + gap)));
+  let cols = max, empty = Infinity;
+  for (let c = max; c >= Math.max(1, max - 3); c--) {
+    const e = (c - n % c) % c;
+    if (e < empty) { empty = e; cols = c; }
+  }
+  box.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  tiles.forEach(t => { t.style.gridColumn = ""; });
+  const last = n % cols;
+  for (let i = 0; i < last; i++) {
+    tiles[n - last + i].style.gridColumn = `span ${Math.floor(cols / last) + (i < cols % last ? 1 : 0)}`;
+  }
+}
+let TILES_W = 0;
+const refitTiles = () => { if ($("tiles").clientWidth !== TILES_W) { TILES_W = $("tiles").clientWidth; fitTiles(); } };
+new ResizeObserver(refitTiles).observe($("tiles"));
+window.addEventListener("resize", refitTiles);
 
 let ATTR = {span: "1d", weighting: "cap"};
 function attribution() {
