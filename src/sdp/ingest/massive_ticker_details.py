@@ -18,6 +18,7 @@ import gzip
 import json
 import logging
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import quote
@@ -76,7 +77,8 @@ def tickers_for(d: dt.date) -> list[str]:
 def fetch(d: dt.date, *, force: bool = False) -> Path:
     """Request each ticker of the session and write one gzip NDJSON file to vendor/.
     A ticker that the vendor does not know (HTTP 404) is left out. Raise when more than
-    MAX_MISSING of the tickers fail, so a bad pull does not publish."""
+    MAX_MISSING of the tickers fail, so a bad pull does not publish. The pull stops as
+    soon as the failures pass the limit, so a lost network does not hold the lock."""
     dest = _vendor_file(d)
     if dest.exists() and not force:
         return dest
@@ -85,23 +87,39 @@ def fetch(d: dt.date, *, force: bool = False) -> Path:
         raise FileNotFoundError(f"{DATASET} {d}: no {TYPES} ticker has a bar. Publish the "
                                 f"tickers and day_aggs partitions of {d} first.")
 
+    limit = MAX_MISSING * len(tickers)
+    stop = threading.Event()
+    lock = threading.Lock()
+    failed: list[tuple[str, str]] = []   # In the order of failure.
+
     def one_ticker(client, t: str) -> tuple[str, dict | None, str | None]:
+        if stop.is_set():
+            return t, None, "skipped"
+        err = None
+        res = None
         try:
             body = rest._get(client, f"/v3/reference/tickers/{quote(t, safe='')}",
                              {"date": d.isoformat()})
         except RuntimeError as exc:
-            return t, None, str(exc).splitlines()[0]
-        return t, body.get("results") or None, None
+            err = str(exc).splitlines()[0]
+        else:
+            res = body.get("results") or None
+        if res is None:
+            with lock:
+                failed.append((t, err or "no result"))
+                if len(failed) > limit:
+                    stop.set()
+        return t, res, err
 
     with rest._client() as client, ThreadPoolExecutor(WORKERS) as pool:
         results = list(pool.map(lambda t: one_ticker(client, t), tickers))
 
-    missing = [(t, err or "no result") for t, res, err in results if res is None]
-    if len(missing) > MAX_MISSING * len(tickers):
-        raise RuntimeError(f"{DATASET} {d}: {len(missing)} of {len(tickers)} tickers failed. "
-                           f"The first is {missing[0][0]}: {missing[0][1]}")
-    if missing:
-        log.info("%s %s: %s of %s tickers have no details.", DATASET, d, len(missing),
+    if stop.is_set():
+        raise RuntimeError(f"{DATASET} {d}: The pull stopped early. {len(failed)} of "
+                           f"{len(tickers)} requested tickers failed. The first is "
+                           f"{failed[0][0]}: {failed[0][1]}")
+    if failed:
+        log.info("%s %s: %s of %s tickers have no details.", DATASET, d, len(failed),
                  len(tickers))
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -111,7 +129,7 @@ def fetch(d: dt.date, *, force: bool = False) -> Path:
             if res is not None:
                 fh.write(json.dumps({**res, "requested_ticker": t}) + "\n")
     os.replace(tmp, dest)
-    log.info("Wrote %s records to %s", len(results) - len(missing), dest)
+    log.info("Wrote %s records to %s", len(results) - len(failed), dest)
     return dest
 
 
