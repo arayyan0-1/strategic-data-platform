@@ -20,9 +20,11 @@ with keyed as (
 select
     *,
     -- The vendor type is null on some dates of a known name. Take the last known type
-    -- of the security. The fill reads earlier dates only.
+    -- of the security. The fill reads earlier dates only. Two lines of one security can
+    -- have the same date. The shorter ticker goes first, as in int_security_lines, so the
+    -- order of the two does not change between builds.
     coalesce(type, last_value(type ignore nulls) over (
-        partition by security_key order by date
+        partition by security_key order by date, length(ticker), ticker
         rows between unbounded preceding and current row
     )) as type_filled
 from keyed
