@@ -1,9 +1,5 @@
-{#
-  The Fama-French daily factors (market less the risk-free rate, size, value,
-  profitability, investment, momentum, short- and long-term reversal) and the
-  value-weighted returns of the 12 industry portfolios, as fractions. The library lags
-  the market by about two months. crsp_month names the version of the files.
-#}
+{# Fama-French daily factors and 12 industry returns, as fractions. crsp_month is the file
+   version. #}
 
 select
     date,

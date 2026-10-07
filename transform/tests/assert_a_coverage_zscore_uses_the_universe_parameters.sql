@@ -1,9 +1,5 @@
--- Recompute the z-scores of a sample of sessions from the characteristics, with the
--- parameters of the universe of the session written out: the winsor bounds (median plus or
--- minus 5 x 1.4826 x MAD), the mean weighted as the style fit weights it, the standard
--- deviation, and the clip. A coverage z-score must equal the formula. A universe z-score
--- of style_exposures must equal it too, which proves that the parameters are those of the
--- estimation.
+{# A returned row is a coverage or universe z-score that differs from the formula with the
+   universe's winsor bounds, weighted mean, standard deviation and clip. #}
 {% set styles = {
     'size': 'case when b.market_cap > 0 then ln(b.market_cap) end',
     'liquidity': 'case when b.adv > 0 and b.market_cap > 0 then ln(b.adv / b.market_cap) end',

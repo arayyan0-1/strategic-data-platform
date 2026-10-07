@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Run the four backfills together, one log each. ~55 min.
+# Run the four backfills in parallel, one log each.
 #
 #     caffeinate -is bash deploy/run_backfill.sh
 #
-# Any sdp.backfill flag passes through (--dry-run, --limit 5, --refetch,
-# --rebuild). A rerun retries only the gaps, because ingest() skips published
-# partitions. A rerun with --refetch or --rebuild processes every date again.
+# Any sdp.backfill flag passes through (--dry-run, --limit 5, --refetch, --rebuild).
+# A rerun retries only the gaps, because ingest() skips published partitions; with
+# --refetch or --rebuild it processes every date again.
 # Stop the launchd agent first, or two runs race on the same vendor files:
 #
 #     launchctl bootout gui/$(id -u)/com.sdp.daily
@@ -26,11 +26,10 @@ if [ ! -x "$PY" ]; then
     exit 1
 fi
 
-# The S3 flat files roll on a five-year window, so the floor is today minus five
-# years, computed and never written down.
+# The S3 flat files roll on a five-year window: compute the floor, don't hard-code it.
 BARS_START="${BARS_START:-$(date -v-5y +%Y-%m-%d)}"
 
-# Short volume has a real coverage floor at 2024-02-06, not the rolling window.
+# Short volume starts at the endpoint's floor, not the rolling window.
 SHORT_VOLUME_START="${SHORT_VOLUME_START:-2024-02-06}"
 
 # Yesterday. Session D's flat file lands ~06:00 UTC on D+1, so a failure on the
@@ -40,8 +39,7 @@ END="${END:-$(date -v-1d +%Y-%m-%d)}"
 LOGS="$REPO/data/_logs"
 mkdir -p "$LOGS"
 
-# Refuse a second run while one is in progress. `mkdir` is a lock and a test in
-# one step. Two concurrent runs once failed 288 of 1,255 dates.
+# Refuse a second run while one is in progress; `mkdir` is a lock and a test in one step.
 LOCK="$LOGS/.backfill.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
     running=$(cat "$LOCK/pid" 2>/dev/null || echo "unknown")

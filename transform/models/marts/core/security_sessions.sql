@@ -1,8 +1,5 @@
-{#
-  One row per security and session: the primary line of the security, its unadjusted
-  and adjusted prices, and its universe state. A notebook that needs a price series
-  reads this view, so a ticker change stays one series and a reused ticker is two.
-#}
+{# One row per security and session from its primary line, with prices and universe state.
+   The price series for research code: a ticker change stays one series and a reused ticker is two. #}
 
 {{ config(materialized='view') }}
 

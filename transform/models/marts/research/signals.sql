@@ -1,8 +1,5 @@
-{#
-  The factor battery. One row per security and session, keyed on security_key so
-  a ticker change is one series. Windows count rows, not calendar days. Forward
-  returns are kept out, in forward_returns.
-#}
+{# The factor battery: one row per security and session, windows counted in rows. Labels are in
+   forward_returns. #}
 
 with base as (
 
@@ -26,8 +23,8 @@ with base as (
 
 ), returns as (
 
-    -- The overnight return uses the total-adjusted open, so the drop on an
-    -- ex-dividend date is not an overnight loss.
+    -- The overnight return uses the total-adjusted open, so an ex-dividend drop is not an
+    -- overnight loss.
     select
         *,
         adj_close_total     / nullif(lag(adj_close_total) over w, 0) - 1 as ret_1,
@@ -39,8 +36,7 @@ with base as (
 
 ), mkt as (
 
-    -- The cap-weighted return of the in-universe names. Each weight is the cap of the
-    -- session before, so the return of a session does not set its own weight.
+    -- Cap-weighted return of the in-universe names, weighted by the previous session's cap.
     select date, sum(ret_1 * cap_before) / sum(cap_before) as mkt_ret
     from returns
     where in_universe and ret_1 is not null and cap_before > 0
@@ -48,9 +44,8 @@ with base as (
 
 ), sec_divs as (
 
-    -- A dividend belongs to the security that held its ticker on the last session on
-    -- or before the ex-date. A ticker change thus keeps the dividend history. A key with
-    -- only special rows has no regular amount, so it drops out.
+    -- A dividend belongs to the security that held the ticker on the last session on or before
+    -- the ex-date, so a ticker change keeps the history. A key with only special rows drops out.
     select b.security_key, ca.event_date, ca.regular_cash_amount
     from (
         select ticker, event_date, regular_cash_amount
@@ -64,9 +59,8 @@ with base as (
 
 ), divs as (
 
-    -- Trailing 12 months of regular cash dividends per security, per session. Nominal
-    -- cash on the ex-date over the unadjusted price. A split inside the 12-month window
-    -- is a rare, small distortion. Non-payers get 0.
+    -- Trailing 12 months of regular cash dividends per security and session (nominal cash on
+    -- the ex-date, so a split inside the window distorts it slightly). Non-payers get 0.
     select
         b.security_key, b.date,
         sum(d.regular_cash_amount) as div_ttm
@@ -79,9 +73,8 @@ with base as (
 
 ), short as (
 
-    -- Short interest per security and settlement. The security is the one that held the
-    -- ticker on the settlement date. The short value over the guarded cap of that date is
-    -- the share of the shares sold short. A settlement is public from its effective date.
+    -- Short interest per security and settlement, for the security that held the ticker on the
+    -- settlement date. short_share is short value over the guarded cap of that date.
     select
         u.security_key,
         s.settlement_date,
@@ -161,10 +154,9 @@ with base as (
         -- trailing 12-month regular dividend yield (nominal cash over unadjusted price)
         div_ttm / nullif(close, 0)                                as dividend_yield,
 
-        -- Short interest, from the last settlement that FINRA has published: the share of
-        -- the shares sold short, the days to cover, and the log change since the
-        -- settlement before (at most 35 days before). Null when the last published
-        -- settlement is more than 45 days old.
+        -- Short interest from the last published settlement: share of shares sold short, days
+        -- to cover, and the log change since the settlement before (at most 35 days earlier).
+        -- Null when the last published settlement is over 45 days old.
         case when date - short_as_of <= 45 then short_share end   as short_ratio,
         case when date - short_as_of <= 45 then short_days end    as days_to_cover,
         case when date - short_as_of <= 45

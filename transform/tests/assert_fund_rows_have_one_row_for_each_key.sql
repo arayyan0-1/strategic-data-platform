@@ -1,5 +1,4 @@
--- One fit for each fund and first session, and one residual for each fund and session. A
--- second row would count a fund return twice.
+{# A returned row is a duplicate fund fit or fund residual key. #}
 select 'fund_exposures' as model, security_key, fit_date as date, count(*) as n
 from {{ ref('fund_exposures') }}
 group by all

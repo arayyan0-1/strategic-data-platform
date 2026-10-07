@@ -1,17 +1,6 @@
-{#
-  The universe per date, from an instrument filter and a liquidity filter. Every
-  threshold is a var. The liquidity window and the seasoning count belong to a
-  security, not to a ticker. They run over its primary line, so a change of ticker
-  continues them, and a new security on a used ticker starts them again. They count
-  rows of the line. The liquidity window ends at D-1, because a window that includes D
-  uses the volume of the day a position opens. A line that is not the primary line has
-  no window and fails the filter.
-
-  A session takes the details of the newest month-end on or before it. That month-end
-  is the same for every security. So details_by_month_end holds the details of each
-  security at each month-end, and a session joins on its own month-end. An as-of join
-  would sort every price row.
-#}
+{# Universe membership per ticker and session. Liquidity and seasoning windows run per security
+   over its primary line and end at D-1. A session joins the details of its newest month-end (no
+   as-of join on price rows). #}
 
 with keyed as (
 
@@ -44,8 +33,7 @@ with keyed as (
 
 ), liquidity as (
 
-    -- A line that is not primary sits in its own partition, and its windows are
-    -- dropped.
+    -- A line that is not primary sits in its own partition and gets no windows.
     select
         *,
         case when is_primary_line then avg(dollar_volume) over w end    as adv,
@@ -77,8 +65,8 @@ with keyed as (
 
 ), details as (
 
-    -- The next_ columns come from the row after. A session between two month-ends of a
-    -- security reads them when the industry code of the row before is missing.
+    -- The next_ columns come from the following month-end, for a session whose previous
+    -- month-end has no industry code.
     select
         security_key,
         month_end,
@@ -151,8 +139,8 @@ with keyed as (
         -- from the month-end, and it is null when the month-end is over 70 days old.
         case when k.date - d.detail_month_end <= 70
              then d.cap * p.adj_close_split / d.adj_close_split end     as market_cap,
-        -- The first month-end after gives the industry of a security that listed during
-        -- the month. An industry code does not predict a return.
+        -- The next month-end gives the industry of a security that listed during the month.
+        -- A label, not a predictor, so this is not look-ahead.
         coalesce(d.industry, d.next_industry, 'Unknown')                as industry,
         coalesce(d.industry_name, d.next_industry_name, 'Unknown')      as industry_name,
         case when k.date = d.detail_month_end

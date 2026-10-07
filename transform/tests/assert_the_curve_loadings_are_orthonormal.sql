@@ -1,5 +1,5 @@
--- The loadings of market_curve_pca are eigenvectors, so each has unit length and each
--- pair is orthogonal. A join on the wrong maturity breaks both.
+{# A returned row is a pair of market_curve_pca components whose dot product is not 1 (same) or 0
+   (different). #}
 with p as (select component, measure, loading from {{ ref('market_curve_pca') }})
 select a.component, b.component, sum(a.loading * b.loading) as dot
 from p a join p b using (measure)

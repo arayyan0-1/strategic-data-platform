@@ -1,5 +1,4 @@
-"""The q-factor ingest: find the newest file on the page, parse, audit, publish, and pull
-at most once a month. The files are synthetic and no test uses the network."""
+"""Tests for the q-factor ingest against synthetic files from a fake site."""
 import datetime as dt
 
 import pytest

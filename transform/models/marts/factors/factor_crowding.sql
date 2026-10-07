@@ -1,11 +1,6 @@
-{#
-  Crowding of each style from short interest. At each settlement, from the session it
-  was public (effective_date), each in-universe name gets its short interest over its
-  shares outstanding. crowding is the mean of that ratio in the bottom quintile of the
-  style less the mean in the top quintile: short sellers who lean against the short leg
-  are on the same side as the factor, so a high value is a crowded trade. crowding_z is
-  crowding against its own history of earlier settlements (at least 12).
-#}
+{# Crowding of each style from short interest: mean short interest over shares outstanding in the
+   bottom style quintile less the top, from the session it was public. A high value is a crowded
+   trade. crowding_z is against earlier settlements (at least 12). #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 

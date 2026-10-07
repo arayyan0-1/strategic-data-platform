@@ -1,8 +1,4 @@
-"""The current-state contract.
-
-Splits and dividends: one table each, replaced by every pull. A past belief is
-recoverable only from vendor/ via rebuild().
-"""
+"""Tests for the current-state contract: one table per dataset, replaced by every pull."""
 import datetime as dt
 
 import duckdb
@@ -39,7 +35,7 @@ class TestTheTableIsCurrent:
         assert _rows(dal.SPLITS) == [("a", 0.4)]
 
     def test_a_restated_factor_leaves_no_trace_of_the_old_value(self, ca_lake):
-        """Only vendor/ holds the old value. TestRebuild covers that path."""
+        """Only vendor/ keeps the old value (see TestRebuild)."""
         ca_lake(dal.SPLITS, P1, [ROW_A])
         ca_lake(dal.SPLITS, P2, [("a", "AAA", D(2024, 1, 5), 0.4)])
 
@@ -48,7 +44,7 @@ class TestTheTableIsCurrent:
         assert 0.5 not in factors
 
     def test_the_table_records_which_vendor_pull_built_it(self, ca_lake):
-        """Provenance and not a key. Nothing joins on it or filters by it."""
+        """Provenance, not a key: nothing joins on it or filters by it."""
         ca_lake(dal.SPLITS, P2, [ROW_A])
         assert dal.current(dal.SPLITS).project(
             "vendor_pull_date").fetchall() == [(P2,)]
@@ -65,7 +61,7 @@ class TestTheTableIsCurrent:
 
 
 class TestTheTwoKindsCannotBeConfused:
-    """The guards that keep a current-state read out of an event stream."""
+    """Guards between current-state reads and event-stream reads."""
 
     def test_current_refuses_an_event_stream(self, lake):
         lake(dal.DAY_AGGS, D(2024, 1, 3), [("AAA", 1.0)])
@@ -116,7 +112,6 @@ class TestRebuild:
         assert _rows(dal.SPLITS) == [("a", 0.4)]
 
     def test_rebuild_can_name_an_older_pull(self, tmp_data_root):
-        """Build the table as an older pull stated it."""
         self._vendor(P1, 0.5)
         self._vendor(P3, 0.4)
         ca.rebuild("massive_splits", P1)

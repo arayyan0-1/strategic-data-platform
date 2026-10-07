@@ -1,19 +1,11 @@
-{#
-  One row per factor: compounded returns over the last session, week (5 sessions),
-  month (21), quarter (63), the year to date and the last year (252), then the
-  volatility and Sharpe ratio of the last year, the Sharpe ratio, t statistic and
-  largest drawdown of the whole history. The windows count back from the last session
-  of each factor, so a lagged factor (ff) reports up to its own last date. Returns are
-  gross of cost.
-
-  The Sharpe ratios and the t statistic use the return over cash. A long-short factor
-  is self-financing, so its return is already over cash. The style market and the
-  first eigenportfolio are long portfolios, so each takes off the rf of core.rates.
-  The published market factors (ff mkt_rf, q mkt) are already over cash.
-#}
+{# One row per factor: compounded returns over standard windows counted back from the factor's
+   own last session (so a lagged factor reports to its last date), and Sharpe, t and drawdown.
+   Gross of cost. Sharpe and t use returns over cash. #}
 
 with r as (
 
+    -- xret: return over cash. Long-shorts and the published market factors are already over cash;
+    -- the long portfolios (style market, first eigenportfolio) take off rf.
     select
         f.*,
         f.ret - case when (f.family, f.factor) in (('style', 'market'), ('pca', 'pc1'))

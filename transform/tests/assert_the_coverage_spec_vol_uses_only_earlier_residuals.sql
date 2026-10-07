@@ -1,8 +1,5 @@
--- Recompute own_vol for a sample of coverage rows from the residuals before the row, with the
--- weight decay^(rows between) written out. The history of a name holds its universe and its
--- coverage residuals together. The running sums of the model must give the same number. A
--- residual of the row itself, or of a later row, would make them differ. spec_vol is own_vol
--- times the regime that style_residuals measured on the universe of the session.
+{# A returned row is a coverage own_vol, vol_regime or spec_vol that differs from a recomputation
+   over the earlier residuals (universe and coverage together), times the universe regime. #}
 {% set decay = 0.5 ** (1.0 / var('spec_vol_half_life')) %}
 with history as (
 

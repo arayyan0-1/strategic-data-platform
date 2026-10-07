@@ -1,9 +1,5 @@
-{#
-  Short interest of the in-universe names at the last settlement date, beside the
-  settlement before. effective_date is the first session the number was public.
-  days_to_cover is null where the vendor gave the 999.99 cap, so the computed ratio
-  is kept too.
-#}
+{# Short interest of the in-universe names at the last settlement date beside the one before.
+   days_to_cover is null at the vendor's 999.99 cap, so days_to_cover_computed is kept too. #}
 
 with settlements as (
 

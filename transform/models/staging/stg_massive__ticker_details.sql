@@ -1,5 +1,4 @@
-{# The details of each common stock per month-end. market_cap is for the whole company.
-   An empty SIC code is null. #}
+{# Share counts and cap per month-end. market_cap is for the whole company, not the share class. #}
 
 select
     ticker,

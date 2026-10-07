@@ -1,7 +1,6 @@
-# src/sdp/risk.py
-"""Covariance estimators, risk models and a point-in-time name selection for a T x N
-return matrix. NumPy only, with no I/O. Each matrix has one row per session and one
-column per name.
+"""Covariance estimators and risk models for a T x N return matrix.
+
+Rows are sessions, columns are names. NumPy only, no I/O.
 """
 from __future__ import annotations
 
@@ -11,16 +10,20 @@ import numpy as np
 def eligible(
     R: np.ndarray, U: np.ndarray, A: np.ndarray, d: int, win: int, n: int
 ) -> np.ndarray:
-    """Return the columns of the top n names by A on row d - 1, largest first. A name is
-    eligible when U is true on row d - 1 and R has a value on each row from d - win to d - 1."""
+    """Return the columns of the top n names by A on row d - 1, largest first.
+
+    A name is eligible when U is true on row d - 1 and R has no NaN on rows d - win to d - 1.
+    """
     ok = U[d - 1] & ~np.isnan(R[d - win:d]).any(axis=0)
     cols = np.flatnonzero(ok)
     return cols[np.argsort(-A[d - 1, cols], kind="stable")[:n]]
 
 
 def gmv(S: np.ndarray) -> np.ndarray:
-    """Return the global minimum-variance weights w = S^-1 1 / (1' S^-1 1). A small ridge
-    replaces the solve when S is exactly singular."""
+    """Return the global minimum-variance weights S^-1 1 / (1' S^-1 1).
+
+    A small ridge replaces the solve when S is exactly singular.
+    """
     n = S.shape[0]
     one = np.ones(n)
     try:
@@ -31,23 +34,27 @@ def gmv(S: np.ndarray) -> np.ndarray:
 
 
 def sample_cov(X: np.ndarray) -> np.ndarray:
-    """Return the sample covariance with the T - 1 divisor."""
+    """Return the sample covariance (T - 1 divisor)."""
     return np.cov(X, rowvar=False)
 
 
 def ew_cov(X: np.ndarray, half_life: float) -> np.ndarray:
-    """Return the exponentially weighted covariance of the T x K matrix X. The last row is
-    the newest and has weight 1. The weight halves every half_life rows. The weighted mean
-    is removed, and the divisor corrects for the weights, so equal weights give the sample
-    covariance."""
+    """Return the exponentially weighted covariance of the T x K matrix X.
+
+    The last row is the newest and has weight 1; the weight halves every half_life rows.
+    The weighted mean is removed and the divisor corrects for the weights, so equal
+    weights give the sample covariance.
+    """
     w = 0.5 ** (np.arange(X.shape[0])[::-1] / half_life)
     return np.atleast_2d(np.cov(X, rowvar=False, aweights=w))
 
 
 def pca_cov(X: np.ndarray) -> np.ndarray:
     """Return a statistical factor model: the top K eigen-directions of the sample
-    covariance plus a diagonal idiosyncratic part. K is the count of correlation
-    eigenvalues above the Marchenko-Pastur edge, with a minimum of 1."""
+    covariance plus a diagonal idiosyncratic part.
+
+    K is the number of correlation eigenvalues above the Marchenko-Pastur edge, at least 1.
+    """
     S = np.cov(X, rowvar=False)
     v = np.linalg.eigvalsh(np.corrcoef(X, rowvar=False))
     q = X.shape[1] / X.shape[0]
@@ -61,9 +68,11 @@ def pca_cov(X: np.ndarray) -> np.ndarray:
 
 
 def rmt_cov(X: np.ndarray) -> np.ndarray:
-    """Return the random-matrix clipped covariance. The correlation eigenvalues inside
-    the Marchenko-Pastur band get their mean, and the sample volatilities rescale the
-    cleaned correlation."""
+    """Return the random-matrix clipped covariance.
+
+    Correlation eigenvalues inside the Marchenko-Pastur band are replaced by their mean,
+    and the sample volatilities rescale the cleaned correlation.
+    """
     S = np.cov(X, rowvar=False)
     C = np.corrcoef(X, rowvar=False)
     d = np.sqrt(np.diag(S))
@@ -82,11 +91,13 @@ def rmt_cov(X: np.ndarray) -> np.ndarray:
 def qis(
     X: np.ndarray, return_spectrum: bool = False
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-    """Return the Ledoit-Wolf quadratic-inverse shrinkage (QIS) covariance, a port of the
-    authors' reference code. It keeps the sample eigenvectors and gives each eigenvalue
-    its own correction, for T > N and for N > T. When T > N, the sample covariance must have
-    full rank. With return_spectrum it returns the ascending sample eigenvalues and their
-    shrunk values."""
+    """Return the Ledoit-Wolf quadratic-inverse shrinkage (QIS) covariance.
+
+    A port of the authors' reference code. It keeps the sample eigenvectors and shrinks
+    each eigenvalue on its own, for T > N and N > T. When T > N the sample covariance
+    must have full rank. With return_spectrum, return the ascending sample eigenvalues
+    and their shrunk values instead.
+    """
     T, N = X.shape
     Xc = X - X.mean(0)
     n = T - 1
@@ -117,9 +128,11 @@ def qis(
 
 
 def exposure_cov(X: np.ndarray, F: np.ndarray, spec_var: np.ndarray) -> np.ndarray:
-    """Return Sigma = X Omega X' + diag(spec_var) for a model with known exposures, as in
-    a Barra model. X is N x K, F is the T x K factor returns and Omega is their sample
-    covariance. spec_var is the specific variance of each of the N names."""
+    """Return Sigma = X Omega X' + diag(spec_var) for known exposures, as in a Barra model.
+
+    X is N x K, F is the T x K factor returns, Omega is their sample covariance and
+    spec_var is the specific variance of each of the N names.
+    """
     omega = np.atleast_2d(np.cov(F, rowvar=False))
     return X @ omega @ X.T + np.diag(spec_var)
 
@@ -127,9 +140,11 @@ def exposure_cov(X: np.ndarray, F: np.ndarray, spec_var: np.ndarray) -> np.ndarr
 def ff_cov(
     R: np.ndarray, F: np.ndarray, rf: np.ndarray | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (Sigma, B) for a time-series factor model, Sigma = B Omega B' + diag(resid
-    var). The returns of each name regress on an intercept and the T x K factor returns F.
-    When rf is given, the excess returns R - rf regress on them."""
+    """Return (Sigma, B) for a time-series factor model, Sigma = B Omega B' + diag(resid var).
+
+    The returns of each name regress on an intercept and the T x K factor returns F. When
+    rf is given, the excess returns R - rf are regressed instead.
+    """
     Y = R if rf is None else R - np.asarray(rf)[:, None]
     F1 = np.column_stack([np.ones(len(F)), F])
     coef, *_ = np.linalg.lstsq(F1, Y, rcond=None)

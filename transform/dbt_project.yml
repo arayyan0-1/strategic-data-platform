@@ -14,13 +14,10 @@ flags:
   send_anonymous_usage_stats: false
 
 vars:
-  # How long FINRA takes to publish a settlement date, counted in XNYS sessions.
-  # A study must not read a short interest number before this many sessions have
-  # passed. It is a var and not a constant, because the schedule changed in the
-  # past and a robustness check on it is cheap.
+  # FINRA publication lag in XNYS sessions. A study must not read short interest earlier.
   short_interest_publication_sessions: 8
 
-  # Universe. Each value is a modelling choice. Change one and run the study again.
+  # Universe filters (int_universe). Each is a modelling choice.
   universe_types: ["CS"]
   universe_exchanges: ["XNYS", "XNAS", "XASE"]
   min_price: 5.0
@@ -29,133 +26,99 @@ vars:
   min_days_in_window: 15
   min_days_since_first_bar: 60
 
-  # A vendor market cap of a month-end with no class share count is refused when each
-  # nearest class count of the episode, before and after, disagrees with it by more
-  # than this factor. A lower factor also refuses right values next to a share issue.
+  # A vendor cap with no class count is refused when each nearest class count disagrees by
+  # more than this factor.
   company_cap_max_ratio: 2.0
 
-  # A run of at most class_count_max_run month-ends of class counts is refused when it
-  # jumps by more than class_count_max_ratio from the count before it, and the count
-  # after it agrees with the count before within class_count_agree_ratio. The jump limit
-  # is below 1.5, so that a lag after a 3-for-2 or a 2-for-1 split is a jump.
+  # A run of at most class_count_max_run month-end counts that jumps by more than
+  # class_count_max_ratio is refused if the counts around it agree within class_count_agree_ratio.
+  # Keep the jump limit below 1.5 so a lag after a 3-for-2 split counts as a jump.
   class_count_max_ratio: 1.4
   class_count_agree_ratio: 1.25
   class_count_max_run: 6
 
-  # The spread model (spreads): the half spread of the benchmark stock of Kyle and
-  # Obizhaeva (2016), linear calibration, and the minimum price increment in dollars.
+  # Spread model (spreads): Kyle-Obizhaeva half-spread calibration, and the tick in dollars.
   spread_kappa0: 0.000821
   tick_size: 0.01
 
-  # A new FIGI on a ticker continues the security only when the split-adjusted jump
-  # from the last old bar to the first new bar is at most link_max_jump_sigma standard
-  # deviations of the last link_vol_window daily returns of the old FIGI. The deviation
-  # needs at least link_min_returns returns.
+  # A new FIGI continues the security only if the split-adjusted jump is within
+  # link_max_jump_sigma standard deviations of the last link_vol_window returns of the old
+  # FIGI, with at least link_min_returns returns.
   link_vol_window: 63
   link_min_returns: 20
   link_max_jump_sigma: 4.0
 
-  # The specific volatility of a name needs this many residuals before the session.
-  # With two residuals, a new listing showed a move of 65 standard deviations.
+  # Residuals a name needs before it has a specific volatility.
   spec_vol_min_obs: 21
 
-  # The forecast of the specific volatility. The weight of a residual halves every
-  # spec_vol_half_life rows. The shrinkage pulls it toward the cap-weighted mean of the size
-  # decile at the rate spec_vol_shrinkage (0 turns it off). The regime factor rescales every
-  # forecast with the recent cross-section of z squared, and the weight of a session halves
-  # every spec_vol_regime_half_life sessions. Both half-lives must be 2 or more. On the
-  # development sessions the log-likelihood of the residuals rises as the regime half-life
-  # falls to 1. A week stops one session from setting the scale of all forecasts.
+  # Specific volatility forecast: residual weight half-life in rows, shrinkage toward the size
+  # decile mean (0 turns it off), and the regime factor's half-life in sessions. Both
+  # half-lives must be 2 or more.
   spec_vol_half_life: 126
   spec_vol_shrinkage: 0.1
   spec_vol_regime_half_life: 5
 
-  # beta_252 needs this many returns in its window of 252. Below 126 the spread of beta
-  # across names grows from 0.6 to between 1.6 and 30, and a new listing reached 1,401.
+  # Returns needed in the 252-session window before beta_252 is computed.
   beta_min_obs: 126
 
-  # The style z-scores: the mean each is centered on (sqrt_cap, the regression weight, or
-  # cap, as in Barra) and the largest absolute value. The center does not change the fit
-  # or the residuals: the market and industry coefficients absorb it. With cap, the
-  # market factor is the cap-weighted market and that market has no style exposure.
+  # Style z-scores: the mean each is centered on (sqrt_cap, the regression weight, or cap, as in
+  # Barra) and the largest absolute value. The center changes no fit or residual; with cap the
+  # market factor is the cap-weighted market.
   style_center: cap
   style_clip: 3.0
 
-  # The coverage universe: the common stock outside the estimation universe gets style
-  # exposures and a residual, but the fit never sees it. coverage_types lists the types
-  # (funds, preferreds, rights, units and warrants are out). coverage_sessions is the
-  # number of latest sessions that the coverage models build, 0 for all. All sessions take
-  # 12 seconds. A limit shortens the history of the specific volatility of a name, so keep
-  # at least 2 years more than the window that is read, because the weight of a residual
-  # halves every spec_vol_half_life rows.
+  # Coverage models: common stock outside the estimation universe gets exposures and a residual
+  # but never enters the fit. coverage_sessions limits the build to the latest N sessions (0 =
+  # all); keep at least 2 years more than the window read, as a limit shortens the spec_vol history.
   coverage_types: ["CS", "ADRC"]
   coverage_sessions: 0
 
-  # The style fit clips the returns of each session at the weighted median plus or minus
-  # this many robust standard deviations (1.4826 times the MAD). 0 means no clip. The
-  # residual and r2 always use the raw returns, so a jump stays in the residual.
+  # The style fit clips each session's returns at the weighted median plus or minus this many
+  # robust deviations (1.4826 MAD); 0 = no clip. Residuals and r2 always use the raw returns.
   style_return_clip: 0.0
 
-  # A session with fewer in_universe names than this is dropped from the IC.
+  # Minimum in_universe names for a session to count in the IC.
   ic_min_names: 100
 
-  # signal_long_short.ret_winsorized clips a forward return at this quantile of its
-  # session and at the quantile 1 - this value. It is a robustness check. A portfolio
-  # does not earn it.
+  # signal_long_short.ret_winsorized clips returns at this quantile and 1 minus it. A
+  # robustness check only.
   long_short_winsor: 0.01
 
-  # The evaluation calendar. Development is split into eval_folds contiguous folds, and a
-  # signal is judged on development. The sessions from holdout_start are the holdout: a
-  # signal meets it once, when it is final. The date stays fixed as the data grows.
+  # Evaluation calendar: contiguous development folds, and the holdout from holdout_start,
+  # which a final signal meets once. The date stays fixed as the data grows.
   eval_folds: 4
   holdout_start: "2025-10-01"
 
-  # The market monitor lists an item as an exception beyond these limits: a score of
-  # monitor_z, a percentile in the outer monitor_pct of its history, and a stock-specific
-  # score of monitor_z for a cap of monitor_big_cap. A score of 3 is as rare as a move of
-  # 3 standard deviations of a normal distribution.
+  # Monitor exception limits: a score of monitor_z, a percentile in the outer monitor_pct of
+  # its history, and a stock-specific score for caps of monitor_big_cap or more.
   monitor_z: 3.0
   monitor_pct: 0.05
   monitor_big_cap: 10000000000
 
-  # The false discovery rate for the calendar effects (market_seasonality). An effect
-  # is significant when it passes the Benjamini-Hochberg procedure at this rate among
-  # the tests of its period.
+  # False discovery rate for market_seasonality (Benjamini-Hochberg within a period).
   seasonality_fdr: 0.05
 
-  # A score divides a move by the volatility known before the session. The volatility is
-  # the root of an exponentially weighted mean of squared changes. Its half-life is
-  # monitor_halflife sessions, it looks back monitor_vol_window sessions, and it needs
-  # monitor_min_obs changes. Half-lives of 10 to 21 sessions had the same QLIKE loss within
-  # 1%, and all beat a window of 63 sessions. The half-life of 15 had the most even tail
-  # share from year to year among them.
+  # Score volatility: exponentially weighted mean of squared changes with half-life
+  # monitor_halflife sessions, looking back monitor_vol_window sessions, with at least
+  # monitor_min_obs changes.
   monitor_halflife: 15
   monitor_vol_window: 252
   monitor_min_obs: 63
 
-  # The volatility of a rate or a spread is at least monitor_tick percentage points: the
-  # quote step of FRED. Without the floor, a quiet spread that moves one step gets a
-  # ratio of thousands. An ETF whose volatility is under monitor_min_etf_vol a year (a
-  # T-bill fund) has no score. A factor return of less than monitor_zero_return is a
-  # factor that is not defined yet, and its history starts at the first larger return.
+  # monitor_tick: least volatility of a rate or spread, in percentage points. An ETF under
+  # monitor_min_etf_vol a year (a T-bill fund) has no score. A factor return under
+  # monitor_zero_return means the factor is not defined yet.
   monitor_tick: 0.01
   monitor_min_etf_vol: 0.02
   monitor_zero_return: 1.0e-9
 
-  # These groups of market_rates move in steps (a policy rate, a weekly index, the
-  # balance sheet). A step is a huge move in units of the daily changes of the group, so
-  # each group has its own pool and no exception.
+  # market_rates groups that move in steps. Each has its own score pool and no exception.
   monitor_step_groups: ["Policy and money markets", "Fed balance sheet", "Conditions"]
 
-  # The exposures of a fund to the factors (fund_exposures). A fund line is the primary line
-  # of a security with a type in fund_types. A fund gets a fit when its trailing dollar
-  # volume is at least fund_min_adv on the session of the fit and it has fund_min_returns
-  # returns before that session. At least fund_min_obs rows of the window must also hold its
-  # return and every factor. A fit reads the fund_window sessions before it and earns the
-  # next fund_step sessions. fund_ridge is the penalty on factor returns that are
-  # standardized. On the development sessions, the median out-of-sample R squared of the
-  # funds with a dollar volume of $50M or more moved by 0.001 between a penalty of 1 and 10.
-  # It fell from a penalty of 20.
+  # Fund exposures (fund_exposures). fund_types are the lines treated as funds. A fit needs
+  # fund_min_adv of dollar volume, fund_min_returns earlier returns and fund_min_obs complete
+  # rows in its window; it reads fund_window sessions, earns the next fund_step, and fund_ridge
+  # is the penalty on standardized factor returns.
   fund_types: ["ETF", "ETN", "ETV", "ETS", "FUND"]
   fund_min_adv: 1000000
   fund_window: 252
@@ -164,24 +127,11 @@ vars:
   fund_min_returns: 252
   fund_ridge: 5.0
 
-  # The macro factors of the fund exposures, from macro_factor_returns. A factor is in the
-  # list when, on the development sessions, it raised the median out-of-sample R squared of
-  # its own group of funds by 0.01 or more and lowered the median of the US equity funds by
-  # 0.002 or less. The groups are bond funds (the 10-year and 2-year yields), dollar and
-  # international funds (the broad dollar and the euro), oil and gold funds (oil) and
-  # bitcoin funds (bitcoin). The real yield, the high-yield spread and the yen did not
-  # reach 0.01. The 2-year yield replaces the slope of the curve, because both span the same
-  # space with the 10-year yield. With the 2-year yield, the loading on the 10-year yield is
-  # a duration at a fixed 2-year yield. From about October 2024 to November 2025 the FRED
-  # bitcoin series is dated one day early against the bitcoin funds, so a fit that reads
-  # that stretch under-states the bitcoin loading.
+  # FRED daily changes added to the fund regressions (see macro_factor_returns).
   fund_macro: ["d_t_10y", "d_t_2y", "d_dollar", "d_wti", "d_bitcoin", "d_eurusd"]
 
-  # The forecast of the specific volatility of a fund (fund_residuals). The weight of a
-  # residual halves every fund_spec_vol_half_life rows. The forecast needs
-  # fund_spec_vol_min_obs residuals before the row. The half-life must be 2 or more. On the
-  # development sessions, the loss of the forecast stayed within 0.01 for half-lives of 21
-  # to 63 rows. It was higher for shorter ones.
+  # Fund specific volatility (fund_residuals): residual weight half-life in rows (2 or more)
+  # and the residuals needed before the forecast exists.
   fund_spec_vol_half_life: 21
   fund_spec_vol_min_obs: 21
 

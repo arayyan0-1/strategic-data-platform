@@ -1,8 +1,6 @@
--- The model spread of an in-universe name is at least one tick and under 20%, it is
--- known when its volatility is known, almost every name has a volatility, and the median
--- spread of large names is below that of small names on the last session. A units error
--- or a wrong exponent breaks one of these. A new series (a new security key) has no
--- volatility for its first 21 sessions.
+{# A returned row is a recent spread below one tick or above 20%, a missing spread where sigma is
+   known, too many names without sigma, or a large-cap median spread not below the small-cap one.
+   A new series has no sigma for its first 21 sessions. #}
 with last as (
 
     select max(date) as d from {{ ref('spreads') }}

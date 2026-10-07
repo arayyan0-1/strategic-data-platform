@@ -1,5 +1,4 @@
-"""The market monitor: the payload from the marts, the cache on the build stamp, and the
-two routes. The warehouse is a small synthetic file. No socket, no network."""
+"""Tests for sdp.market against a small synthetic warehouse."""
 import datetime as dt
 import json
 from types import SimpleNamespace

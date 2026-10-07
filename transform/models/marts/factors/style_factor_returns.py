@@ -1,19 +1,4 @@
-"""Style and industry factor returns: one weighted cross-sectional regression per session
-on the exposures of style_exposures (sdp.factors.cross_section_returns), as in a
-Barra model. The design has one dummy per industry and the eight style z-scores. market
-is the cap-weighted mean of the industry coefficients. Each industry return (ind_*) is
-its coefficient less the market, so the cap-weighted industry returns sum to 0. Each
-style return is the return of a portfolio with unit exposure to that style and none to
-the other styles and the industries. The weight is the square root of the market cap.
-
-The var style_return_clip is the number of robust standard deviations at which the fit
-clips the returns of a session around their weighted median. 0 means no clip. The
-residual of a name (style_residuals) still uses its raw return, so a jump stays in the
-residual. r2 also uses the raw returns.
-
-A row is dated on the session that earns the return, from the close before. r2 is the
-share of the cross-section of returns that the model explains on that session.
-"""
+"""Style and industry factor returns: one weighted cross-sectional regression per session."""
 import numpy as np
 
 from sdp.factors import cross_section_returns, filled

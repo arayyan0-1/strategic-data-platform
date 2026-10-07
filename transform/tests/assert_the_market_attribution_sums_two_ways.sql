@@ -1,6 +1,5 @@
--- The factor parts and the industry parts of the market return are two splits of one
--- sum, so they agree on each session and weighting. A missing part or a name counted
--- twice breaks the agreement.
+{# A returned row is a session and weighting where the factor parts and the industry parts of the
+   market return disagree. #}
 select date, weighting,
        sum(contribution) filter (where kind = 'factor')   as by_factor,
        sum(contribution) filter (where kind = 'industry') as by_industry

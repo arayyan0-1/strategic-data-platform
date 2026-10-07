@@ -1,4 +1,4 @@
-# src/sdp/ingest/massive_tickers.py
+"""Ticker reference: one audited snapshot of the active US stock tickers per session."""
 from __future__ import annotations
 
 import datetime as dt
@@ -31,14 +31,17 @@ PATH = "/v3/reference/tickers"
 # ---------- WRITE ----------
 
 def build(vendor_file: Path, d: dt.date) -> Path:
-    """Convert the vendor NDJSON to staged Parquet. No pull timestamp is added:
-    now() would break content idempotency, and vendor/ mtime records the fetch."""
+    """Convert the vendor NDJSON to staged Parquet.
+
+    No pull timestamp is added: now() would break content idempotency, and the mtime
+    of the vendor file records the fetch.
+    """
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
-    # Cursor pagination can return one ticker twice, identical but for
-    # last_updated_utc, when the vendor revises it mid-pull. A transport
-    # artifact, not data, so keep the newest copy here (not in dbt) and log it.
+    # Pagination can return a ticker twice, differing only in last_updated_utc, when the
+    # vendor revises it mid-pull. That is a transport artifact, so keep the newest copy
+    # here (not in dbt) and log it.
     n_dupes = one(f"""
         select count(*) - count(distinct ticker)
         from read_json('{vendor_file}', format = 'newline_delimited',
@@ -121,8 +124,7 @@ def audit(staged: Path, d: dt.date) -> int:
 
 
 def _audit_vs_previous(staged: Path, d: dt.date, n_rows: int) -> None:
-    """Check that the universe size is stable against the newest published
-    partition before d."""
+    """Raise if the row count moved too far from the newest published partition before d."""
     priors = [p for p in dal.partitions(dal.TICKERS) if p < d]
     if not priors:
         return
@@ -139,9 +141,10 @@ def _audit_vs_previous(staged: Path, d: dt.date, n_rows: int) -> None:
 # ---------- PUBLISH ----------
 
 def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False) -> Path | None:
-    """Publish the universe of one session. The default skips a published
-    partition. refetch downloads the vendor file again. rebuild reads the vendor
-    file on disk only."""
+    """Publish the universe of one session; skip a published partition by default.
+
+    refetch downloads the vendor file again. rebuild reads the vendor file on disk only.
+    """
     check_mode(refetch, rebuild)
     if not is_session(d):
         log.debug("%s is not an XNYS session. Skipped.", d)

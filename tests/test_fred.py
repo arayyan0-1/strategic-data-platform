@@ -1,5 +1,4 @@
-"""The FRED ingest: parse, fold the pulls, audit, publish, pull at most once a day and
-thin the vendor pulls. The series are synthetic and no test uses the network."""
+"""Tests for the FRED ingest against synthetic series."""
 import datetime as dt
 
 import pytest
@@ -23,8 +22,7 @@ def csv(series: str, first: int = 0, n: int = N, value: float = 4.25) -> bytes:
 
 @pytest.fixture
 def served(tmp_data_root, monkeypatch):
-    """Serve synthetic series in place of FRED. Return the table of served bytes and the
-    download log."""
+    """Serve synthetic series in place of FRED. Return (bytes by series, download log)."""
     table = {s: csv(s) for s in fred.SERIES}
     calls: list[str] = []
 
@@ -75,7 +73,7 @@ def test_the_fold_keeps_a_date_that_left_the_window_and_the_newest_value_wins(se
 def test_a_new_series_does_not_drop_the_older_pulls_from_the_fold(served, monkeypatch):
     table, _ = served
     fred.ingest(PULL)
-    # A series joins the list. The older pull has no file for it, and it still counts.
+    # A series joins the list; the older pull has no file for it and still counts.
     monkeypatch.setitem(fred.SERIES, "DGS7", "7-year Treasury")
     table["DGS7"] = csv("DGS7")
     table["BAMLH0A0HYM2"] = csv("BAMLH0A0HYM2", first=10)

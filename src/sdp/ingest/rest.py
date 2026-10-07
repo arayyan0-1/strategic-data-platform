@@ -1,4 +1,4 @@
-# src/sdp/ingest/rest.py
+"""Massive REST client: retrying GET, cursor pagination and NDJSON dumps into vendor/."""
 from __future__ import annotations
 
 import datetime as dt
@@ -34,8 +34,7 @@ def _client() -> httpx.Client:
 
 
 def _retry_after(resp: httpx.Response) -> int | None:
-    """Return the Retry-After delay in seconds, capped at 120 s.
-    Return None when the header is absent or is not an integer."""
+    """Return the capped Retry-After delay in seconds, or None if absent or not an integer."""
     if resp.status_code not in _RETRY_AFTER_STATUS:
         return None
     value = resp.headers.get("Retry-After", "").strip()
@@ -45,10 +44,9 @@ def _retry_after(resp: httpx.Response) -> int | None:
 
 
 def _get(client: httpx.Client, url: str, params: dict | None = None, *, attempts: int = 5):
-    """Return the JSON body of one GET request.
+    """Return the JSON body of one GET, retrying transport errors, 429 and 5xx with backoff.
 
-    A transport error, HTTP 429 and HTTP 5xx cause a retry with exponential backoff.
-    Any other error status causes an error immediately.
+    Any other error status raises at once.
     """
     if attempts < 1:
         raise ValueError(f"attempts must be 1 or more. The value was {attempts}.")
@@ -80,7 +78,7 @@ def _get(client: httpx.Client, url: str, params: dict | None = None, *, attempts
 
 
 def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
-    """Yield every result from every page of an endpoint that uses a cursor."""
+    """Yield every result from every page of a cursor-paginated endpoint."""
     with _client() as client:
         payload = _get(client, path, params)
         page = 0
@@ -103,19 +101,19 @@ def paginate(path: str, params: dict[str, Any]) -> Iterator[dict]:
 
 
 def _temp_beside(dest: Path) -> Path:
-    """An unused temporary path beside `dest`, unique per call, so two fetches of
-    the same date do not share a name and race on the rename. The directory
-    matches `dest`, because os.replace is atomic only within one filesystem."""
+    """Return a unique temporary path beside `dest`.
+
+    Unique so two fetches of one date don't race on the rename; beside `dest` because
+    os.replace is atomic only within one filesystem.
+    """
     fd, name = tempfile.mkstemp(dir=dest.parent, prefix=f"{dest.name}.", suffix=".part")
     os.close(fd)
-    # mkstemp creates the file with mode 0600 and os.replace keeps that mode.
-    # The lake is not a secret, so give the published file the usual mode.
+    # mkstemp makes the file 0600 and os.replace keeps that; publish with the usual mode.
     os.chmod(name, 0o644)
     return Path(name)
 
 
-# The overloads make the return type None only when allow_empty is True, so the
-# call sites that never pass it do not test for a None they cannot receive.
+# Overloads: the return type includes None only when allow_empty is True.
 @overload
 def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 pull_date: dt.date, *, force: bool = ...,
@@ -136,10 +134,9 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
                 compress: bool = False) -> Path | None:
     """Write every record of an endpoint to one NDJSON file in vendor/.
 
-    allow_empty: for a dataset with no record on some dates (short interest's off
-    weeks, short volume before 2024-02-06), write no file and return None.
-    compress: write gzip NDJSON (.ndjson.gz), which DuckDB reads directly, for a
-    large daily full pull like dividends.
+    Args:
+        allow_empty: write no file and return None when the endpoint has no record.
+        compress: write gzip NDJSON (.ndjson.gz), which DuckDB reads directly.
     """
     stem = f"{pull_date:%Y-%m-%d}"
     dest = settings.vendor_dir / dataset / f"{stem}{'.ndjson.gz' if compress else '.ndjson'}"
@@ -172,9 +169,7 @@ def dump_ndjson(dataset: str, path: str, params: dict[str, Any],
 
         os.replace(tmp, dest)
     finally:
-        # A successful rename already moved the file, so this is then a no-op.
-        # Anything still here is from an empty answer or from a failure part way
-        # through, and it must not be left for the next run to find.
+        # No-op after a successful rename; otherwise drops the partial or empty file.
         tmp.unlink(missing_ok=True)
 
     log.info("Wrote %s records to %s", n, dest)

@@ -1,17 +1,6 @@
-{#
-  What is unusual on the last session, one row per item, most unusual first. score is
-  the size of the surprise in sigma. For a move it is a score (market_scores): a score of
-  3 is as rare as a 3 sigma move of a normal distribution on the history of its family,
-  about 1 day in 370. A percentile maps to a score of 2 at the limit and 3 at the
-  extreme. The limits are the vars monitor_z, monitor_pct and monitor_big_cap.
-  direction is 1 for a move up or a calm reading, and -1 for a move down or a warning (a
-  crowded factor, a high-volatility regime, the stress end of a measure, a rise in a
-  yield, a spread or volatility). An ETF with a volatility under the var
-  monitor_min_etf_vol a year (T-bills) has no score, because each accrual looks like a
-  large move. An industry return is relative to the market and can trend for years, so
-  its drawdown is not an exception. A rates group in the var monitor_step_groups moves
-  in steps, so it is not an exception.
-#}
+{# What is unusual on the last session, one row per item, most unusual first. score is in sigma:
+   a market_scores score for a move, or 2 at the limit to 3 at the extreme for a percentile.
+   direction is 1 for an up move or calm reading, -1 for a down move or warning. #}
 {% set z = var('monitor_z') %}
 {% set pct = var('monitor_pct') %}
 
@@ -59,6 +48,7 @@ with risk as (
     where family in ('style', 'industry') and vol_pctile >= 1 - {{ pct }}
 
     union all
+    -- Style only: an industry return is relative to the market and can trend for years.
     select 'factor risk', family || ': ' || factor,
            printf('%s drawdown %.1f%%, deeper than %.0f%% of its history',
                   label, 100 * drawdown, 100 * dd_pctile),
@@ -93,7 +83,8 @@ with risk as (
     where pctile >= 1 - {{ pct }} or pctile <= {{ pct }}
 
     union all
-    -- One item per group, the largest move, because a curve moves as one.
+    -- One item per group, the largest move, because a curve moves as one. Step-like groups
+    -- (monitor_step_groups) are not exceptions.
     select 'rates', measure,
            printf('%s %s, %+.1f sigma%s', label,
                   case unit

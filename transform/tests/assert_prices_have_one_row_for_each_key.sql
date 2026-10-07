@@ -1,6 +1,4 @@
--- A duplicate (ticker, date) means the as-of join made one price into two, which
--- happens when two corporate actions share a ticker and a date. The model must
--- collapse them before the join.
+{# A returned row is a duplicate (ticker, date): a join turned one price into two. #}
 select ticker, date, count(*) as n
 from {{ ref('int_prices_adjusted') }}
 group by 1, 2

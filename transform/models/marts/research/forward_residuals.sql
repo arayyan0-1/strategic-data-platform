@@ -1,11 +1,6 @@
-{#
-  The residual labels: the forward return of each in-universe name less the part that
-  the style and industry model explains, over 1, 5 and 21 sessions. The exposures are
-  those of D and the factor returns are those of the window after D. The factor part is
-  the sum of the daily factor returns, so the label for one session equals the
-  residual in style_residuals, and the labels for 5 and 21 sessions leave out the
-  compounding of the factor returns.
-#}
+{# Residual labels: forward return less the style and industry factor part, over 1, 5 and 21
+   sessions. Exposures are those of D, factor returns those of the window after D, summed (so h >
+   1 leaves out compounding). #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',
@@ -26,8 +21,8 @@ with sessions as (
 
 ), windows as (
 
-    -- The factor returns of the h sessions after each session, summed. A window with a
-    -- missing session has no value.
+    -- Factor returns of the h sessions after each session, summed. A window with a missing
+    -- session has no value.
     select
         date,
         {%- for h in horizons %}

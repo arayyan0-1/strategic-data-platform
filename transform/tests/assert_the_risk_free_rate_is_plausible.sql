@@ -1,7 +1,6 @@
--- The return of cash is known on every session but the first, never negative, and below
--- 10 bps a day (about 36% a year). Over a month it agrees with the Fama-French rf within
--- 20 bps: the library rounds its daily rf to 0.01%, so a month can differ by about 11 bps
--- from the rounding alone.
+{# A returned row is a session where rf is null (after the first), negative or over 10 bps, or a
+   month where it differs from the Fama-French rf by over 20 bps. The library rounds its daily rf
+   to 0.01%, so a month can differ by about 11 bps from rounding alone. #}
 with ours as (
     select date_trunc('month', date) as m, sum(rf) as rf, count(*) as n
     from {{ ref('rates') }}

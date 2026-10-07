@@ -1,10 +1,5 @@
-{#
-  The average cross-sectional rank correlation between each pair of signals. A
-  pair near one is one bet under two names. Upper triangle and diagonal only,
-  with the pair in alphabetical order. The rank is the panel avg_rank. Tied
-  values get the average of the ranks that they occupy. The correlation of a
-  session uses the names that have both signals.
-#}
+{# Average daily rank correlation between each pair of signals (upper triangle and diagonal),
+   over the names that have both. A pair near one is one bet under two names. #}
 {%- set signals = signal_columns().split(',') | map('trim') | sort -%}
 {%- set pairs = [] -%}
 {%- for a in signals -%}{%- for b in signals if a <= b -%}
@@ -13,9 +8,8 @@
 
 with wide as (
 
-    -- One row per name and session, one rank column per signal. The rank is the
-    -- panel rank, found again with the same rule from the in_universe rows of
-    -- signals. A rank window for each signal costs less than a pivot of the panel.
+    -- One row per name and session, one rank column per signal. Same ranks as the panel,
+    -- recomputed from signals: a rank window per signal costs less than pivoting the panel.
     select
         date,
         {%- for s in signals %}

@@ -1,12 +1,4 @@
-"""The IC of each signal, target and horizon over development and over each
-development fold. A period uses a session only when its label ends inside the period
-(sdp.evaluation), so no label reaches into the next fold or into the holdout.
-
-t_nw is the Newey-West t, which allows for the overlap of the labels. t_naive assumes
-independent days and is too high when ic_autocorr_lag1 is high. folds_same_sign counts
-the folds whose mean IC has the sign of the development mean. The holdout is in
-signal_ic_holdout.
-"""
+"""IC of each signal, target and horizon over development and each development fold."""
 from sdp.evaluation import summarize
 
 QUERY = """
@@ -21,7 +13,7 @@ QUERY = """
 
 
 def load(dbt, session):
-    """Register the inputs and return the rows for summarize and the count of folds."""
+    """Register the inputs; return the IC rows for summarize and the number of development folds."""
     session.register("ic_ic", dbt.ref("signal_ic"))
     session.register("ic_sessions", dbt.ref("eval_sessions"))
     session.execute("""

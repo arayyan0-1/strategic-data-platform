@@ -1,6 +1,6 @@
--- Recompute vol_regime for a sample of sessions from the sessions before, with the weight
--- decay^(sessions between) written out. z before the regime is resid_z times vol_regime.
--- The first sessions have no z before them, so their regime is 1.
+{# A returned row is a vol_regime that differs from a recomputation over earlier sessions only (z
+   before the regime is resid_z x vol_regime). The first sessions have no z before them, so their
+   regime is 1. #}
 {% set decay = 0.5 ** (1.0 / var('spec_vol_regime_half_life')) %}
 with sessions as (
 

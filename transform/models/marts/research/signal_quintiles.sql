@@ -1,10 +1,5 @@
-{#
-  Signal shape. Each session, in_universe names are sorted into five groups by
-  the signal, and the forward return is averaged in each group over all
-  sessions. A monotone rise from group 1 to 5 is the signal at work. The group
-  is the panel quintile, so tied values share one group. A signal with many
-  tied values can leave a group empty.
-#}
+{# Mean forward return by panel quintile of each signal. A signal with many tied values can leave
+   a quintile empty. #}
 
 select
     signal,

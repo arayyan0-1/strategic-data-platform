@@ -1,16 +1,12 @@
-# src/sdp/backfill.py
-"""Runner that loops over dates for the backfillable datasets.
+"""Loop over dates for the backfillable datasets, one session at a time.
 
-    python -m sdp.backfill day_aggs 2021-08-01 2026-08-08
-    python -m sdp.backfill tickers 2026-09-01 2026-09-22 --rebuild
+    python -m sdp.backfill day_aggs START END
+    python -m sdp.backfill tickers START END --rebuild
 
-One session at a time, catching each date's exception, so one bad day does not
-stop the rest. There is no retry flag: ingest() skips a published partition, so
-a second run of the same command is the retry. Sequential on purpose.
-
-Two flags publish a date again. --rebuild builds it from its vendor file and
-does not download. --refetch downloads it again and replaces the vendor file,
-so the vendor bytes of the earlier pull are lost.
+Each date's exception is caught, so one bad day does not stop the rest. There is no retry
+flag: ingest() skips a published partition, so a second run of the same command is the
+retry. --rebuild builds a date from its vendor file without downloading. --refetch
+downloads it again and replaces the vendor file, so the earlier vendor bytes are lost.
 """
 from __future__ import annotations
 
@@ -34,9 +30,8 @@ from sdp.ingest.common import XNYS, add_mode_flags, check_mode
 
 log = logging.getLogger("sdp.backfill")
 
-# Only datasets that you can backfill. An event-stream partition holds the facts
-# of one date, so you can rebuild it at any time. Splits and dividends are
-# absent on purpose. See _NOT_BACKFILLABLE.
+# Event streams only: a partition holds the facts of one date. Splits and dividends are
+# absent on purpose (see _NOT_BACKFILLABLE).
 TARGETS: dict[str, Callable[..., Path | None]] = {
     "day_aggs": massive_day_aggs.ingest,
     "tickers": massive_tickers.ingest,
@@ -45,7 +40,7 @@ TARGETS: dict[str, Callable[..., Path | None]] = {
     "ticker_details": massive_ticker_details.ingest,
 }
 
-# A target with a sparser calendar than every session. Ticker details are monthly.
+# Targets with a sparser calendar than every session (ticker details are monthly).
 DATES: dict[str, Callable[[dt.date, dt.date], list[dt.date]]] = {
     "ticker_details": massive_ticker_details.month_end_sessions,
 }
@@ -58,14 +53,13 @@ _NOT_BACKFILLABLE = {
 }
 
 def sessions(start: dt.date, end: dt.date) -> list[dt.date]:
-    """Return the XNYS sessions from start to end. Both limits are inclusive."""
+    """Return the XNYS sessions from start to end, inclusive."""
     if start > end:
         raise SystemExit(f"The start date {start} is after the end date {end}.")
     return [s.date() for s in XNYS.sessions_in_range(start.isoformat(), end.isoformat())]
 
 
 def _run_log(target: str) -> Path:
-    """Return the path of a new run log. Run logs are under data/, which git ignores."""
     stamp = dt.datetime.now().strftime("%Y%m%dT%H%M%S")
     path = settings.data_root / "_logs" / f"backfill_{target}_{stamp}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,9 +77,11 @@ def backfill(
     limit: int | None = None,
     on_session: Callable[[dt.date, str], None] | None = None,
 ) -> list[tuple[dt.date, str]]:
-    """Ingest every XNYS session in the range. Return the list of failures.
-    refetch and rebuild pass to each ingest. on_session(date, status) fires
-    after each session, for a progress meter."""
+    """Ingest every XNYS session in the range and return the failures as (date, message).
+
+    refetch and rebuild pass to each ingest. on_session(date, status) fires after each
+    session, for a progress meter.
+    """
     check_mode(refetch, rebuild)
     if target in _NOT_BACKFILLABLE and target not in TARGETS:
         raise SystemExit(
@@ -126,9 +122,8 @@ def backfill(
             started = time.monotonic()
             try:
                 result = ingest(d, refetch=refetch, rebuild=rebuild)
-                # ingest() returns None for a date that is not a session. The
-                # calendar already removed those dates. None here therefore
-                # means that the module refused the date.
+                # The calendar already removed non-sessions, so None means the module
+                # refused the date.
                 if result is None:
                     skipped += 1
                     record["status"] = "skipped"
@@ -148,7 +143,7 @@ def backfill(
                 log.error("%s %s FAILED %s", target, d, msg)
             record["seconds"] = round(time.monotonic() - started, 2)
             fh.write(json.dumps(record) + "\n")
-            fh.flush()  # A run that stops must still leave a log that you can read.
+            fh.flush()  # A run that stops must still leave a readable log.
             if on_session:
                 on_session(d, record["status"])
 
@@ -164,8 +159,8 @@ def backfill(
     print(f"Run log: {run_log}")
     if failures:
         if refetch or rebuild:
-            # The two modes do not skip a published partition, so a rerun of
-            # the same command processes every date again.
+            # These modes don't skip a published partition, so a rerun of the same
+            # command processes every date again.
             print("\nThese dates failed. To retry them, run the command again with "
                   "each failed date as the range:")
         else:

@@ -1,11 +1,6 @@
-{#
-  Level, slope and curvature of the Treasury curve per session over two years. Each
-  daily move is the daily change of the yields, in bps, on the loadings of
-  market_curve_pca. value is the sum of the moves since the start of the window. z_1d
-  is the move of the day over the standard deviation of the moves of the 252 sessions
-  before. The rows of core.rates hold the yields of the close before the session, as in
-  market_rates.
-#}
+{# Level, slope and curvature of the Treasury curve over two years: daily yield changes (bps) on
+   the market_curve_pca loadings. value is the cumulative move; z_1d is the day's move over the
+   stdev of the 252 sessions before. #}
 
 with changes as (
 

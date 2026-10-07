@@ -1,8 +1,7 @@
 version: 2
 
-# The lake. Each table is Parquet under data/raw, published by Write-Audit-Publish. The
-# identifier is the dataset directory. An event stream reads every partition, and a
-# current-state dataset reads its one file.
+# Parquet under data/raw. The identifier is the dataset directory. Event streams read every
+# partition; current-state datasets read one file.
 sources:
   - name: massive
     description: Market data from Massive (formerly Polygon.io), Stocks Starter tier.

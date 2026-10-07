@@ -1,8 +1,6 @@
--- Each industry return of the style model is the industry less the market, and so is
--- each published Fama-French industry portfolio less the market. The two differ in
--- weights (the square root of cap against cap) and in universe, so the correlation is
--- well below 1, but a wrong mapping of the SIC codes or a shift of one day would drop
--- it to near 0.
+{# A returned row is an industry whose return correlates under 0.4 with the published Fama-French
+   industry less the market, or has under 250 days. The weights and universe differ, so the
+   correlation is well below 1; a wrong SIC map or date shift drops it to near 0. #}
 select a.factor, corr(a.ret, b.ret) as corr, count(*) as n_days
 from {{ ref('factor_returns') }} a
 join {{ ref('factor_returns') }} b

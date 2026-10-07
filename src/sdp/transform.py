@@ -1,16 +1,12 @@
-# src/sdp/transform.py
-"""Run dbt with the paths from config.Settings, so the lake has one definition
-and dbt works from any working directory.
+"""Run dbt with the paths from config.Settings, so it works from any working directory.
 
     python -m sdp.transform build
     python -m sdp.transform test --select int_prices_adjusted
 
-dbt never writes the live warehouse. It writes a private file in a directory
-beside it. When a `build` or `run` exits 0, that file replaces the live file
-and the stamp `last_build.json` records the publish. Every other result deletes
-the private file. A reader of the live file thus does not block dbt, and a
-failed build does not change what the reader sees. One dbt run at a time holds
-a lock.
+dbt never writes the live warehouse. It writes a private file beside it, and a `build` or
+`run` that exits 0 replaces the live file and records the publish in `last_build.json`.
+Any other result deletes the private file, so readers of the live file never block dbt
+and a failed build changes nothing. One dbt run holds the lock at a time.
 """
 from __future__ import annotations
 
@@ -43,8 +39,7 @@ HELP_FLAGS = {"-h", "--help", "--version"}
 
 
 def env(warehouse: Path | None = None) -> dict[str, str]:
-    """The environment for dbt. SDP_WAREHOUSE is the live warehouse unless the
-    caller gives a different file."""
+    """Return the environment for dbt; SDP_WAREHOUSE defaults to the live warehouse."""
     out = os.environ.copy()
     out["SDP_DATA_ROOT"] = str(settings.data_root)
     out["SDP_WAREHOUSE"] = str(warehouse or settings.warehouse_path)
@@ -54,14 +49,15 @@ def env(warehouse: Path | None = None) -> dict[str, str]:
 
 
 def stamp_path() -> Path:
-    """The stamp that each published build writes beside the warehouse. Its
-    mtime is the start of the last full build."""
+    """Return the stamp file each published build writes beside the warehouse.
+
+    Its mtime is the start of the last full build.
+    """
     return settings.warehouse_path.parent / "last_build.json"
 
 
 def last_build() -> dict | None:
-    """The stamp of the last published build, or None when it is absent or not
-    valid."""
+    """Return the stamp of the last published build, or None if absent or invalid."""
     try:
         stamp = json.loads(stamp_path().read_text(encoding="utf-8"))
         dt.datetime.fromisoformat(stamp["published_utc"])
@@ -71,15 +67,15 @@ def last_build() -> dict | None:
 
 
 def _dbt_executable() -> str:
-    """The dbt next to the running interpreter, so a launchd agent or the
-    dashboard finds it without dbt on PATH. Fall back to PATH."""
+    """Return the dbt next to the running interpreter, so a launchd agent finds it without
+    PATH. Fall back to PATH."""
     exe = Path(sys.executable).parent / "dbt"
     return str(exe) if exe.exists() else "dbt"
 
 
 def _is_full(argv: list[str]) -> bool:
-    """True when argv builds the whole project: the command, --vars, and the
-    options in FULL_BUILD_OPTIONS only."""
+    """Return True when argv builds the whole project: the command, --vars and
+    FULL_BUILD_OPTIONS only."""
     rest = iter(argv[1:])
     for a in rest:
         if a == "--vars":
@@ -106,8 +102,10 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _take_lock() -> bool:
-    """Claim the one-run lock. Return False when a live process holds it. The
-    lock directory appears with its pid file in one rename."""
+    """Claim the one-run lock; return False when a live process holds it.
+
+    The lock directory appears with its pid file in one rename.
+    """
     d = _lock_dir()
     d.parent.mkdir(parents=True, exist_ok=True)
     tmp = d.with_name(f"{d.name}.{os.getpid()}")
@@ -135,22 +133,22 @@ def _wal(path: Path) -> Path:
 
 
 def _build_file() -> Path:
-    """The private file of this process. It sits in a directory beside the live
-    file, so os.replace is atomic. It keeps the live file name, because
-    dbt-duckdb names the database after the file."""
+    """Return the private build file of this process.
+
+    It sits in a directory beside the live file so os.replace is atomic, and keeps the
+    live file name because dbt-duckdb names the database after the file.
+    """
     live = settings.warehouse_path
     return live.parent / f"{live.stem}.build-{os.getpid()}" / live.name
 
 
 def _discard(build: Path) -> None:
-    """Delete the build directory with the build file, its WAL and its spill
-    directory."""
+    """Delete the build directory: the build file, its WAL and its spill directory."""
     shutil.rmtree(build.parent, ignore_errors=True)
 
 
 def _remove_orphans() -> None:
-    """Delete what killed runs left. The caller holds the lock, so no other run
-    owns these files."""
+    """Delete what killed runs left. The caller holds the lock."""
     live = settings.warehouse_path
     for p in live.parent.glob(f"{live.stem}.build-*"):
         if p.is_dir():
@@ -160,8 +158,7 @@ def _remove_orphans() -> None:
 
 
 def _clone(src: Path, dst: Path) -> None:
-    """Copy a file. On macOS, `cp -c` makes an APFS clone, which is instant and
-    shares the blocks until one copy changes."""
+    """Copy a file. On macOS, `cp -c` makes an instant APFS clone."""
     if sys.platform == "darwin":
         r = subprocess.run(["cp", "-c", str(src), str(dst)], capture_output=True)
         if r.returncode == 0:
@@ -170,8 +167,7 @@ def _clone(src: Path, dst: Path) -> None:
 
 
 def _start(build: Path, *, empty: bool) -> None:
-    """Prepare the build file. It is empty, or a copy of the live warehouse and
-    its WAL."""
+    """Prepare the build file: empty, or a copy of the live warehouse and its WAL."""
     build.parent.mkdir()
     live = settings.warehouse_path
     if empty or not live.exists():
@@ -184,22 +180,24 @@ def _start(build: Path, *, empty: bool) -> None:
 # ---------- the publish ----------
 
 def _checkpoint(path: Path) -> None:
-    """Write the WAL into the database file, so the file is complete alone."""
+    """Write the WAL into the database file so the file is complete alone."""
     with duckdb.connect(str(path)) as con:
         con.execute("checkpoint")
 
 
 def _publish(build: Path, argv: list[str], full_start: float | None) -> None:
     """Replace the live warehouse with the build file and write the stamp.
-    full_start is the start time of a full build, or None for a partial build."""
+
+    full_start is the start time of a full build, or None for a partial build.
+    """
     if _wal(build).exists():
         _checkpoint(build)
     stamp = stamp_path()
     if full_start is not None:
         fresh = full_start
     else:
-        # A partial build refreshes some models only. Keep the freshness of the
-        # last full build, or none.
+        # A partial build refreshes some models only: keep the freshness of the last
+        # full build, or none.
         fresh = stamp.stat().st_mtime if stamp.exists() else 0.0
 
     live = settings.warehouse_path
@@ -220,8 +218,7 @@ def _publish(build: Path, argv: list[str], full_start: float | None) -> None:
 
 
 def _run(argv: list[str]) -> int:
-    """Run dbt on a private file and publish it on success. The caller holds
-    the lock."""
+    """Run dbt on a private file and publish it on success. The caller holds the lock."""
     command = argv[0]
     asks_help = bool(HELP_FLAGS & set(argv))
     publish = command in PUBLISH_COMMANDS and not asks_help

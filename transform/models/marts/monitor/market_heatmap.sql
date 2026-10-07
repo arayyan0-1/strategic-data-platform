@@ -1,10 +1,5 @@
-{#
-  The 500 largest in-universe names on the last session, for the heat map: the cap, the
-  Fama-French 12 industry, and the total returns over 1, 5 and 21 sessions and the year
-  to date. resid_z is the stock-specific move of the last session in units of the
-  residual volatility of the name. resid_score is its score (market_scores): a score of
-  3 is as rare as a 3 sigma move of a normal distribution.
-#}
+{# The 500 largest in-universe names on the last session for the heat map: cap, FF12 industry,
+   total returns, and the stock-specific move (resid_z, and its market_scores score resid_score). #}
 
 with last_session as (
 

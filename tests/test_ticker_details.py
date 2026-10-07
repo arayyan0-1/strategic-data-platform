@@ -1,5 +1,4 @@
-"""Ticker details: monthly dates, the fetch with its failure limit, and the audit. The
-vendor is a fake. No test uses the network."""
+"""Tests for the ticker details pull against a fake vendor."""
 import datetime as dt
 
 import pytest

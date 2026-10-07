@@ -1,7 +1,4 @@
-{#
-  The ticker reference per date, with the security key. The universe, the security
-  lines and the price adjustment all read it, so the key rule has one definition.
-#}
+{# The ticker reference per date with the security key. The one definition of the key rule. #}
 
 with keyed as (
 
@@ -19,10 +16,9 @@ with keyed as (
 
 select
     *,
-    -- The vendor type is null on some dates of a known name. Take the last known type
-    -- of the security. The fill reads earlier dates only. Two lines of one security can
-    -- have the same date. The shorter ticker goes first, as in int_security_lines, so the
-    -- order of the two does not change between builds.
+    -- The vendor type is null on some dates of a known name, so take the security's last known
+    -- type (earlier dates only). Two lines can share a date: order by the shorter ticker, as in
+    -- int_security_lines, so the fill is the same in every build.
     coalesce(type, last_value(type ignore nulls) over (
         partition by security_key order by date, length(ticker), ticker
         rows between unbounded preceding and current row

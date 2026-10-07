@@ -1,6 +1,6 @@
--- reversal_5, momentum_12_1 and vol_20 on D must use closes up to D and no later.
--- This test recomputes them with joins on the session index of each security, not
--- with lag() or window frames, and compares over the last 60 sessions.
+{# A returned row is a session where reversal_5, momentum_12_1 or vol_20 differs from a
+   recomputation by session index instead of lag() or window frames, which proves no later close
+   is used (last 60 sessions). #}
 with sessions as (
 
     select distinct date

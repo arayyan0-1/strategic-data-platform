@@ -33,7 +33,7 @@ def test_zscore_centered_on_the_cap_gives_the_cap_weighted_market_no_exposure():
 
 
 def _zscore_in_one_piece(x, w, clip=3.0):
-    """The zscore as it was written before the fit and the apply were two functions."""
+    """Reference zscore as one function, to compare bit for bit with fit plus apply."""
     x = np.asarray(x, dtype=float)
     z = np.zeros_like(x)
     ok = np.isfinite(x)
@@ -102,8 +102,8 @@ def test_standardize_apply_uses_the_parameters_of_the_session_of_the_row():
 
 
 def _ragged_panel(seed=20):
-    """Sessions that stress the fit: ties, a flat column, empty and short columns, missing and
-    infinite values, weights that add up to zero, and rows out of order."""
+    """Sessions that stress the fit: ties, a flat column, empty and short columns, NaN and inf,
+    weights that sum to zero, and rows out of order."""
     rng = np.random.default_rng(seed)
     day = np.repeat(np.arange(6), 40)
     n = day.size

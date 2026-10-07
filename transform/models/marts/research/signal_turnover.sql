@@ -1,9 +1,5 @@
-{#
-  The fraction of the top signal quintile replaced each session, averaged over
-  sessions. A strong IC with a high turnover can still be uninvestable, because
-  cost erodes it. Read it beside signal_long_short. The top is the highest
-  panel quintile that has names in the session. Tied values share one bin.
-#}
+{# Fraction of the top signal quintile replaced each session, averaged over sessions. The top is
+   the highest panel quintile that has names. Read beside signal_long_short. #}
 
 with top as (
 
@@ -31,8 +27,7 @@ with top as (
 
 ), daily as (
 
-    -- One fraction per session, so a session with a large tied top bin does not
-    -- get more weight in the average.
+    -- One fraction per session, so a large tied top bin gets no extra weight.
     select signal, date, avg(1.0 - held) as turnover
     from retained
     group by signal, date

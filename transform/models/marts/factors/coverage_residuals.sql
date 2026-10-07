@@ -1,21 +1,6 @@
-{#
-  The return of each coverage name split into the parts of the style and industry model
-  (style_factor_returns) and a residual, as style_residuals does for the universe. Nothing
-  is estimated again: the parts are the exposures of coverage_exposures times the factor
-  returns of the session, and the residual is what they leave. A row is dated on the
-  session of the return.
-
-  spec_vol is the forecast of the volatility of the residual, and resid_z is the residual in
-  units of it. The forecast reads only the sessions before the row:
-  - own_vol is the root mean square of the earlier residuals of the name, from the universe
-    and from the coverage set together, so a name that leaves the universe keeps its
-    history. The weight of a residual halves every spec_vol_half_life rows.
-  - spec_vol is own_vol times the vol_regime of the session, which style_residuals
-    measures on the universe. There is no size-decile shrinkage, because the deciles
-    belong to the universe.
-
-  Both are null until the name has spec_vol_min_obs residuals before the row.
-#}
+{# Style-model parts and residual of each coverage name, as style_residuals does for the
+   universe; nothing is re-estimated. spec_vol is own_vol (earlier residuals from universe and
+   coverage together) times the universe vol_regime, with no size shrinkage. #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',
@@ -56,8 +41,7 @@ with days as (
 
 ), history as (
 
-    -- The residuals of a name from the universe and from the coverage set. A session
-    -- holds a name in one of them only.
+    -- Residuals of a name from the universe and from the coverage set; a session has it in one only.
     select security_key, date, resid, true as is_coverage
     from resid
     union all

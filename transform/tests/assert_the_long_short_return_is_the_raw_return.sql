@@ -1,7 +1,5 @@
--- The long-short return of a session is the raw mean forward return of the top bin less
--- the raw mean of the bottom bin. This test recomputes it from the panel with joins on
--- the extreme bins, not with the windows of the model, and compares over the last 60
--- sessions. A session with no return in the model must have none here, and the reverse.
+{# A returned row is a long-short return that differs from the raw mean of the top bin less the
+   bottom bin, recomputed with joins on the extreme bins (last 60 sessions). #}
 with recent as (
 
     select distinct date

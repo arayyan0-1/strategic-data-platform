@@ -1,17 +1,6 @@
-{#
-  Adjusted prices from two lookups. The vendor factor is cumulative, so the
-  adjustment is one lookup: for a price on D, take the first event strictly after
-  D and multiply. Strictly after, not on, or every split gets one false return.
-  Splits and dividends are independent factors and multiply.
-
-  Each lookup is a join on a span, not an as-of join. A span runs from the previous
-  event of a ticker to the next one, so a price row falls in one span at most. An
-  as-of join sorts every price row, and a join on spans does not.
-
-  The vendor chains a factor inside one ticker only. When a security changes its
-  ticker, the rows of the earlier ticker also take the factor that the later ticker
-  starts from. Without that carry, the series of the security jumps at the change.
-#}
+{# Adjusted prices: a row takes the factor of the first event strictly after its date (on the
+   date, trading is already adjusted). Rows of an earlier ticker also take the factor the later
+   ticker starts from. #}
 
 with recursive bars as (
 
@@ -21,16 +10,15 @@ with recursive bars as (
         open, high, low, close, volume, transactions
     from {{ ref('stg_massive__day_aggs') }}
 
--- Bound events at the last bar. A later event has not happened inside the panel
--- and must not restate it, and a future ex-date has a null factor by construction.
+-- Bound events at the last bar: a future ex-date has a null factor by construction.
 ), panel_end as (
 
     select max(date) as last_bar_date from bars
 
 ), splits as (
 
-    -- A price row on or after the previous event and before this event has this event
-    -- as its next.
+    -- A span join, not an as-of join, so price rows are not sorted. A row on or after the
+    -- previous event and before this event has this event as its next.
     select
         ticker, event_date, factor, is_collapsed,
         coalesce(lag(event_date) over (partition by ticker order by event_date),
@@ -79,8 +67,7 @@ with recursive bars as (
 
     select
         *,
-        -- No later event is a factor of 1.0. A later event with a null factor is
-        -- unknown, not 1.0. Keep the two apart.
+        -- No later event is 1.0. A later event with a null factor is unknown, not 1.0.
         case when next_split_date is null then 1.0 else next_split_factor end
             as own_split_factor,
         case when next_dividend_date is null then 1.0 else next_dividend_factor end
@@ -89,8 +76,7 @@ with recursive bars as (
 
 ), changing as (
 
-    -- Only a security with two tickers can change its ticker. The check reads every
-    -- line, so it can add a security with no change, and that does no harm.
+    -- Only a security with two tickers can change ticker. May include extras; harmless.
     select security_key
     from {{ ref('int_tickers_keyed') }}
     group by security_key
@@ -136,9 +122,8 @@ with recursive bars as (
 
 ), tails as (
 
-    -- The old ticker can trade after its last session in the series, with a CIK key
-    -- or no key when the vendor drops the FIGI. Those bars are still the old
-    -- security. A bar under another FIGI ends the tail.
+    -- The old ticker can trade after its last session in the series, with a CIK key or no
+    -- key when the vendor drops the FIGI. Those bars are still the old security.
     select
         n.ticker,
         n.span_last_date,
@@ -181,9 +166,9 @@ with recursive bars as (
 
 ), change_ends as (
 
-    -- An event of the old ticker after its last bar, up to the first bar of the new
-    -- ticker, is part of the change. The old rows already take it, so the carry starts
-    -- after it, and a copy of the event on the new ticker does not count twice.
+    -- An old-ticker event between its last bar and the new ticker's first bar belongs to the
+    -- change. The old rows already take it, so the carry starts after it, and a copy of the
+    -- event on the new ticker is not counted twice.
     select
         c.ticker,
         c.old_last_date,
@@ -216,8 +201,8 @@ with recursive bars as (
 
 ), steps as (
 
-    -- The old ticker can pass to another security after the change. The vendor chains
-    -- those later events into the factor of the old ticker, so the step divides them out.
+    -- The vendor chains later events of the old ticker (it can pass to another security)
+    -- into its factor, so the step divides them out.
     select
         row_number() over (order by s.ticker, s.old_last_date, s.kind) as id,
         s.*,
@@ -263,7 +248,6 @@ with recursive bars as (
 ), carry_spans as (
 
     -- A row takes the carry of the first change of its ticker on or after its date.
-    -- The span of a change starts on the day after the previous change of the ticker.
     select
         ticker,
         kind,

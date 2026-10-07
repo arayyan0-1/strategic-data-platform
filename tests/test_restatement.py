@@ -1,8 +1,6 @@
-"""Diff between two vendor pulls.
+"""Tests for the keyed diff between two vendor pulls.
 
-The diff reads vendor/, not raw/. It uses the event key, not the vendor id
-(which is not stable across pulls). A key whose rows disagree within one pull
-is ambiguous. It is reported, not counted as a change.
+The diff keys on the event, because the vendor id is not stable across pulls.
 """
 import datetime as dt
 import json
@@ -76,10 +74,9 @@ def test_a_new_event_is_new_and_not_restated(ca_vendor):
 
 
 def test_an_ambiguous_key_is_reported_and_not_counted_as_a_change(ca_vendor):
-    """Two rows share a ticker and a date and they disagree about the factor.
+    """Rows that share a ticker and a date but disagree contradict each other inside one pull.
 
-    That is a contradiction inside one pull. It is not a change between two
-    pulls, and counting it as one would make every pull look like a restatement.
+    Counting that as a change would make every pull look like a restatement.
     """
     ca_vendor(dal.SPLITS, P1, [("a", "AAA", D(2024, 1, 5), 0.5),
                              ("b", "AAA", D(2024, 1, 5), 0.25)])

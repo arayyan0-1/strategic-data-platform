@@ -1,15 +1,6 @@
-{#
-  The daily cross-sectional rank correlation (Spearman IC) between each signal
-  at D and a label over each horizon, over in_universe names. The target return is
-  the forward return. The target residual is the forward residual of the style and
-  industry model: the part of the return that the known factors do not explain. The
-  value and the label get a new rank over the names that have the label. Tied values
-  get the average of the ranks that they occupy.
-
-  Each label has its own query. One query for all six labels sorts 200 million rows
-  at once and needs more memory than the build has. Six sorts of 34 million rows
-  take less than half the time.
-#}
+{# Daily cross-sectional Spearman IC between each signal at D and each label (forward return or
+   forward residual) over each horizon. One query per label: a single query for all six would not
+   fit the build's memory. #}
 {%- set horizons = [1, 5, 21] %}
 {%- set targets = [('return', 'fwd_ret'), ('residual', 'fwd_resid')] %}
 
@@ -23,9 +14,8 @@ with per_label as (
         count(*)               as n_names
     from (
 
-        -- The signal is an integer key, because a window sorts on an integer
-        -- key faster than on text. The average rank is by the same rule as
-        -- signal_panel.
+        -- The signal is an integer key because a window sorts integers faster than text.
+        -- Average ranks follow the rule in signal_panel.
         select
             date, sid,
             (rank() over wv + count(*) over wv) / 2.0 as r_value,

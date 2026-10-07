@@ -1,5 +1,5 @@
--- The normal quantile of the scores gives 1, 2, 3, 4 and 5 at the two-sided tail shares
--- of a normal distribution.
+{# A returned row is a two-sided tail share whose normal quantile is not 1, 2, 3, 4 or 5 within
+   1e-6. #}
 select *
 from (
     select q, z, {{ two_sided_z('q') }} as got

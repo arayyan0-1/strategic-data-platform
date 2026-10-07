@@ -1,24 +1,6 @@
-{#
-  The state of the US stock market from the in-universe common stock, one row per
-  session. Each name is its security series (the primary line), and the moving
-  averages and 52-week extremes use the total-adjusted close over the full series. The
-  series keeps the sessions of every type, so a name that converts from an ADR to
-  ordinary shares keeps its history. in_universe selects common stock on each session.
-
-  - ew_ret is the equal-weighted return, with each return winsorized at the 1st and
-    99th percentile of the session, so one microcap spike does not move the index.
-    cap_ret weights by the market cap of the session before, so the return of a
-    session does not set its own weight. A name with no cap is not in it.
-  - dispersion is the interquartile range of the returns over 1.349, a robust
-    cross-sectional standard deviation.
-  - avg_corr_21 is the variance of ew_ret over 21 sessions over the square of the
-    average single-name volatility, an estimate of the average pairwise correlation.
-  - resid_dispersion is the robust cross-sectional standard deviation of the residuals
-    of the style and industry model: the room for stock picking. median_spread is the
-    median model spread (spreads). style_r2 is the share of the cross-section
-    that the model explains, and absorption the variance share of the first principal
-    component. The _21 columns are their 21-session means.
-#}
+{# US stock market state per session from each name's primary-line series (total-adjusted close,
+   full series, so a type change keeps history); in_universe selects common stock. ew_ret is
+   winsorized at 1%/99%; cap_ret uses the previous session's cap. #}
 
 with s as materialized (
 
@@ -31,10 +13,8 @@ with s as materialized (
 
 ), ma as materialized (
 
-    -- The moving averages read every security, as they always did. The sum of a window
-    -- depends on the place of its rows in the sorted input. When the price equals its
-    -- average (a flat price), the last bits of the sum decide px > ma50, so a change of
-    -- the input changes the share above the average.
+    -- The moving averages read every security, not only `kept`. A window sum depends on where its
+    -- rows sit in the sorted input, and for a flat price the last bits decide px > ma50.
     select
         security_key, date,
         avg(px)   over (partition by security_key order by date
@@ -45,8 +25,8 @@ with s as materialized (
 
 ), kept as (
 
-    -- A security that is never in the universe has no row in the result, and the windows
-    -- of one security read no other security. So the windows below skip such a security.
+    -- A security never in the universe has no row in the result and windows read one security
+    -- only, so the windows below skip it.
     select * from s
     where security_key in (select security_key from {{ ref('int_universe') }} where in_universe)
 

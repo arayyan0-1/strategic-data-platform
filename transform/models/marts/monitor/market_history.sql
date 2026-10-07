@@ -1,7 +1,5 @@
-{#
-  The total-adjusted close of each monitor ETF over the whole history of the lake, for
-  charts and scores. The ETF is the security that holds its ticker on the last session.
-#}
+{# Total-adjusted close of each monitor ETF over the whole history, for charts and scores.
+   The ETF is the security that holds its ticker on the last session. #}
 
 with last_session as (
 

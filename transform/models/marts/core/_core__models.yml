@@ -14,7 +14,7 @@ models:
 
   - name: security_sessions
     description: One row per security and session from its primary line, with prices, adjusted prices
-      and the universe state. The price series for notebooks.
+      and the universe state. The price series for research code.
 
   - name: rates
     description: Rates, credit spreads, volatility and financial conditions from FRED, one row

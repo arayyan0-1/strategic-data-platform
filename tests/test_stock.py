@@ -1,6 +1,4 @@
-"""The views of one stock and a pair (sdp.stock): the search index, the profile, the pair,
-the cache on the build stamp and the routes. The warehouse is a small synthetic file with
-two related stocks, A and B, over 320 sessions. No socket, no network."""
+"""Tests for sdp.stock against a small synthetic warehouse of 320 sessions."""
 import datetime as dt
 import json
 import math

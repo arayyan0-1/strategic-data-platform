@@ -1,12 +1,8 @@
-# src/sdp/ingest/massive_corporate_actions.py
-"""Splits and dividends. One table for each, replaced by every pull.
+"""Splits and dividends: one table per dataset, replaced by every pull.
 
-The endpoints give current state, so raw/ holds one table per dataset with no
-date in the path. vendor/ keeps the pulls by date, and sdp.restatement reads
-them. For dividends, vendor/ keeps one pull per ISO week after 30 days. The flow
-is Write-Audit-Publish: fetch into vendor/, build() into _staging/, audit(),
-os.replace into raw/. The replace is atomic, and a failed audit leaves the
-previous pull in place.
+The endpoints give current state, so raw/ has no date in the path. vendor/ keeps each pull
+by date (dividends are thinned to one per ISO week after 30 days) and sdp.restatement reads
+them. A failed audit leaves the previous table in place.
 """
 from __future__ import annotations
 
@@ -36,7 +32,7 @@ SPECS = {
     },
 }
 
-# A dividend pull is about 42 MB, so ingest() deletes old pulls of these datasets.
+# Datasets whose old vendor pulls ingest() deletes; a dividend pull is large.
 THINNED = ("massive_dividends",)
 
 
@@ -73,8 +69,8 @@ def _published_pull(dataset: str) -> dt.date | None:
 
 
 def _unchanged(dataset: str, pull_date: dt.date) -> bool:
-    """Return True if the vendor file of pull_date built the published table and
-    did not change after the publish."""
+    """Return True if the vendor file of pull_date built the published table and is
+    unchanged since."""
     files = _vendor_files(dataset, pull_date)
     if not files:
         return False
@@ -95,8 +91,10 @@ class AuditFailure(RuntimeError):
 # ---------- BUILD ----------
 
 def build(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
-    """Stage the whole table from one vendor pull. vendor_pull_date is
-    provenance, not a key: it names the vendor file that built the table."""
+    """Stage the whole table from one vendor pull.
+
+    vendor_pull_date is provenance, not a key: it names the vendor file that built the table.
+    """
     staged = settings.staging_dir / dataset / f"{pull_date:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
@@ -149,11 +147,12 @@ def _audit_common(staged: Path, dataset: str) -> int:
 
 
 def _audit_splits(staged: Path, pull_date: dt.date) -> None:
-    """The past and future divide at the pull date, not today. A null factor is
-    fatal only on an event dated before the pull date. The vendor fills the factor
-    of an event on the pull date later that day, so that event is still pending.
-    Comparing against current_date would fail a later rebuild of a pull that
-    passed when live."""
+    """Audit a splits pull, dividing past from future at pull_date, not today.
+
+    A null factor is fatal only on an event before the pull date: the vendor fills the
+    factor of an event on the pull date later that day. Comparing against current_date
+    would fail a later rebuild of a pull that passed when live.
+    """
     (null_past, null_future, zero_f, neg_f, null_date,
      bad_fwd, bad_rev, bad_stk, bad_from, bad_to, extreme) = _one(f"""
         select
@@ -240,8 +239,8 @@ def _audit_dividends(staged: Path, pull_date: dt.date) -> None:
     if fatal:
         raise AuditFailure("dividends: " + ". ".join(fatal) + ".")
 
-    # A null dividend factor is structural, not fatal: computing it needs a
-    # price on the ex-date, and the vendor has none for that security.
+    # A null dividend factor is structural, not fatal: it needs a price on the ex-date and
+    # the vendor has none for that security.
     if null_past:
         log.info("dividends: %s null factors on past ex-dates, on %s tickers. "
                  "The vendor has no price to compute them with.",
@@ -318,9 +317,11 @@ def _publish(dataset: str, vendor_file: Path, pull_date: dt.date) -> Path:
 
 def ingest(dataset: str, pull_date: dt.date | None = None, *,
            force: bool = False) -> Path | None:
-    """Fetch the pull of the day and replace the published table. If the vendor
-    file of that date built the published table and did not change after it, the
-    table and its mtime do not change. Force fetches the pull again and publishes it."""
+    """Fetch the pull of the day and replace the published table.
+
+    If the vendor file of that date built the published table and is unchanged since, the
+    table and its mtime stay as they are. force fetches the pull again and publishes it.
+    """
     pull_date = pull_date or _today()
     spec = SPECS[dataset]
     if not force and _unchanged(dataset, pull_date):
@@ -359,9 +360,11 @@ def vendor_pulls(dataset: str) -> list[tuple[dt.date, Path]]:
 
 
 def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
-    """Build the table again from a vendor pull, with no fetch. The default is
-    the newest pull. Name an older pull to rebuild the table as that pull
-    stated it."""
+    """Build the table again from a vendor pull, with no fetch.
+
+    The default is the newest pull. Name an older pull to rebuild the table as that pull
+    stated it.
+    """
     pulls = vendor_pulls(dataset)
     if not pulls:
         raise FileNotFoundError(
@@ -381,8 +384,8 @@ def rebuild(dataset: str, pull_date: dt.date | None = None) -> Path:
 # ---------- THIN ----------
 
 def pinned_pulls(dataset: str) -> set[dt.date]:
-    """Return the pull dates that thinning must keep, one ISO date per line of
-    pinned.txt in the vendor directory. A line that starts with # is a comment."""
+    """Return the pull dates that thinning must keep: one ISO date per line of pinned.txt
+    in the vendor directory. '#' starts a comment."""
     path = settings.vendor_dir / dataset / "pinned.txt"
     if not path.exists():
         return set()
@@ -396,12 +399,11 @@ def pinned_pulls(dataset: str) -> set[dt.date]:
 
 def thin_vendor_pulls(dataset: str, *, keep_days: int = 30,
                       dry_run: bool = False) -> list[Path]:
-    """Delete old vendor pulls and keep one pull per ISO week. Keep the first pull,
-    each pull in the last keep_days days, the pull of the published table, and each
-    date in pinned.txt beside the pulls.
+    """Delete old vendor pulls, keeping one per ISO week.
 
-    Return the deleted files. With dry_run, return the files to delete and delete
-    nothing.
+    Also keep the first pull, each pull in the last keep_days days, the pull of the
+    published table, and each date in pinned.txt. Return the deleted files; with dry_run,
+    return the files to delete and delete nothing.
     """
     pulls = vendor_pulls(dataset)
     if not pulls:

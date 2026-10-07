@@ -1,20 +1,6 @@
-{#
-  The change of each macro series over each session, one row per session. A fund has
-  exposures to these changes beside its exposures to the style and industry returns
-  (fund_exposures). The change over session D runs from the last FRED observation dated on
-  or before the session before D to the last observation dated on or before D. FRED dates
-  an observation with the day it describes, so the change of the last session needs no
-  later row. A session with no observation (a holiday of one market) keeps the last value
-  and has a change of 0.
-
-  - A yield or a spread changes in percentage points. A currency, the dollar index, oil
-    and bitcoin change in log points. d_curve_10y_2y is d_t_10y less d_t_2y.
-  - A series can end before the last session. The broad dollar and the exchange rates come
-    from a weekly release. A change on a session after the last observation is pending. It
-    is null and not 0, and pending lists the factors in that state.
-  - A change is null before the first observation of its series and on the first session.
-    That is not pending.
-#}
+{# Daily change of each macro series (percentage points for yields and spreads, log points
+   otherwise), for the fund regressions. After a series ends the change is pending: null, not 0,
+   and listed in pending. #}
 
 {% set defs = macro_factors() %}
 {% set ids = defs.values() | map('first') | list %}

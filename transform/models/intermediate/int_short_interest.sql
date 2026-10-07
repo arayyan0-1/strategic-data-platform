@@ -1,10 +1,6 @@
-{#
-  Short interest, with two rules. (1) FINRA publishes a settlement date about
-  eight sessions later, so `effective_date` marks the first session the number
-  was public. Join on it, never on settlement_date. It is null unless the bars
-  cover the settlement date at both ends. (2) days_to_cover is null where the
-  vendor caps it at 999.99 (not a measurement); use days_to_cover_computed.
-#}
+{# Short interest. Join on effective_date (the first session the number was public), never on
+   settlement_date. days_to_cover is null where the vendor caps it at 999.99;
+   days_to_cover_computed is uncensored. #}
 
 with sessions as (
 
@@ -27,8 +23,8 @@ raw as (
 
 ),
 
--- First session after each settlement date. Restricted to settlement dates the
--- bars cover, so the count never starts from the first bar.
+-- First session after each settlement date, for dates the bars cover, so the count never
+-- starts from the first bar.
 first_session_after as (
 
     select
@@ -60,7 +56,7 @@ select
     r.short_interest,
     r.avg_daily_volume,
 
-    -- Null where censored, because the 999.99 cap is not a measurement.
+    -- The 999.99 cap is a censor, not a measurement.
     case when r.days_to_cover < 999.99 then r.days_to_cover end as days_to_cover,
     r.days_to_cover >= 999.99                                   as days_to_cover_is_censored,
 

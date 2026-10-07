@@ -1,8 +1,5 @@
--- A change of ticker must not restart the windows of a security. A security in the
--- universe on the session before a change passes the history and seasoning checks on
--- the session of the change. FB became META on 2022-06-09 and PSTG became P on
--- 2026-04-17. Each stays in the universe, with the count of the day before plus one and
--- an average that has moved by one session only.
+{# A returned row is a ticker change (e.g. FB to META) that restarts the universe windows of its
+   security. #}
 with series as (
     select
         security_key,

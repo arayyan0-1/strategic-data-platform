@@ -1,16 +1,12 @@
-# src/sdp/ingest/french.py
-"""The Fama-French daily factors and the 12 industry portfolios from the Kenneth French
-Data Library.
+"""Fama-French daily factors and 12 industry portfolios from the Kenneth French Data Library.
 
     python -m sdp.ingest.french             # pull when the table is a week old
     python -m sdp.ingest.french --force     # pull now
     python -m sdp.ingest.french --rebuild   # build again from the newest vendor pull
 
-Each file states the whole history, and the library revises it, so the table is
-current state: one file in raw/, replaced by each pull. vendor/ keeps the zip files
-of each pull. The files give daily returns in percent. The table holds fractions. The
-dates of the five-factor file are the rows. The other files join on them.
-The library updates about once a month, so a pull is due only after MAX_AGE_DAYS.
+The table is current state: each file states the whole history and the library revises it.
+Returns arrive in percent and are stored as fractions. The five-factor file sets the rows;
+the other files join on its dates. vendor/ keeps the zip files of each pull.
 """
 from __future__ import annotations
 
@@ -35,9 +31,9 @@ log = logging.getLogger(__name__)
 
 DATASET = dal.FRENCH
 
-# Each file and the columns it gives after the date, in order. The first file sets the
-# rows. The industry file holds value-weighted returns, then equal-weighted returns. The
-# parser reads the first section only.
+# Each file and its columns after the date, in order. The first file sets the rows. The
+# industry file lists value-weighted returns, then equal-weighted; the parser reads the
+# first section only.
 INDUSTRIES = ("nodur", "durbl", "manuf", "enrgy", "chems", "buseq", "telcm", "utils",
               "shops", "hlth", "money", "other")
 FILES = {
@@ -53,8 +49,8 @@ FACTORS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf")
 
 MAX_AGE_DAYS = 7
 MIN_ROWS = 10_000     # The daily five-factor file starts in 1963.
-MAX_ABS = 0.5         # No daily factor return reaches 50 percent.
-STALE_DAYS = 200      # The library lags about two months. A longer lag is unusual.
+MAX_ABS = 0.5         # Sanity bound on a daily factor return (50 percent).
+STALE_DAYS = 200      # The library lags about two months; warn beyond this.
 
 
 def _pull_dir(pull_date: dt.date) -> Path:
@@ -76,7 +72,6 @@ def vendor_pulls() -> list[tuple[dt.date, Path]]:
 
 
 def _download(name: str, attempts: int = 4) -> bytes:
-    """Return the bytes of one library file."""
     return get_public(settings.french_base_url + name, attempts)
 
 
@@ -94,10 +89,11 @@ def fetch(pull_date: dt.date) -> Path:
 
 
 def _parse(data: bytes, cols: tuple[str, ...]) -> tuple[dict[str, list[float]], str | None]:
-    """Return the daily rows of the first section of one zip file by date, as fractions,
-    and the CRSP month that built the file. A row is a line with an 8-digit date and one
-    value per column. A missing value (-99.99 or -999) is NaN. The first line of text
-    after the rows ends the section."""
+    """Return the first section of a zip file as {date: values} in fractions, and its CRSP month.
+
+    A row is a line with an 8-digit date and one value per column; -99.99 and -999 are NaN.
+    The first text line after the rows ends the section.
+    """
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         text = z.read(z.namelist()[0]).decode("latin-1")
     crsp = re.search(r"(\d{6}) CRSP", text)
@@ -148,7 +144,7 @@ def build(pull: Path, pull_date: dt.date) -> Path:
 
 
 def audit(staged: Path, pull_date: dt.date) -> int:
-    """Raise AuditFailure on a table that would give wrong numbers. Return the row count."""
+    """Raise AuditFailure on a table that would give wrong numbers; return the row count."""
     n, dups, nulls, worst, last = one(f"""
         select count(*), count(*) - count(distinct date),
                count(*) filter ({" or ".join(f"{c} is null" for c in FACTORS)}),
@@ -184,9 +180,12 @@ def published_pull() -> dt.date | None:
 
 def ingest(pull_date: dt.date | None = None, *, force: bool = False,
            rebuild: bool = False) -> Path:
-    """Pull the factor files and publish the table. Without force, do nothing while the
-    published table is younger than MAX_AGE_DAYS. rebuild reads the newest vendor pull
-    and does not download."""
+    """Pull the factor files and publish the table.
+
+    Without force, do nothing while the published table is younger than MAX_AGE_DAYS
+    (the library updates about monthly). rebuild reads the newest vendor pull without
+    downloading.
+    """
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
     last = published_pull()
     if not (force or rebuild) and last and (pull_date - last).days < MAX_AGE_DAYS:

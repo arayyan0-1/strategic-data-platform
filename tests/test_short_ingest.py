@@ -1,9 +1,4 @@
-"""Audits and ingest modes of the two FINRA short datasets.
-
-The vendor caps days_to_cover at 999.99. A row at the cap means "at or above
-999.99", and the cause is not always a zero avg_daily_volume. The cap is not a
-measurement, so the audit warns on it and does not fail.
-"""
+"""Tests for the audits and ingest modes of the two FINRA short datasets."""
 import datetime as dt
 import gzip
 import json
@@ -86,11 +81,7 @@ class TestShortInterest:
 
     def test_a_settlement_date_that_is_not_the_partition_is_fatal(
             self, staged_parquet):
-        """The request named one settlement date.
-
-        A different date in the answer puts those rows in the wrong partition,
-        and a study then reads a number that belongs to another fortnight.
-        """
+        """The request named one settlement date; other dates would land in the wrong partition."""
         rows = _many_interest(4000)
         rows.append(_i("WRONG", day=D(2025, 3, 14)))
         p = staged_parquet("si", _interest_rows(rows))
@@ -100,7 +91,7 @@ class TestShortInterest:
     @pytest.mark.parametrize("adv", [0, 5])
     def test_the_days_to_cover_cap_warns_and_does_not_fail(
             self, staged_parquet, caplog, adv):
-        """The cap also occurs on a row with a non-zero avg_daily_volume."""
+        """999.99 means "at or above", and it also occurs with a non-zero avg_daily_volume."""
         rows = _many_interest(4000)
         rows.append(_i("ILLIQ", si=13823, adv=adv, dtc=999.99))
         p = staged_parquet("si", _interest_rows(rows))
@@ -119,7 +110,7 @@ class TestShortInterest:
 
 class TestCoverageFloor:
     def test_short_volume_before_the_floor_publishes_nothing(self, tmp_data_root):
-        """The endpoint has nothing before 2024-02-06, and that is not a failure."""
+        """The endpoint has nothing before 2024-02-06; that is not a failure."""
         assert ms.ingest_short_volume(D(2023, 6, 15)) is None
 
     def test_short_interest_before_the_floor_publishes_nothing(self, tmp_data_root):
@@ -161,7 +152,6 @@ class TestBuild:
 
 
 def _volume_vendor(n=4000):
-    """Write a vendor NDJSON file that passes the short volume audit."""
     path = settings.vendor_dir / ms.SHORT_VOLUME / f"{DAY:%Y-%m-%d}.ndjson.gz"
     path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(path, "wt", encoding="utf-8") as fh:
@@ -176,7 +166,7 @@ def _volume_vendor(n=4000):
 
 @pytest.fixture
 def offline(monkeypatch):
-    """Make every download fail, so a test proves that a rebuild uses vendor/ only."""
+    """Make every download fail, to prove that a rebuild reads vendor/ only."""
 
     def fail(*args, **kwargs):
         raise AssertionError("a rebuild must not download")

@@ -1,15 +1,6 @@
-"""Audit invariants.
+"""Audit invariants: each test writes a small Parquet file with a known defect.
 
-Each test writes a small Parquet file with a known defect and checks the result.
-Two checks to note:
-
-- split_from <= 0 is separate because DuckDB returns NULL for division by zero,
-  and NULL > 10000 is NULL, so the ratio check alone passes silently.
-- A null adjustment factor is fatal for splits but not for dividends (the vendor
-  had no price for the ex-date).
-
-Audits divide past from future at the pull date, not at today, so rebuild() can
-replay old pulls.
+Audits divide past from future at the pull date, not at today, so rebuild() can replay old pulls.
 """
 import datetime as dt
 
@@ -89,7 +80,7 @@ class TestSplitAudit:
             ca._audit_splits(splits([split_row(execution_date=None)]), PULL)
 
     def test_a_null_factor_on_an_executed_split_is_fatal(self, splits):
-        """The split factor is mechanical. A null means that something broke."""
+        """The split factor is mechanical, so a null means something broke."""
         with pytest.raises(ca.AuditFailure, match="null factors"):
             ca._audit_splits(splits([split_row(factor=None)]), PULL)
 
@@ -121,11 +112,11 @@ class TestSplitAudit:
             ca._audit_splits(splits([row]), PULL)
 
     def test_an_extreme_ratio_warns_and_does_not_raise(self, splits):
-        """NPWZ and DAVL are real rows."""
+        """Absurd ratios exist in the vendor data."""
         ca._audit_splits(splits([split_row(split_from=1.0, split_to=2_000_000.0)]), PULL)
 
     def test_a_zero_factor_warns_and_does_not_raise(self, splits):
-        """RYCEF: a Rolls-Royce ADR with factor 0.0."""
+        """A zero factor can be correct."""
         ca._audit_splits(splits([split_row(factor=0.0)]), PULL)
 
 
@@ -134,11 +125,7 @@ class TestDividendAudit:
         ca._audit_dividends(dividends([dividend_row()]), PULL)
 
     def test_a_null_factor_on_a_past_ex_date_is_not_fatal(self, dividends):
-        """The opposite of the split rule, and deliberate.
-
-        The dividend factor needs a price on the ex-date. A null therefore means
-        that the vendor has no price for that security. That is structural.
-        """
+        """Opposite of the split rule, on purpose: the factor needs a price on the ex-date."""
         ca._audit_dividends(dividends([dividend_row(factor=None)]), PULL)
 
     def test_a_null_cash_amount_is_fatal(self, dividends):
@@ -182,10 +169,9 @@ class TestCommonAudit:
 
 
 class TestDeltaAudit:
-    """Delta check: compares against the previously published table."""
+    """Compare against the previously published table."""
 
     def _publish_prior(self, tmp_data_root, rows):
-        """Put a table in raw/. The delta audit compares against it."""
         dest = ca.raw_path("massive_splits")
         dest.parent.mkdir(parents=True, exist_ok=True)
         return _write(dest, SPLITS_DDL, rows)
@@ -211,7 +197,6 @@ class TestDeltaAudit:
                               len(bad) + 1)
 
     def test_a_ticker_that_was_already_defective_is_not_new(self, tmp_data_root, splits):
-        """A known-bad ticker does not count as a new defect."""
         known_bad = [split_row(id=f"s{i}", ticker=f"BAD{i}", factor=0.0)
                      for i in range(10)]
         self._publish_prior(tmp_data_root, known_bad)
@@ -293,7 +278,7 @@ class TestTickersAudit:
             tick.audit(_write_tickers(tmp_path / "t.parquet", n_cs=10), PULL)
 
     def test_an_inactive_row_is_fatal(self, tmp_path):
-        """Ingest requests active=true. An inactive row means a wrong request."""
+        """Ingest requests active=true, so an inactive row means a wrong request."""
         extra = "union all select 'DEAD', 'CS', 'XNYS', 'BBGDEAD', false"
         with pytest.raises(tick.AuditFailure, match="active=true"):
             tick.audit(_write_tickers(tmp_path / "t.parquet", extra=extra), PULL)
@@ -305,11 +290,7 @@ class TestTickersAudit:
 
 
 class TestTickersDeltaAudit:
-    """The universe size must stay stable against the newest earlier partition.
-
-    The limit is max(200, 5 percent of the earlier count), so it is 300 rows
-    against a baseline of 6000.
-    """
+    """Universe size against the newest earlier partition. Limit max(200, 5%): 300 of 6000."""
 
     EARLIER, LATER = dt.date(2024, 1, 2), dt.date(2024, 1, 4)
 

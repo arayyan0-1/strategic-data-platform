@@ -1,8 +1,8 @@
 """Measure what changed between two vendor pulls of a corporate action dataset.
-raw/ holds one table per dataset, replaced by each pull, so it keeps no history.
-vendor/ does, and this module reads that archive, not raw/. Diff on the event
-key, never the vendor id, which is not stable across pulls. A key whose rows
-disagree within a pull is ambiguous. It is reported, not counted as a change.
+
+raw/ keeps no history; vendor/ does, and this module reads that archive. It diffs on the
+event key, never the vendor id, which is not stable across pulls. A key whose rows
+disagree within a pull is ambiguous: it is reported, not counted as a change.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class Diff:
 
 
 def _pull_dates(ds: dal.Dataset) -> list[dt.date]:
-    """Return the dates of the vendor pulls that are kept for this dataset."""
+    """Return the dates of the vendor pulls kept for this dataset."""
     pulls = [d for d, _ in ca.vendor_pulls(ds.name)]
     if len(pulls) < 2:
         raise FileNotFoundError(
@@ -75,13 +75,13 @@ def _key(ds: dal.Dataset) -> str:
 
 
 def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
-    """Load one vendor pull into a temp table under the given name. The queries
-    read each pull more than once, so the file is parsed one time only."""
+    """Load one vendor pull into a temp table. The queries read each pull more than once,
+    so the file is parsed once."""
     path = dict(ca.vendor_pulls(ds.name)).get(pull)
     if path is None:
         raise FileNotFoundError(f"{ds.name} has no vendor file for the pull date {pull}.")
-    # DuckDB reads gzip NDJSON directly. The cast is defensive: an all-null
-    # factor column infers a non-arithmetic type and would fail the comparison.
+    # DuckDB reads gzip NDJSON directly. Cast because an all-null factor column infers a
+    # non-arithmetic type and would fail the comparison.
     con.execute(
         f"create or replace temp table {name} as select * replace ("
         f"cast(historical_adjustment_factor as double) "
@@ -90,9 +90,11 @@ def _register(con, name: str, ds: dal.Dataset, pull: dt.date) -> None:
 
 
 def _keyed(table: str, key: str, window: tuple[dt.date, dt.date] | None = None) -> str:
-    """Return SQL with one row for each event key of a loaded pull: ticker, ev,
-    agree and f. agree is true when the rows of the key state one factor, or all have
-    no factor. A window keeps only the event dates in that closed range."""
+    """Return SQL with one row per event key of a loaded pull: ticker, ev, agree and f.
+
+    agree is true when the rows of the key state one factor, or all have none. A window
+    keeps only the event dates in that closed range.
+    """
     where = ""
     if window is not None:
         start, end = window
@@ -123,8 +125,7 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
     try:
         _register(con, "_ca_older", ds, older)
         _register(con, "_ca_newer", ds, newer)
-        # An anti join does not match a null, and one null cannot hide the other
-        # rows as it does with NOT IN.
+        # Anti join, not NOT IN: one null would hide every other row.
         row = con.execute(f"""
             with {keyed}
             select
@@ -169,9 +170,11 @@ def diff(ds: dal.Dataset, older: dt.date | None = None,
 
 def drift(ds: dal.Dataset, start: dt.date, end: dt.date, *,
           older: dt.date | None = None, newer: dt.date | None = None) -> str:
-    """Vendor drift between two pulls, over a date window. The default pulls are
-    the oldest and the newest. A study names the pull it used as older. Reads the
-    vendor archive."""
+    """Return a report of vendor drift between two pulls over a window of event dates.
+
+    The defaults are the oldest and the newest pull. A study names the pull it used as
+    older. Reads the vendor archive.
+    """
     key = _key(ds)
     parts = _pull_dates(ds)
     older = older or parts[0]

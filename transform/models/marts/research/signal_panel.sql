@@ -1,16 +1,10 @@
-{#
-  The signal panel in long form. One row per in_universe name, session and
-  signal with a value, and the labels of that name: the forward returns and the
-  forward residuals. The marts that evaluate a signal read this panel. avg_rank is
-  the rank of the value in its session and signal. Tied values get the average of
-  the ranks that they occupy. quintile comes from avg_rank, so tied values share
-  one bin and a rebuild gives the same bins.
-#}
+{# Long-form signal panel: one row per in-universe name, session and signal with a value, plus
+   the forward labels. avg_rank is the tie-averaged rank in the session and signal; quintile
+   comes from it. #}
 
 with sig as (
 
-    -- The labels join before the unpivot, when there is one row for each name and
-    -- session.
+    -- Labels join before the unpivot, while there is one row per name and session.
     select date, security_key, ticker, signal, value, fwd_ret_1, fwd_ret_5, fwd_ret_21,
            fwd_resid_1, fwd_resid_5, fwd_resid_21
     from (
@@ -31,9 +25,8 @@ with sig as (
 
 ), ranked as (
 
-    -- rank() is 1 more than the count of lower values. count(*) over w is the
-    -- count of values at or below this value. Their mean is the average rank.
-    -- Both windows sort on the same keys, so they share one sort.
+    -- rank() is 1 + the count of lower values and count(*) over w the count at or below this
+    -- value; their mean is the average rank. Both windows share one sort.
     select
         *,
         count(*) over (

@@ -447,14 +447,9 @@ function spark(vals, w = 72, h = 18) {
     stroke-width="1.2" points="${pts.join(" ")}"/></svg>`;
 }
 
-// What the reader changes on a line chart (the lines hidden and the range), by the id of the
-// chart. It lasts while the page is open.
+// Per-chart state (hidden lines, range) by element id.
 const CHART_STATE = {};
-// A chart is drawn at the width of its element, so one unit of the drawing is one CSS pixel and
-// the text keeps its size. The chart is drawn again, after a short wait, when its element changes
-// width by 2 px or more. There is one observer for each element, and it ends when the element
-// leaves the page. A hidden element has no width: the chart takes its design width, and the
-// observer draws it again when the element shows.
+// Draw at the element's width so one SVG unit is one CSS pixel; redraw on resize.
 const CHART_WATCH = new WeakMap();
 function chartWidth(el, fallback) {
   const w = Math.round(el.clientWidth);
@@ -480,7 +475,7 @@ function watchWidth(el, redraw) {
 const DAY = 864e5;
 const RANGES = [["1M", 30], ["3M", 91], ["6M", 182], ["1Y", 365], ["2Y", 730]];
 const ext = a => a.reduce(([lo, hi], v) => [Math.min(lo, v), Math.max(hi, v)], [Infinity, -Infinity]);
-// The last point at or before t (the last point when t is null). The points are in date order.
+// Last point at or before t (the last point when t is null); pts are in date order.
 function pointAt(pts, t) {
   if (t === null) return pts[pts.length - 1] || null;
   let lo = 0, hi = pts.length - 1, r = -1;
@@ -488,14 +483,10 @@ function pointAt(pts, t) {
   return r < 0 ? null : pts[r];
 }
 
-// A line chart with a shared time axis, grid, labels and a hover readout. o.hlines draws
-// dashed lines at fixed values. A click on a legend entry hides or shows its line. A switch
-// above the chart picks the range, from the ones that the data covers (o.range = false turns
-// it off). The y range fits the lines that show, over the range. o.periodEnds draws a faint
-// line at the last weekday of each month and a stronger one at each quarter end. o.bars =
-// {name, points: [[date, value, colour]], height, fmt} draws bars under the lines on the same time
-// axis, from 0 to the largest value in the range. o.height and the bar height are for a drawing
-// o.width wide (640). The drawing is as wide as the element, and its height keeps the same ratio.
+// Line chart on a shared time axis with a hover readout, legend toggles and a range switch.
+// Options: width/height (design size, scaled to the element), fmt, hlines (dashed levels),
+// range (false hides the switch), periodEnds (month/quarter-end marks),
+// bars {name, points: [[date, value, colour]], height, fmt} drawn under the lines.
 function lineChart(el, series, o = {}) {
   const W0 = o.width || 640, W = chartWidth(el, W0), k = W / W0, L = 52, R = 10, T = 8, B = 20;
   const fb = (o.bars && o.bars.fmt) || big;
@@ -510,17 +501,17 @@ function lineChart(el, series, o = {}) {
   watchWidth(el, () => lineChart(el, series, o));
   const [xmin, x1] = ext([...all, ...bpts].map(p => p[0]));
   const f = o.fmt || (v => v.toFixed(2));
-  // A range shows when it is shorter than the data and holds 5 points of the longest line.
+  // Offer a range only if it is shorter than the data and holds 5 points of the longest line.
   const avail = o.range === false ? [] : RANGES.filter(([, d]) => d < (x1 - xmin) / DAY * 0.97
     && Math.max(...S.map(x => x.ok.filter(p => p[0] >= x1 - d * DAY).length)) >= 5);
-  // The switch takes 16 px of height. The plot loses the same height, so a chart keeps its size on the page.
+  // The range switch takes 16 px; the plot gives up as much so the chart keeps its size.
   const H = Math.round((o.height || 220) * k) - (avail.length ? 16 : 0);
-  // Pb is the bottom of the plot. The bars sit under it, and the date labels go under the bars.
+  // Pb is the plot bottom; bars sit below it and the date labels below the bars.
   const BH = o.bars ? Math.round((o.bars.height || 56) * k) : 0, Pb = H - (BH ? 6 : B), yb0 = Pb + 12, yb1 = yb0 + BH;
   const VH = BH ? yb1 + B : H;
   const draw = () => {
     const cur = avail.find(r => r[0] === st.range), x0 = cur ? x1 - cur[1] * DAY : xmin;
-    // The points of a line at or after x0, with its value at x0 first.
+    // Points at or after x0, starting with the interpolated value at x0.
     const clip = x => {
       const out = []; let prev = null;
       for (const p of x.pts) {
@@ -586,7 +577,6 @@ function lineChart(el, series, o = {}) {
     }).join("");
     const rng = avail.length ? `<div class="rng">${[...avail.map(r => r[0]), "All"].map(k =>
       `<button data-r="${k}" class="${(cur ? cur[0] : "All") === k ? "on" : ""}">${k}</button>`).join("")}</div>` : "";
-    // One dot for each line that shows, on the point that the readout gives.
     const dots = shown.map(x => `<circle class="dt" r="3" fill="${x.c}" stroke="#0b0e14" stroke-width="1"
       visibility="hidden"/>`).join("");
     const ybot = BH ? yb1 : Pb;
@@ -609,7 +599,7 @@ function lineChart(el, series, o = {}) {
       if (!sp || S.length < 2) return;
       const n = S[+sp.dataset.i].s.name, k = st.hidden.indexOf(n);
       if (k >= 0) st.hidden.splice(k, 1);
-      else if (shown.length > 1) st.hidden.push(n);  // The last line that shows stays.
+      else if (shown.length > 1) st.hidden.push(n);  // The last visible line can't be hidden.
       draw();
     };
     svg.addEventListener("mousemove", e => {
@@ -631,8 +621,7 @@ function lineChart(el, series, o = {}) {
   draw();
 }
 
-// A chart on a numeric or categorical x axis. Each series is {name, pts: [[x, y, title]]}.
-// o.xticks is [[x, label]], o.log draws y on a log scale, o.xlog x on a log scale.
+// Chart on a numeric x axis. Series are {name, pts: [[x, y, title]]}; options xticks, log, xlog.
 function xyChart(el, series, o = {}) {
   const W = chartWidth(el, 640), H = Math.round((o.height || 240) * W / 640), L = 48, R = 14, T = 10, B = 24;
   const all = series.flatMap(s => s.pts.filter(p => !nil(p[1]) && (!o.log || p[1] > 0)));
@@ -657,7 +646,7 @@ function xyChart(el, series, o = {}) {
   for (const h of o.hlines || []) g += `<line x1="${L}" x2="${W - R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#56606b" stroke-dasharray="4 3"/>`;
   for (const v of o.vlines || []) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}" stroke="#56606b" stroke-dasharray="4 3"/>`;
   for (const [x, t] of o.xticks || []) {
-    // A label that would leave the chart is anchored at its edge. A character is about 6 px wide.
+    // Anchor a label at the chart edge if it would overflow (a character is about 6 px wide).
     const w = String(t).length * 6.2, px = X(x);
     const a = px - w / 2 < 2 ? "start" : px + w / 2 > W - 2 ? "end" : "middle";
     g += `<line x1="${px}" x2="${px}" y1="${T}" y2="${H - B}" stroke="#151b24"/>
@@ -697,7 +686,7 @@ const rebase = (dates, vals) => {
   return dates.map((d, i) => [d, nil(vals[i]) || !b ? null : vals[i] / b - 1]);
 };
 
-// A background whose strength grows with the size of the move in σ, full at 3σ.
+// Background alpha grows with |z|, full at 3σ.
 function zbg(z) {
   if (nil(z)) return "transparent";
   const a = Math.min(Math.abs(z) / 3, 1) * 0.55;
@@ -714,7 +703,7 @@ function pbar(p, stress) {
   return `<span class="pbar"><i style="left:${(p * 100).toFixed(0)}%;background:${c}"></i></span>
     <span class="dim">p${(p * 100).toFixed(0)}</span>`;
 }
-// A diverging colour for a value against a limit: red below 0, green above.
+// Diverging colour for v against lim: red below 0, green above.
 function divColor(v, lim) {
   if (nil(v)) return "#1b222c";
   const t = Math.max(-1, Math.min(1, v / lim)), a = Math.abs(t);
@@ -729,8 +718,7 @@ const INDUSTRY = {nodur: "Consumer nondurables", durbl: "Consumer durables", man
   shops: "Shops", hlth: "Health care", money: "Finance", other: "Other", unknown: "No industry yet"};
 
 // ---------------------------------------------------------------- the size of the text
-// The page scales in steps with the CSS property zoom. Under 1360 CSS pixels of width the page
-// takes its narrow layout, so a larger size gives the layout that a narrower window gives.
+// Text size is the CSS zoom of body; under 1360 CSS px of width the narrow layout applies.
 const ZOOMS = [0.85, 0.92, 1, 1.1, 1.2, 1.35];
 let ZOOM = ZOOMS.includes(store.get("sdp.zoom", 1)) ? store.get("sdp.zoom", 1) : 1;
 function applyZoom() {
@@ -801,15 +789,13 @@ function layoutControls() {
   applyZoom();
   $("src-btn").onclick = () => $("srcbox").classList.toggle("open");
   $("links-flag").onclick = () => $("srcbox").classList.toggle("open");
-  // A click outside a menu closes it.
   document.addEventListener("click", e => {
     if (!e.target.closest(".menu, #layout-btn, #nav-btn")) { $("nav-menu").hidden = true; $("layout-menu").hidden = true; }
     if (!e.target.closest("#srcbox, #links-flag")) $("srcbox").classList.remove("open");
   });
 }
 // ---------------------------------------------------------------- copy a table
-// A button in the header of each panel with a table copies the table as CSV: the header row and the
-// rows that show. When the browser refuses the clipboard, the button selects the text of the table.
+// The csv button copies the visible rows; if the clipboard is refused it selects the table text.
 const csvField = t => /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 function tableCsv(table) {
   const rows = [];
@@ -825,7 +811,7 @@ function tableCsv(table) {
     if (row.some(Boolean)) rows.push(row);
   });
   const width = Math.max(0, ...rows.map(r => r.length));
-  // A column with no text under the header (a sparkline) is left out.
+  // Drop columns with no text under the header (sparklines).
   const keep = [...Array(width).keys()].filter(i => rows.slice(1).some(r => r[i]));
   return rows.map(r => keep.map(i => csvField(r[i] ?? "")).join(",")).join("\n");
 }
@@ -854,7 +840,7 @@ function addCsvButtons(root) {
     h.querySelector(".csvbtn").onclick = () => copyTables(panel, h.querySelector(".csvbtn"));
   });
 }
-// The sections draw their tables again on a click, so the buttons come back after each drawing.
+// Sections redraw their tables on click, so re-add the buttons after each draw.
 function watchCsvButtons() {
   let queued = false;
   const run = () => { queued = false; addCsvButtons(document.querySelector("main")); addCsvButtons($("ov-body")); };
@@ -879,8 +865,7 @@ async function loadIndex() {
   if (INDEX) return;
   try { INDEX = (await getJSON("/market/search.json")).rows; } catch { INDEX = []; }
 }
-// Rank: an exact ticker or a pair, then what starts with the query, then (from three
-// characters) what contains it. Tickers come most traded first.
+// Rank: exact ticker or pair, then prefix matches, then substring matches (3+ characters).
 function suggest(q) {
   const s = q.trim(), u = s.toUpperCase(), lo = s.toLowerCase(), out = [];
   if (!s) return out;
@@ -960,8 +945,7 @@ function setupCommand() {
     }
   });
 }
-// j and k: scroll to the next or the previous section that shows. A section is at the top when its
-// top edge sits under the header. When the page is inside a section, k first goes to its top.
+// j/k: step to the next or previous visible section; k first returns to the top of the current one.
 function stepSection(dir) {
   const secs = [...document.querySelectorAll("main > section")].filter(s => !s.hidden);
   const edge = (parseFloat(getComputedStyle(secs[0] || document.body).scrollMarginTop) || 0) * ZOOM, tol = 4;
@@ -975,8 +959,7 @@ function stepSection(dir) {
 
 // ---------------------------------------------------------------- the header
 const isCount = s => s.pending !== null && s.pending !== undefined;
-// The state of a source: fresh, late (past its limit) or stale (past 1.5 times its limit).
-// A source with no date counts as late.
+// fresh, late (past its limit) or stale (past 1.5x its limit); a source with no date is late.
 function sourceState(s, today) {
   if (!s.last_date) return {state: "late", age: null};
   const age = Math.round((today - new Date(s.last_date)) / 864e5);
@@ -1026,7 +1009,7 @@ function exceptions() {
   if (more) more.onclick = ev => { ev.preventDefault(); ALL_EXC = !ALL_EXC; exceptions(); };
 }
 
-// The three largest day scores of the cross-asset board that stay under the limit of an exception.
+// The three largest 1D scores on the board that stay below the exception limit.
 const Z_LIMIT = 3;
 function largestMoves() {
   const rows = (DATA.board ? DATA.board.rows : []).filter(r => !nil(r.z_1d) && Math.abs(r.z_1d) < Z_LIMIT)
@@ -1043,8 +1026,7 @@ function largestMoves() {
   });
 }
 
-// The saved portfolio of the browser, as a tile. The browser sends its lines once for each saved
-// version of the portfolio, and the server keeps no copy.
+// Saved-portfolio tile. The lines are posted once per saved version; the server keeps no copy.
 const PF = {key: null, R: null, error: null, busy: false};
 function savedPortfolio() {
   const saved = store.get("sdp.portfolios", {}), names = Object.keys(saved).sort();
@@ -1089,7 +1071,6 @@ function overview() {
       <div class="k">${tk(t)} · ${esc(r.label)}</div><div class="v">${pct(r.ret_1d, 2)}</div>
       <div class="s">${sig(r.z_1d)} · ${num(r.close)} · ytd ${pct(r.ret_ytd)}</div></div>`);
   }
-  // The measured rates, spreads and volatility, from FRED.
   const q = Object.fromEntries((DATA.rates ? DATA.rates.rows : []).map(r => [r.measure, r]));
   for (const k of ["t_10y", "t_2y", "curve_10y_2y", "real_10y", "hy_oas", "sofr_iorb", "vix", "dollar", "eurusd", "gbpusd"]) {
     const r = q[k]; if (!r) continue;
@@ -1103,8 +1084,7 @@ function overview() {
   if (pf) pf.onclick = () => { location.hash = "portfolio"; };
   fitTiles();
 }
-// The tiles take whole rows: pick the count of columns that leaves the fewest empty cells in the
-// last row, and let the tiles of the last row share its width.
+// Pick the column count that leaves the fewest empty cells; last-row tiles share its width.
 function fitTiles() {
   const box = $("tiles"), tiles = [...box.children], n = tiles.length, gap = 8, minW = 132;
   if (!n || !box.clientWidth) return;
@@ -1154,7 +1134,7 @@ function attribution() {
     N.filter(r => r.side === "down").slice(0, 8).map(row).join("");
 }
 
-// A squarified treemap: each item gets x, y, w, h in the box, with an area in proportion to v.
+// Squarified treemap: lay items out in the box with area proportional to v.
 function squarify(items, x, y, w, h) {
   const out = [], total = items.reduce((s, a) => s + a.v, 0);
   if (!total || w <= 0 || h <= 0) return out;
@@ -1213,22 +1193,19 @@ function heatmap() {
   $("heatmap").querySelectorAll("rect.n").forEach(r => r.onclick = () => { location.hash = `stock/${r.dataset.t}`; });
 }
 
-// The groups of a table that the reader has opened. A folded group shows its headline rows,
-// the rows that moved by 2σ or more, and the rows that are selected.
+// Opened table groups. A folded group keeps headline rows, rows at 2σ or more, and selected rows.
 const OPEN = new Set(store.get("sdp.open", []));
 const HEAD_N = 3, FOLD_Z = 2;
 function toggleOpen(key) {
   if (!OPEN.delete(key)) OPEN.add(key);
   store.set("sdp.open", [...OPEN]);
 }
-// The link in a group header: it opens the group, or folds it again.
 const foldLink = (key, folded) => folded ? `<a class="gtog" data-open="${esc(key)}">${OPEN.has(key)
   ? "show fewer" : `${folded} more · show all`}</a>` : "";
 function foldClicks(table, redraw) {
   table.querySelectorAll("a.gtog").forEach(a => a.onclick = e => { e.preventDefault(); toggleOpen(a.dataset.open); redraw(); });
 }
 
-// A list of table rows shows its first rows, and a last row holds the link that shows the rest.
 const LIST_N = 5;
 function foldList(key, rows, cols, n = LIST_N) {
   const rest = rows.length - n;
@@ -1285,8 +1262,7 @@ function relations() {
       <td>${r.kind === "corr" ? num(r.value) : ""} ${pbar(r.pctile)}</td><td>${spark(r.series, 72, 18)}</td></tr>`).join("");
 }
 
-// The level and a change of a FRED measure. pct: percent, with changes in bp. usd_b: billions
-// of dollars. fx and price: the change is a log return, shown in percent.
+// Units: pct levels change in bp, usd_b is billions, fx and price change as log returns shown in %.
 const UNIT_SUFFIX = {pct: " bp", usd_b: " bn", fx: "%", price: "%"};
 function rlevel(r, v) {
   if (nil(v)) return "–";
@@ -1305,15 +1281,14 @@ function rchg(r, v) {
     : (x > 0) === (r.stress === "high") ? "down" : "up";
   return `<span class="${cls}">${x > 0 ? "+" : ""}${x.toFixed(d)}</span>`;
 }
-// The colour of a move: red toward stress, whichever way the measure moves.
+// Flip the sign for stress-high measures so red always points toward stress.
 const rz = r => nil(r.z_1d) ? null : r.stress === "high" ? -r.z_1d : r.z_1d;
 
-// The yield curve: maturity on a log axis, one line per date. Each line is [[months, yield, label]].
+// Curve points are [[months, yield, label]]; maturity is drawn on a log axis.
 const TENORS = [[1, "1M"], [3, "3M"], [6, "6M"], [12, "1Y"], [24, "2Y"], [36, "3Y"], [60, "5Y"], [84, "7Y"],
                 [120, "10Y"], [240, "20Y"], [360, "30Y"]];
 const tenor = m => m < 12 ? m + "M" : m / 12 + "Y";
 
-// Three tables of FRED measures, each with its groups, its selection and its chart.
 const PANELS = [
   {section: "rates", table: "rates-table", chart: "rates-chart", sel: ["t_10y", "t_2y", "t_3m"], height: 170,
    groups: ["Nominal curve", "Curve", "Real yields and inflation", "Credit", "Volatility", "Conditions"],
@@ -1512,10 +1487,9 @@ function factorModel() {
   lineChart($("style-chart"), F.curves.filter(c => c.family === "style" && c.factor !== "market")
     .map(c => ({name: LABEL("style", c.factor), points: c.dates.map((d, i) => [d, c.levels[i]])})),
     {height: 330, zero: true, fmt: v => (v * 100).toFixed(0) + "%"});
-  // The one-month return of an industry against the market, sorted, with a bar in its cell.
   const ind = F.risk.filter(r => r.family === "industry").sort((a, b) => (b.ret_1m ?? -9) - (a.ret_1m ?? -9));
   const top = Math.max(...ind.map(r => Math.abs(r.ret_1m ?? 0)), 1e-12);
-  const dbar = r => { // a bar behind the number, in the colour of the sign
+  const dbar = r => { // bar behind the number, coloured by sign
     if (nil(r.ret_1m)) return "";
     const w = (Math.abs(r.ret_1m) / top * 100).toFixed(0), c = r.ret_1m > 0 ? "63,185,80" : "248,81,73";
     return `background:linear-gradient(90deg,rgba(${c},.45) ${w}%,transparent ${w}%)`;
@@ -1573,7 +1547,7 @@ function calendar() {
   foldClicks($("cal"), calendar);
 }
 
-// The cap filter of the two lists. The payload holds the top rows of each floor.
+// Cap filter for the two lists; the payload carries the top rows of each floor.
 const SI_CAPS = [[0, "all caps"], [2e9, "$2B or more"], [1e10, "$10B or more"]];
 let SI_FLOOR = store.get("sdp.si.cap", 0);
 function shorts() {
@@ -1739,7 +1713,7 @@ async function route() {
   }
 }
 
-// A bar for a value from -lim to +lim, with optional marks [[value, colour, title]].
+// Bar for z over [-lim, +lim], with optional marks [[value, colour, title]].
 function zbar(z, marks = [], lim = 3) {
   const X = v => Math.max(0, Math.min(100, 50 + v / lim * 50));
   const w = nil(z) ? 0 : Math.abs(X(z) - 50);
@@ -1748,11 +1722,9 @@ function zbar(z, marks = [], lim = 3) {
     `<i style="left:${X(v)}%;background:${c}" title="${esc(t)}"></i>`).join("")}</span>`;
 }
 
-// A signed number with a colour, for a loading or a return.
 const sgn = (v, d = 1, unit = "") => nil(v) ? '<span class="dim">–</span>'
   : `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${v > 0 ? "+" : ""}${Number(v).toFixed(d)}${unit}</span>`;
-// A macro loading in plain units. A yield or a spread loading is the return for a rise of 1
-// percentage point. A price loading is the return for a rise of 1%.
+// Yield and spread loadings are the return for +1 pp; price loadings are the return for +1%.
 function macroReading(kind, v) {
   if (nil(v)) return '<span class="dim">–</span>';
   if (kind === "price") return `${sgn(v, 2, "%")} for +1%`;
@@ -1765,7 +1737,6 @@ function loadingRow(label, l, earlier, lim) {
   return `<tr><td class="l">${esc(label)}</td><td>${num(l, 2)}</td><td>${zbar(l, [[earlier, "#58a6ff", "earlier fit"]], lim)}</td>
     <td class="dim">${num(earlier, 2)}</td></tr>`;
 }
-// The loadings of a fund: market and styles, the industries of note and the macro factors.
 function fundTable(F) {
   const grp = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
   const shown = F.industries.filter(i => i.note).sort((a, b) => Math.abs(b.loading) - Math.abs(a.loading));
@@ -1947,8 +1918,7 @@ function stockPage(P) {
 }
 
 // ---------------------------------------------------------------- the portfolio page
-// Each line is TICKER and a weight: a percent, a fraction or a money value. The server divides
-// by the sum. The browser keeps the named portfolios and no server keeps a copy.
+// Each line is a ticker and an amount (percent, fraction or money); the server divides by the sum.
 function parseHoldings(text) {
   const holdings = [], bad = [];
   text.split("\n").forEach((raw, i) => {
@@ -2154,7 +2124,7 @@ async function load() {
 layoutControls(); applyLayout(); setupCommand(); watchCsvButtons();
 load().then(route);
 window.addEventListener("hashchange", route);
-// A closed portfolio page may have saved a new version, so the tile reads it again.
+// The portfolio page may have saved a new version, so the tile reads it again.
 window.addEventListener("hashchange", () => { if (DATA && location.hash !== "#portfolio") overview(); });
 setInterval(() => { if ($("overlay").hidden) load(); }, 5 * 60 * 1000);
 </script>

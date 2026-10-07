@@ -1,18 +1,14 @@
-# src/sdp/daily.py
-"""The daily driver, one command for a scheduler.
+"""The daily driver: one command for a scheduler.
 
     python -m sdp.daily
 
-Three steps. (1) Pull the current-state datasets: splits and dividends, the FRED
-series once a day, the Fama-French factors once a week and the q-factors once a month.
-Each pull replaces the whole table, so a missed day costs nothing. (2) Fill the four event
-streams (day_aggs, tickers, short_volume, short_interest) from the day after the
-last partition, so a machine that slept self-heals, then the monthly ticker
-details of each month-end that has ended. Step 2 is capped so a long
-gap does not become a backfill. (3) Build the dbt models, but only when a new
-session landed, so raw data becomes usable without a second command. `update()`
-runs all three under a lock. `run()` is steps 1 and 2 alone. When the vendor
-hosts do not resolve, `update()` skips steps 1 and 2 and exits 0. Otherwise it
+`update()` runs three steps under a one-writer lock. (1) Pull the current-state datasets
+(splits and dividends, FRED, the Fama-French factors, the q-factors); each pull replaces
+its table, so a missed day costs nothing. (2) Fill the event streams from the day after
+the last partition, capped per run so a long gap doesn't become a backfill, then the
+monthly ticker details. (3) Build dbt when a new session landed. `run()` is steps 1 and 2.
+
+When the vendor hosts don't resolve, `update()` skips the pulls and exits 0. Otherwise it
 exits 1 when a pull fails.
 """
 from __future__ import annotations
@@ -40,16 +36,16 @@ from sdp.ingest import massive_ticker_details as details
 
 log = logging.getLogger("sdp.daily")
 
-# The public current-state sources, each with its ingest module. Each pulls when its
-# table is older than the MAX_AGE_DAYS of its module.
+# Public current-state sources. Each pulls when its table is older than the MAX_AGE_DAYS
+# of its module.
 PUBLIC = {m.DATASET.name: m for m in (french, fred, qfactors)}
 CURRENT_STATE = ["massive_splits", "massive_dividends", *PUBLIC]
 
 EVENT_STREAMS = {
     "day_aggs": dal.DAY_AGGS,
     "tickers": dal.TICKERS,
-    # Short interest reports on a two-week cadence, so most sessions publish
-    # nothing and the fill retries them cheaply on each run.
+    # Short interest reports every two weeks, so most sessions publish nothing and the
+    # fill retries them cheaply on each run.
     "short_volume": dal.SHORT_VOLUME,
     "short_interest": dal.SHORT_INTEREST,
 }
@@ -88,8 +84,10 @@ and truncates them in place instead of a rename."""
 
 
 def _fill_start(ds: dal.Dataset, today: dt.date) -> dt.date:
-    """The date the fill of an event stream starts from. A cold stream starts
-    COLD_START_DAYS back, not at the window floor."""
+    """Return the date the fill of an event stream starts from.
+
+    A cold stream starts COLD_START_DAYS back, not at the window floor.
+    """
     parts = dal.partitions(ds)
     if parts:
         return parts[-1] + dt.timedelta(days=1)
@@ -97,7 +95,7 @@ def _fill_start(ds: dal.Dataset, today: dt.date) -> dt.date:
 
 
 def _pending_count(ds: dal.Dataset, today: dt.date, max_sessions: int) -> int:
-    """How many sessions the next fill of this stream will process."""
+    """Return how many sessions the next fill of this stream will process."""
     start = _fill_start(ds, today)
     if start > today:
         return 0
@@ -105,9 +103,11 @@ def _pending_count(ds: dal.Dataset, today: dt.date, max_sessions: int) -> int:
 
 
 def _fill_end(name: str, today: dt.date, now_utc: dt.datetime | None = None) -> dt.date:
-    """The last date that the fill of an event stream asks for. The S3 flat file
-    of a session lands on the next day, so day_aggs stops at the newest session
-    whose file must exist."""
+    """Return the last date the fill of an event stream asks for.
+
+    The S3 flat file of a session lands the next day, so day_aggs stops at the newest
+    session whose file must exist.
+    """
     if name != "day_aggs":
         return today
     expected = _expected_last_session(now_utc or dt.datetime.now(dt.UTC))
@@ -139,8 +139,11 @@ def _pull_current_state(today: dt.date, *, force: bool = False,
 
 def _pending_month_ends(today: dt.date) -> list[dt.date]:
     """Return the month-end sessions after the last ticker-details partition whose
-    tickers and day_aggs partitions are published. A lake with no partition starts 45
-    days back. Run python -m sdp.backfill ticker_details for a full history."""
+    tickers and day_aggs partitions are published.
+
+    A lake with no partition starts 45 days back. Run python -m sdp.backfill
+    ticker_details for a full history.
+    """
     parts = dal.partitions(dal.TICKER_DETAILS)
     start = parts[-1] + dt.timedelta(days=1) if parts else today - dt.timedelta(days=45)
     return [d for d in details.month_end_sessions(start, today)
@@ -220,8 +223,11 @@ def run(
     on_event: Callable[[dict], None] | None = None,
     problems: list[str] | None = None,
 ) -> int:
-    """Run the daily job. Return the exit code. on_event reports each step for a
-    progress meter. When problems is a list, the run adds each problem to it."""
+    """Run the daily job and return the exit code.
+
+    on_event reports each step for a progress meter. When problems is a list, the run
+    adds each problem to it.
+    """
     today = today or dt.datetime.now(dt.UTC).date()
     log.info("Daily run for %s.", today)
 
@@ -267,13 +273,16 @@ def _lock_dir() -> Path:
 
 
 def _backfill_lock_dir() -> Path:
-    """The lock that run_backfill.sh holds. An update must not write while a
-    backfill runs, because both write vendor/ and _staging/."""
+    """Return the lock that run_backfill.sh holds.
+
+    An update must not write while a backfill runs, because both write vendor/ and
+    _staging/.
+    """
     return _logs_dir() / ".backfill.lock"
 
 
 def _lock_is_stale(d: Path) -> bool:
-    """True when the lock names a process that is gone."""
+    """Return True when the lock names a process that is gone."""
     try:
         pid = int((d / "pid").read_text())
     except (OSError, ValueError):
@@ -308,9 +317,11 @@ def _lock_holder(d: Path) -> str:
 
 @contextmanager
 def _update_lock():
-    """A one-writer lock. mkdir is the test and the claim in one step, the same
-    pattern as run_backfill.sh. A dead process leaves a stale lock, which the
-    next update reclaims."""
+    """Take the one-writer lock.
+
+    mkdir is the test and the claim in one step, as in run_backfill.sh. A dead process
+    leaves a stale lock, which the next update reclaims.
+    """
     backfill_lock = _backfill_lock_dir()
     if backfill_lock.exists() and not _lock_is_stale(backfill_lock):
         raise UpdateInProgress(f"A backfill is in progress{_lock_holder(backfill_lock)}. "
@@ -335,7 +346,7 @@ def _update_lock():
 # ---------- freshness of the dbt build ----------
 
 def _newest_raw_mtime() -> float | None:
-    """The mtime of the newest file in raw/, or None when raw/ is empty."""
+    """Return the mtime of the newest file in raw/, or None if raw/ is empty."""
     root = settings.raw_dir
     if not root.exists():
         return None
@@ -348,9 +359,11 @@ def _newest_raw_mtime() -> float | None:
 
 
 def dbt_stale() -> bool:
-    """True when no build is published, or when the last full build started
-    before the newest raw file. A failed build does not write the stamp, so the
-    warehouse stays stale."""
+    """Return True when no build is published or the last full build started before the
+    newest raw file.
+
+    A failed build doesn't write the stamp, so the warehouse stays stale.
+    """
     from sdp import transform
     stamp = transform.stamp_path()
     if not settings.warehouse_path.exists() or not stamp.exists():
@@ -362,7 +375,7 @@ def dbt_stale() -> bool:
 
 
 def _build_dbt() -> int:
-    """Run the dbt build. A thin wrapper, so a test can replace it."""
+    """Run the dbt build. A thin wrapper so a test can replace it."""
     from sdp import transform
     return transform.main(["build"])
 
@@ -374,9 +387,11 @@ def _iso(d: dt.date | None) -> str | None:
 
 
 def _expected_last_session(now_utc: dt.datetime) -> dt.date | None:
-    """The newest XNYS session whose S3 flat file should exist now. Session D's
-    file lands about 06:00 UTC on D+1, so before 06:30 UTC the day before
-    yesterday is the safe answer."""
+    """Return the newest XNYS session whose S3 flat file should exist now.
+
+    Session D's file lands about 06:00 UTC on D+1, so before 06:30 UTC the day before
+    yesterday is the safe answer.
+    """
     through = now_utc.date() - dt.timedelta(days=1)
     if now_utc.time() < dt.time(6, 30):
         through -= dt.timedelta(days=1)
@@ -385,7 +400,7 @@ def _expected_last_session(now_utc: dt.datetime) -> dt.date | None:
 
 
 def _sessions_behind(last: dt.date | None, expected: dt.date | None) -> int | None:
-    """XNYS sessions between the last partition and the expected last session."""
+    """Return the XNYS sessions between the last partition and the expected last session."""
     if last is None or expected is None:
         return None
     if last >= expected:
@@ -394,7 +409,7 @@ def _sessions_behind(last: dt.date | None, expected: dt.date | None) -> int | No
 
 
 def _read_last_pull() -> dict | None:
-    """The last_pull block of the previous status file, or None."""
+    """Return the last_pull block of the previous status file, or None."""
     p = _logs_dir() / "status.json"
     if not p.exists():
         return None
@@ -405,8 +420,7 @@ def _read_last_pull() -> dict | None:
 
 
 def _mtime_iso(path: Path) -> str | None:
-    """When a file last changed, as an ISO timestamp. This is the last time a
-    dataset had a successful write."""
+    """Return when a file last changed, as an ISO timestamp (the last write of a dataset)."""
     try:
         return dt.datetime.fromtimestamp(path.stat().st_mtime, dt.UTC).isoformat()
     except OSError:
@@ -415,9 +429,11 @@ def _mtime_iso(path: Path) -> str | None:
 
 def status_snapshot(now_utc: dt.datetime | None = None,
                     last_pull: dict | None = None) -> dict:
-    """Describe what each dataset holds and what is missing. The dashboard reads
-    this. Each dataset kind has its own idea of "behind", so a sparse dataset
-    does not raise a false alarm. last_pull defaults to the one in status.json."""
+    """Describe what each dataset holds and what is missing; the dashboard reads this.
+
+    Each dataset kind has its own idea of "behind", so a sparse dataset doesn't raise a
+    false alarm. last_pull defaults to the one in status.json.
+    """
     now_utc = now_utc or dt.datetime.now(dt.UTC)
     expected = _expected_last_session(now_utc)
     last_pull = _read_last_pull() if last_pull is None else last_pull
@@ -436,8 +452,8 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                          "behind": behind, "level": level, "updated": updated,
                          "detail": f"through {last}" if last else "no partitions"})
 
-    # Short interest is sparse and lagged, so it never reports "behind". It is
-    # healthy when a clean pull that was not offline checked it today.
+    # Short interest is sparse and lagged, so it never reports "behind". It is healthy
+    # when a clean, online pull checked it today.
     cov = dal.coverage(dal.SHORT_INTEREST)
     last = cov[1] if cov else None
     checked_today = bool(
@@ -452,8 +468,8 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                      "updated": updated,
                      "detail": f"last settlement {last}" if last else "no settlements"})
 
-    # Ticker details are monthly. They are current when the last month-end session
-    # before the expected session is published.
+    # Ticker details are monthly: current when the last month-end session before the
+    # expected session is published.
     cov = dal.coverage(dal.TICKER_DETAILS)
     last = cov[1] if cov else None
     due = details.month_end_sessions(expected - dt.timedelta(days=40), expected) \
@@ -465,8 +481,8 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                      if last else None,
                      "detail": f"month-end {last}" if last else "no partitions"})
 
-    # Current state. A missed day costs nothing, so it is never "bad". Each public
-    # source has its own cadence.
+    # Current state: a missed day costs nothing, so never "bad". Each public source has
+    # its own cadence.
     for name, ds, max_age in (("splits", dal.SPLITS, 0), ("dividends", dal.DIVIDENDS, 0),
                               *((m.DATASET.name, m.DATASET, m.MAX_AGE_DAYS)
                                 for m in PUBLIC.values())):
@@ -511,9 +527,11 @@ def _write_status(snap: dict) -> None:
 # ---------- the offline probe ----------
 
 def _online() -> bool:
-    """True when one or more vendor hosts resolve. launchd runs a missed tick on
-    wake, often before the network is up. When only one host fails, its pulls
-    run and fail, so the failure count shows the problem."""
+    """Return True when at least one vendor host resolves.
+
+    launchd runs a missed tick on wake, often before the network is up. When only one
+    host fails, its pulls run and fail, so the failure count shows the problem.
+    """
     for url in (settings.massive_api_base, settings.massive_s3_endpoint):
         host = urlsplit(url).hostname or url
         try:
@@ -527,8 +545,10 @@ def _online() -> bool:
 # ---------- the failure signal ----------
 
 def _failures_in_a_row(prev: dict, *, failed: bool, pulled: bool) -> int:
-    """Count the failed runs in a row. A clean run that pulled sets the count to
-    0. A run that did not pull, for example an offline run, keeps it."""
+    """Count the failed runs in a row.
+
+    A clean run that pulled resets the count. A run that did not pull (offline) keeps it.
+    """
     n = prev.get("failures_in_a_row")
     n = n if isinstance(n, int) else 0
     if failed:
@@ -537,7 +557,7 @@ def _failures_in_a_row(prev: dict, *, failed: bool, pulled: bool) -> int:
 
 
 def _offline_since(prev: dict, offline: bool, now: dt.datetime) -> str | None:
-    """The time of the first offline run in the current series, or None."""
+    """Return the time of the first offline run in the current series, or None."""
     if not offline:
         return None
     since = prev.get("offline_since")
@@ -546,7 +566,7 @@ def _offline_since(prev: dict, offline: bool, now: dt.datetime) -> str | None:
 
 def _alert_message(*, failures: int, failed: bool, offline_since: str | None,
                    now: dt.datetime) -> str | None:
-    """The text of the alert that this run must send, or None."""
+    """Return the text of the alert this run must send, or None."""
     if failed and failures >= ALERT_AFTER:
         return (f"The daily update failed {failures} times in a row. "
                 f"See data/_logs/daily.err.log.")
@@ -562,8 +582,7 @@ def _alert_message(*, failures: int, failed: bool, offline_since: str | None,
 
 
 def _notify(message: str) -> None:
-    """Show a macOS notification. An error only logs, because the alert must
-    not stop the update."""
+    """Show a macOS notification. An error only logs: an alert must not stop the update."""
     text = message.replace("\\", "\\\\").replace('"', '\\"')
     try:
         subprocess.run(
@@ -575,8 +594,8 @@ def _notify(message: str) -> None:
 
 
 def _alert(message: str | None, prev: dict, today: str) -> str | None:
-    """Send the message as a notification, one each day at most. Return the ISO
-    date of the last alert."""
+    """Send the message as a notification, at most one a day. Return the ISO date of the
+    last alert."""
     last = prev.get("last_alert")
     if message is None or last == today:
         return last
@@ -601,8 +620,10 @@ def _prune_one(p: Path, cutoff: float) -> None:
 
 
 def _prune_logs() -> None:
-    """Delete the backfill run logs older than LOG_KEEP_DAYS and rotate a large
-    launchd log. An error only logs, because pruning must not fail the run."""
+    """Delete backfill run logs older than LOG_KEEP_DAYS and rotate large launchd logs.
+
+    An error only logs: pruning must not fail the run.
+    """
     d = _logs_dir()
     cutoff = time.time() - LOG_KEEP_DAYS * 86400
     try:
@@ -625,8 +646,10 @@ def _prune_logs() -> None:
 
 def _plan_total(today: dt.date, max_sessions: int, *,
                 skip_current_state: bool, skip_event_streams: bool) -> int:
-    """Count the units of work, so the dashboard can draw a real progress bar.
-    One unit is a current-state pull or one session, plus one for the dbt step."""
+    """Count the units of work, so the dashboard can draw a progress bar.
+
+    One unit is a current-state pull or one session, plus one for the dbt step.
+    """
     total = 0 if skip_current_state else len(CURRENT_STATE)
     if not skip_event_streams:
         for name, ds in EVENT_STREAMS.items():
@@ -645,12 +668,16 @@ def update(
     skip_event_streams: bool = False,
     progress: Callable[[dict], None] | None = None,
 ) -> dict:
-    """Pull the datasets, build the dbt models when a new session landed, and
-    write the status file. One writer at a time. The scheduler and the dashboard
-    button both call this. progress reports each step as a dict with a message
-    and a done/total count. When the vendor hosts do not resolve, the pulls are
-    skipped and the exit code is 0. Raises UpdateInProgress when the lock is
-    held."""
+    """Pull the datasets, build the dbt models when a new session landed, and write the
+    status file.
+
+    One writer at a time; the scheduler and the dashboard button both call this.
+    progress receives a dict with a message and a done/total count for each step. When
+    the vendor hosts don't resolve, the pulls are skipped and the exit code is 0.
+
+    Raises:
+        UpdateInProgress: when the lock is held.
+    """
     today = today or dt.datetime.now(dt.UTC).date()
     done = 0
     total = 1  # The dbt step. The plan adds the pulls when the machine is online.

@@ -1,7 +1,5 @@
--- Rebuild the parts of the return of a sample of sessions from the exposures and the factor
--- returns of the next session: the market, the industry of the name and the sum of z times
--- the style return. The residual is the return less the three parts. A row with a return and
--- factor returns must have a residual, and no residual stands without a row.
+{# A returned row is a coverage residual that is missing or differs from the parts rebuilt from
+   exposures and factor returns. #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',

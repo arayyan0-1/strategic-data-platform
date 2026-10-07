@@ -1,11 +1,6 @@
-{#
-  The names that moved the cap-weighted in-universe market most, over the last session
-  (span 1d) and the last 21 sessions (span 1m). contribution is the weight (the cap
-  of the session before over the total) times the return, summed over the span, so
-  the contributions of all names sum to the market return. specific is the part of it
-  that the style and industry model does not explain. The top 12 and the bottom 12 of
-  each span.
-#}
+{# Top 12 and bottom 12 names by contribution to the cap-weighted market over the last session
+   (1d) and the last 21 (1m). contribution is the previous session's cap weight times the return;
+   specific is the part the style model leaves. #}
 
 with names as (
 

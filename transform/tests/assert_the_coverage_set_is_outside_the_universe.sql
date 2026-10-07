@@ -1,5 +1,5 @@
--- The coverage models hold common stock that is not in the universe. No row is in the
--- universe, in the estimation (style_exposures, style_residuals) or of another type.
+{# A returned row is a coverage row that is in the universe or the estimation, or has a type
+   outside coverage_types. #}
 select 'in the universe' as problem, e.security_key, e.date
 from {{ ref('coverage_exposures') }} e
 inner join {{ ref('int_universe') }} u

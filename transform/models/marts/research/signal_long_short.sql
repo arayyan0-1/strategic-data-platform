@@ -1,22 +1,11 @@
-{#
-  Long-short return of each signal: the mean forward return of the top quintile less
-  the mean of the bottom quintile. Each leg is equal weight, rebalanced daily, and
-  gross of cost. ret keeps every return as printed, so it holds the squeezes and the
-  jumps that a portfolio earns. cum_ret is the arithmetic sum of ret. Read it beside
-  signal_turnover.
-
-  The bins are the panel quintiles, so tied values share one bin. Many tied values can
-  leave bin 1 or bin 5 empty, so each side is the lowest or highest bin that has names.
-
-  ret_winsorized is a robustness check. It clips each forward return to the
-  long_short_winsor and 1 - long_short_winsor quantiles of its session before it
-  averages the legs. A portfolio does not earn that return.
-#}
+{# Top-quintile less bottom-quintile mean forward return per signal: equal weight, rebalanced
+   daily, gross of cost. ret is unclipped, so it keeps the squeezes a portfolio earns.
+   ret_winsorized (a robustness check only) clips each session's returns. #}
 
 with bins as (
 
-    -- The top and bottom bins come from all names in the session, as in
-    -- signal_turnover.
+    -- Tied values can leave bin 1 or 5 empty, so the sides are the lowest and highest bins with
+    -- names. Same rule as signal_turnover.
     select
         signal, date, quintile, fwd_ret_1,
         min(quintile) over (partition by date, signal) as bottom,

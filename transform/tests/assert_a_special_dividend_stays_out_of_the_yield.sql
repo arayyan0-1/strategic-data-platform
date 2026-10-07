@@ -1,7 +1,5 @@
--- COST paid a special dividend of 15 with ex-date 2023-12-27, and the vendor types the
--- row special. The 12 months to 2024-01-02 also hold four regular dividends of 0.90,
--- 1.02, 1.02 and 1.02, which sum to 3.96. The special row has no regular amount. The
--- yield counts 3.96 of cash and not 18.96. A missing row is a failure.
+{# A returned row means COST's special dividend (15 on 2023-12-27) is missing or reaches the
+   trailing 12-month cash, which should hold regular dividends only. #}
 with action as (
 
     select cash_amount, regular_cash_amount

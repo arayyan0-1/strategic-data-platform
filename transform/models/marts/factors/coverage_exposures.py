@@ -1,16 +1,4 @@
-"""The exposures of the common stock that the estimation universe leaves out: the industry and
-the eight style z-scores of each such name per session, and the return of the next session.
-A name is in the coverage set when its type is in coverage_types, its close is above 0 and it
-is not in the universe.
-
-The fit never sees these names. Each z-score uses the parameters of the universe on the same
-session, which style_exposures used: the winsor bounds, the mean and the standard deviation
-of the universe values. A coverage name thus sits on the scale of the universe. A missing
-characteristic gives 0. The return of the next session is null when the name has no bar on
-the next session, because the return of a longer gap does not belong to the factor returns
-of one session. The var coverage_sessions limits the build to the latest sessions. A session
-with no universe has no parameters, so it has no row.
-"""
+"""Industry, style z-scores and next return of names outside the universe, on its scale."""
 import json
 
 import numpy as np

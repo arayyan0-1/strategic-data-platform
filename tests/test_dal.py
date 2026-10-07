@@ -1,7 +1,7 @@
-"""Partition selection and the read layer.
+"""Tests for sdp.dal.
 
-Partition selection can give wrong numbers in a correct shape — a read of one
-extra partition adds lookahead with no error.
+Partition selection can give wrong numbers in a right shape: one extra partition adds lookahead
+with no error.
 """
 import datetime as dt
 
@@ -116,11 +116,7 @@ class TestMaterialisation:
     """A relation must convert to Python, not only to a DataFrame."""
 
     def test_a_timestamptz_column_reaches_python(self, tmp_data_root):
-        """DuckDB needs pytz for this conversion. Without it, fetchall raises.
-
-        day_aggs carries window_start_utc, so this is the normal case and not an
-        edge case.
-        """
+        """DuckDB needs pytz to convert a TIMESTAMPTZ; without it fetchall raises."""
         import duckdb
 
         path = dal.DAY_AGGS.partition_file(D(2024, 1, 3))
@@ -139,7 +135,7 @@ class TestMaterialisation:
 
 
 class TestWarehouse:
-    """The notebooks read the dbt warehouse through dal.warehouse() only."""
+    """dal.warehouse() is the only way to read the dbt warehouse."""
 
     def _build(self):
         import duckdb

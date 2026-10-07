@@ -1,8 +1,5 @@
--- In each session and signal, the sum of the average ranks of n names is
--- n(n+1)/2, and all names with the same value share one rank. A rank() without
--- the tie term gives a smaller sum. A tie broken in an arbitrary order gives two
--- ranks for one value. The quintiles are in 1 to 5, and each value in a bin is
--- higher than all values in the bins below it. Check the last 20 sessions.
+{# A returned row is a session and signal (last 20 sessions) where average ranks do not sum to
+   n(n+1)/2, tied values differ in rank, or quintiles are out of range or order. #}
 with recent as (
 
     select distinct date

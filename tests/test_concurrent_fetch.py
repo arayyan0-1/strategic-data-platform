@@ -1,9 +1,4 @@
-"""Two fetches of the same date must not destroy each other's work.
-
-On 2026-08-23 two copies of the backfill script ran together, both writing to one
-shared temporary name. 288 dates failed. Nothing corrupt was published (atomic
-rename), but the failure rate was 36%. The fix is a unique temporary name per call.
-"""
+"""Two fetches of the same date must not destroy each other's work."""
 import datetime as dt
 import json
 import threading

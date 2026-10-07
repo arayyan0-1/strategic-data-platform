@@ -1,8 +1,5 @@
-{#
-  The measures of market_rates over the last two years, one row per measure and session,
-  for the sparklines and the chart of the monitor. Each value is the FRED observation
-  known before the session, as in core.rates.
-#}
+{# The market_rates measures over the last two years, one row per measure and session, for the
+   monitor charts. Values are those known before the session, as in core.rates. #}
 
 select r.measure, r.date, r.value
 from (

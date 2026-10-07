@@ -1,10 +1,6 @@
-{#
-  One row per link: a new FIGI on a ticker that continues the security of the old
-  FIGI, as in a reorganization into a new holding company. The tests and the reviewed
-  decisions are in int_key_changes. basis says whether the rule or a reviewed decision
-  made the link. int_tickers_keyed gives the rows of the new key the first key of the
-  chain. A refused link starts a new security.
-#}
+{# One row per link: a new FIGI on a ticker that continues the old security. basis says whether
+   the rule or a reviewed decision made it; root_key is the first key of the chain. Tests are in
+   int_key_changes. #}
 
 with recursive links as (
 

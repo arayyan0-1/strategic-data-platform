@@ -1,9 +1,4 @@
-"""The local status page.
-
-Tests exercise the state builder, the snapshot cache, the origin check and the
-single-writer guard. No socket, no network: the handler's logic is in plain
-functions.
-"""
+"""Tests for the status page: state builder, snapshot cache, origin check, single-writer guard."""
 import datetime as dt
 import errno
 import http.client
@@ -21,8 +16,7 @@ D = dt.date
 
 @pytest.fixture(autouse=True)
 def _reset_job():
-    """The job state and the snapshot cache are module globals, so each test
-    starts from idle with no cached snapshot."""
+    """Reset the job state and the snapshot cache, which are module globals."""
     idle = {"running": False, "phase": "idle", "started": None,
             "log": [], "result": None, "done": 0, "total": 0}
     dashboard._job.update(idle)
@@ -34,8 +28,10 @@ def _reset_job():
 
 def _post(path: str, body: str | bytes, host: str = "localhost:8787", origin: str | None = None,
           length: int | str | None = None):
-    """Send a POST through the handler with no socket. Return the code and the reply text.
-    A length of "" leaves the Content-Length header out."""
+    """POST through the handler with no socket; return (code, reply text).
+
+    A length of "" leaves out the Content-Length header.
+    """
     raw = body.encode() if isinstance(body, str) else body
     headers = {"Host": host, "Content-Length": str(len(raw) if length is None else length)}
     if length == "":

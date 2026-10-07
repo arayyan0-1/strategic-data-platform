@@ -1,10 +1,7 @@
-# src/sdp/market.py
-"""The market monitor: one payload from the warehouse marts, and the page that shows it.
+"""Market monitor payload from the warehouse marts, and the page that renders it.
 
-The status server (sdp.dashboard) serves the page at /market and the payload at
-/market.json. The payload is cached until the warehouse stamp changes, so a new build
-shows on the next poll. Each read opens a read-only connection and closes it, so the
-server never holds the warehouse open.
+The payload is cached until the warehouse stamp changes. Each build opens a read-only
+connection and closes it, so the server never holds the warehouse open.
 """
 from __future__ import annotations
 
@@ -19,8 +16,7 @@ import duckdb
 
 from sdp import dal
 
-# The page filters the short interest lists by market cap. The payload holds the top rows
-# of each floor, so a floor still has ten names when the top rows overall are small caps.
+# Short-interest lists are filtered by cap on the page; keep the top rows of each floor.
 SHORT_CAP_FLOORS = (0.0, 2e9, 1e10)
 SHORT_LIST_LENGTH = 10
 
@@ -29,8 +25,7 @@ _cache: dict[str, Any] = {"stamp": None, "payload": None}
 
 
 def _clean(v: Any) -> Any:
-    """Return a value that JSON can carry: a float for a DECIMAL, an ISO date, or None
-    for NaN and infinity."""
+    """Make a value JSON-safe: DECIMAL to float, dates to ISO strings, NaN and inf to None."""
     if isinstance(v, decimal.Decimal):
         v = float(v)
     if isinstance(v, float) and not math.isfinite(v):
@@ -50,8 +45,7 @@ def _rows(wh: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
 
 def _top_by_cap(rows: list[dict], floors: tuple = SHORT_CAP_FLOORS,
                 n: int = SHORT_LIST_LENGTH) -> list[dict]:
-    """Keep the first n rows of each cap floor, in the order of the input. A row with no cap
-    passes only the floor of 0."""
+    """Keep the first n rows above each cap floor, in input order. A null cap passes floor 0."""
     keep: set[str] = set()
     for floor in floors:
         passed = [r for r in rows if floor <= 0 or (r["cap"] is not None and r["cap"] >= floor)]
@@ -60,7 +54,7 @@ def _top_by_cap(rows: list[dict], floors: tuple = SHORT_CAP_FLOORS,
 
 
 def _section(errors: list[str], name: str, fn):
-    """Run one section. A missing mart leaves the section empty and names it."""
+    """Run one section; a missing mart leaves it empty and records the error."""
     try:
         return fn()
     except duckdb.CatalogException:
@@ -121,7 +115,7 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
         return {"pca": pca, "factors": factors}
 
     def attribution():
-        # The contributions summed over each span back from the last session.
+        # Contributions summed over the last n sessions of each span.
         spans = _rows(wh, """
             with d as (
                 select *, dense_rank() over (order by date desc) as back
@@ -227,7 +221,7 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
             order by settlement_date""")
 
     def short_interest():
-        # The market cap of the last session, from the universe that the mart reads.
+        # Market cap of the last session.
         base = """
             select s.*, u.market_cap as cap
             from monitor.market_short_interest s
@@ -272,7 +266,7 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
 
 
 def snapshot() -> dict:
-    """Return the payload. Build it again only when the warehouse stamp changes."""
+    """Return the payload, rebuilt only when the warehouse stamp changes."""
     from sdp import transform
 
     stamp = (transform.last_build() or {}).get("published_utc")
@@ -293,5 +287,5 @@ def snapshot() -> dict:
         return payload
 
 
-# The page is a separate file, so an editor treats it as HTML.
+# The page lives in its own file so editors treat it as HTML.
 PAGE = (Path(__file__).with_name("market.html")).read_text(encoding="utf-8")

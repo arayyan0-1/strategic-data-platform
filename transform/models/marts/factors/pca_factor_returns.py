@@ -1,9 +1,7 @@
-"""Statistical factor returns: the top five eigenportfolios of the trailing correlation
-matrix of the in-universe names (sdp.factors.pca_returns). Each rebalance uses the 1,000
-most liquid names with a full year of returns, and the weights earn the next 21 sessions
-out of sample. pc1 is close to the market. share_k is the variance share of component k
-at its rebalance, and pc1_share is the absorption ratio: a high value means the stocks
-move together. A row is dated on the session that earns the return."""
+"""Top five eigenportfolios of the trailing correlation matrix of in-universe names.
+
+Each rebalance's weights earn the next 21 sessions out of sample. pc1_share is the absorption ratio.
+"""
 import numpy as np
 
 from sdp.factors import filled, pca_returns

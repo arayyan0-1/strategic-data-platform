@@ -1,5 +1,5 @@
--- The residual label of one session at D is the residual of the return from D to the
--- next session. Checked on the last 60 sessions.
+{# A returned row is a one-session residual label that differs from style_residuals on the next
+   session (last 60 sessions). #}
 with days as (
 
     select date, lead(date) over (order by date) as next_date
@@ -17,8 +17,7 @@ join days d using (date)
 join {{ ref('style_residuals') }} r
     on r.security_key = f.security_key and r.date = d.next_date
 where f.date in (select date from recent)
-  -- The join already limits r to the sessions after the recent ones. The filter lets the
-  -- join read these rows of style_residuals only.
+  -- Lets the join read only the recent rows of style_residuals.
   and r.date in (select next_date from days where date in (select date from recent))
   and ((f.fwd_resid_1 is null) <> (r.resid is null)
        or abs(f.fwd_resid_1 - r.resid) > 1e-9)

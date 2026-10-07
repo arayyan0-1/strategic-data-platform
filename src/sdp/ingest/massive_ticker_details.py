@@ -1,15 +1,12 @@
-# src/sdp/ingest/massive_ticker_details.py
-"""Ticker details for the common stock of one session: shares outstanding, market cap,
-the SIC industry code and the listing date, from /v3/reference/tickers/{ticker}?date=.
+"""Monthly ticker details for common stock, from /v3/reference/tickers/{ticker}?date=.
 
-    python -m sdp.ingest.massive_ticker_details 2026-08-31
-    python -m sdp.backfill ticker_details 2021-08-01 2026-08-31
+    python -m sdp.ingest.massive_ticker_details YYYY-MM-DD
+    python -m sdp.backfill ticker_details START END
 
-The endpoint answers one ticker per request, so the dataset is monthly: one partition
-for the last XNYS session of each month, for each common stock with a bar on that
-session. A model takes the newest partition on or before its date. The vendor states
-market_cap for the whole company (GOOG and GOOGL show the same value), so a model
-multiplies share_class_shares_outstanding by the price of the share class.
+The endpoint takes one ticker per request, so there is one partition per month, on the last
+XNYS session, for each common stock with a bar that day. A model takes the newest partition
+on or before its date. market_cap is for the whole company (GOOG and GOOGL show the same
+value), so models multiply share_class_shares_outstanding by the class price.
 """
 from __future__ import annotations
 
@@ -66,8 +63,7 @@ def _vendor_file(d: dt.date) -> Path:
 
 
 def tickers_for(d: dt.date) -> list[str]:
-    """Return the tickers of TYPES that have a bar on the session. Both source
-    partitions must be published."""
+    """Return the tickers of TYPES with a bar on the session. Both source partitions must exist."""
     names = dal.on_date(dal.TICKERS, d).filter(
         f"type in ({', '.join(repr(t) for t in TYPES)})").select("ticker")
     bars = dal.on_date(dal.DAY_AGGS, d).select("ticker")
@@ -76,9 +72,11 @@ def tickers_for(d: dt.date) -> list[str]:
 
 def fetch(d: dt.date, *, force: bool = False) -> Path:
     """Request each ticker of the session and write one gzip NDJSON file to vendor/.
-    A ticker that the vendor does not know (HTTP 404) is left out. Raise when more than
-    MAX_MISSING of the tickers fail, so a bad pull does not publish. The pull stops as
-    soon as the failures pass the limit, so a lost network does not hold the lock."""
+
+    A ticker the vendor doesn't know (HTTP 404) is left out. Raise as soon as more than
+    MAX_MISSING of the tickers fail, so a bad pull isn't published and a lost network
+    doesn't hold the lock.
+    """
     dest = _vendor_file(d)
     if dest.exists() and not force:
         return dest
@@ -133,8 +131,8 @@ def fetch(d: dt.date, *, force: bool = False) -> Path:
     return dest
 
 
-# The columns that the models use. A field that the vendor leaves out of every record
-# of a pull becomes a null column, so a pull with no employee counts still builds.
+# Columns the models use. A field missing from every record of a pull becomes a null
+# column, so the pull still builds.
 COLUMNS = {
     "ticker": "varchar", "name": "varchar", "type": "varchar", "active": "boolean",
     "cik": "varchar", "composite_figi": "varchar", "share_class_figi": "varchar",
@@ -146,8 +144,10 @@ COLUMNS = {
 
 
 def build(vendor_file: Path, d: dt.date) -> Path:
-    """Convert the vendor NDJSON to staged Parquet with a fixed set of columns. The staged
-    name is unique to the process, so two backfills of one date do not share a file."""
+    """Convert the vendor NDJSON to staged Parquet with a fixed set of columns.
+
+    The staged name includes the pid, so two backfills of one date don't share a file.
+    """
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}-{os.getpid()}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
@@ -172,7 +172,7 @@ def build(vendor_file: Path, d: dt.date) -> Path:
 
 
 def audit(staged: Path, d: dt.date) -> int:
-    """Raise AuditFailure on a table that would give wrong numbers. Return the row count."""
+    """Raise AuditFailure on a table that would give wrong numbers; return the row count."""
     n, dupes, null_ticker, neg, with_sic = one(f"""
         select count(*),
                count(*) - count(distinct ticker),
@@ -198,9 +198,11 @@ def audit(staged: Path, d: dt.date) -> int:
 
 
 def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False) -> Path | None:
-    """Publish the details of one month-end session. Return None for any other date.
-    The default skips a published partition. refetch downloads again. rebuild reads
-    the vendor file on disk only."""
+    """Publish the details of one month-end session; return None for any other date.
+
+    Skip a published partition by default. refetch downloads again. rebuild reads the
+    vendor file on disk only.
+    """
     check_mode(refetch, rebuild)
     if not is_month_end(d):
         log.debug("%s is not the last session of its month. Skipped.", d)

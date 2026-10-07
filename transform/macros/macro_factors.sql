@@ -1,6 +1,5 @@
-{# The FRED series behind each macro factor return, and how the change over a session is
-   measured: diff is the difference of the levels (percentage points for a yield or a
-   spread), log is the difference of the natural logarithms. #}
+{# The FRED series behind each macro factor, and how a session's change is measured: diff
+   (percentage points for a yield or spread) or log. #}
 {% macro macro_factors() %}
     {{ return({
         'd_t_10y': ['DGS10', 'diff'],

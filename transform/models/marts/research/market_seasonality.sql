@@ -1,24 +1,6 @@
-{#
-  Calendar effects in the US market and the Fama-French factors, from the daily French
-  library since July 1963, and again since 2000. The market is mkt_rf plus rf. Three
-  calendars:
-
-  - month: the month of the year.
-  - weekday: the day of the week.
-  - turn: the trading day around the turn of the month, the last three and the first
-    three, and the middle of the month.
-
-  mean is the mean daily return in the bucket, excess its difference from the mean of
-  all days, and t the t-statistic of the excess (its standard error from the bucket).
-  p is the two-sided p-value of t under the normal distribution.
-
-  A period tests many effects, so a small p is common by chance. n_tests is the count of
-  effects of the period (every calendar, bucket and series). significant is true when
-  the effect passes the Benjamini-Hochberg procedure at the false discovery rate fdr
-  (the var seasonality_fdr) among the tests of its period.
-  Five years of our own data is too short for a calendar effect, so this reads the
-  library, which lags about two months.
-#}
+{# Calendar effects (month, weekday, turn of the month) in the market and the Fama-French
+   factors, from the daily French library since 1963 and since 2000. significant:
+   Benjamini-Hochberg at seasonality_fdr among the tests of the period. #}
 
 with days as (
 
@@ -78,15 +60,13 @@ with days as (
 
 ), scaled as (
 
-    -- The tail area of the normal distribution is erfc(z), with z = |t| / sqrt(2).
-    -- k is the argument of the polynomial in the approximation of erfc.
+    -- The two-sided normal tail area is erfc(z), z = |t| / sqrt(2). k is the polynomial's argument.
     select *, abs(t) / sqrt(2) as z, 1 / (1 + 0.5 * abs(t) / sqrt(2)) as k
     from effects
 
 ), tested as (
 
-    -- The rational approximation of erfc of Numerical Recipes (erfcc). Its relative
-    -- error is below 1.2e-7 for every z.
+    -- erfc by the Numerical Recipes approximation (erfcc), relative error below 1.2e-7.
     select
         *,
         least(1.0, k * exp(-z * z - 1.26551223 + k * (1.00002368 + k * (0.37409196
@@ -104,7 +84,7 @@ with days as (
 
 ), limits as (
 
-    -- The largest p that has p <= rank * fdr / n_tests. Every effect up to it passes.
+    -- The largest p with p <= rank * fdr / n_tests. Every effect up to it passes.
     select period, max(p) as p_limit
     from ranked
     where p <= p_rank * {{ var('seasonality_fdr') }}::double / n_tests

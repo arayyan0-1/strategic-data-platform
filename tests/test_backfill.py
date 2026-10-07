@@ -1,8 +1,4 @@
-"""The date-loop runner.
-
-Each test replaces one entry in backfill.TARGETS with a plain function. No HTTP
-or mocks needed. One bad date does not stop the run.
-"""
+"""Tests for the backfill date loop, with a plain function in place of an ingest target."""
 import datetime as dt
 import json
 from pathlib import Path
@@ -13,16 +9,13 @@ from sdp import backfill
 
 D = dt.date
 
-# 2024-01-01 is a holiday. The XNYS sessions in this range are 01-02, 01-03,
-# 01-04, 01-05 and 01-08. 01-06 and 01-07 are a weekend.
+# 2024-01-01 is a holiday and 01-06, 01-07 are a weekend.
 START, END = D(2024, 1, 1), D(2024, 1, 8)
 SESSIONS = [D(2024, 1, 2), D(2024, 1, 3), D(2024, 1, 4), D(2024, 1, 5), D(2024, 1, 8)]
 
 
 @pytest.fixture
 def fake_ingest(monkeypatch):
-    """Replace the day_aggs target with a function that a test controls."""
-
     def install(fail_on: tuple = (), skip_on: tuple = ()):
         calls: list[dt.date] = []
 
@@ -50,8 +43,6 @@ class TestSessions:
 
 
 class TestFailureIsolation:
-    """One bad date does not stop the run."""
-
     def test_a_failing_date_does_not_stop_the_run(self, tmp_data_root, fake_ingest):
         calls = fake_ingest(fail_on=(D(2024, 1, 4),))
         failures = backfill.backfill("day_aggs", START, END)
@@ -80,7 +71,7 @@ class TestFailureIsolation:
 
 
 class TestTargetGuards:
-    """A current-state dataset must never be reachable through this runner."""
+    """Current-state datasets must not be reachable through this runner."""
 
     @pytest.mark.parametrize(
         "target,dataset",

@@ -1,5 +1,4 @@
-"""The Fama-French ingest: parse, audit, publish, and pull at most once a week. The
-library files are synthetic and no test uses the network."""
+"""Tests for the Fama-French ingest against synthetic library files."""
 import datetime as dt
 import io
 import zipfile

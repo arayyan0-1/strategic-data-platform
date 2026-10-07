@@ -1,5 +1,5 @@
--- In the series of a security, a change of ticker must not move the factors, unless
--- an event of either ticker lies between the two bars.
+{# A returned row is a ticker change that moves a split or dividend factor with no event between
+   the two bars. #}
 with series as (
     select u.security_key, p.ticker, p.date, p.split_factor, p.dividend_factor
     from {{ ref('int_prices_adjusted') }} p

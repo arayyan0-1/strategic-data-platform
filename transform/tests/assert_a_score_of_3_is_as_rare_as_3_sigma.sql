@@ -1,6 +1,5 @@
--- On the history of its family, a score of 3 is passed on about 1 day in 370 (0.27%). A
--- family and a horizon fail when the share is under 0.15% or over 0.5%, or when the
--- family has no scores.
+{# A returned row is a family and horizon where the share of |z| >= 3 is outside 0.15% to 0.5%,
+   or that has no scores. #}
 with expected(family, h) as (
 
     values

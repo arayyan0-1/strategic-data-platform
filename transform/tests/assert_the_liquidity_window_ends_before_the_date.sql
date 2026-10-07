@@ -1,9 +1,6 @@
--- The trailing window must end at D-1. A window that includes D uses the volume
--- of the day on which the position opens, which the strategy cannot know.
--- This test recomputes the average a second time, from the primary line of each
--- security, and compares. A change of the frame to "current row" makes it fail on
--- almost every row. A sliding sum can differ in its last bits between two runs, so
--- the comparison has a relative tolerance.
+{# A returned row is an adv that differs from a recomputation over the window ending at D-1. A
+   window including D would use the volume of the day the position opens. Relative tolerance, as
+   a sliding sum differs in its last bits between runs. #}
 with recomputed as (
     select
         l.ticker,

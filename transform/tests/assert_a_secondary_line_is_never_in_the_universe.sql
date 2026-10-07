@@ -1,5 +1,4 @@
--- A line that is not the primary line of its security has no window, so it fails the
--- filter. It never enters a series.
+{# A returned row is a non-primary line with a universe flag or a window. #}
 select ticker, date, security_key
 from {{ ref('int_universe') }}
 where not is_primary_line

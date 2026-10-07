@@ -1,24 +1,6 @@
-{#
-  The average stock-specific return (the residual of the style and industry model)
-  around five kinds of event, from 5 sessions before to 21 after. Day 0 is the event:
-
-  - shock_up and shock_down: a residual of 3 sigma or more (up or down) for a name with a
-    cap of $2B or more. Does the move continue or reverse?
-  - split_forward and split_reverse: the execution date of a split.
-  - short_jump: the date on which FINRA short interest that rose 50% or more since the
-    settlement before becomes public, for a name with 2 days to cover or more.
-
-  Events on the same date have correlated residuals, so they are not independent. Each
-  mean is therefore the mean, across the event dates, of the mean of each date. car is
-  the mean of the residuals summed from day -5, car_post the mean summed from day +1, the
-  part that a trade after the event could earn, and t_post the t-statistic of car_post.
-  The test treats the dates as independent of each other. n_events counts the events and
-  n_dates the dates.
-
-  Only the development sessions count. An event counts when its 21 sessions after are
-  before holdout_start, and no residual on or after holdout_start counts, so the holdout
-  stays clean.
-#}
+{# Mean stock-specific (style-model residual) return from 5 sessions before to 21 after five
+   kinds of event (day 0). Means and t are across event dates, since events on one date move
+   together. Only development sessions count, so the holdout stays clean. #}
 
 with idx as (
 

@@ -1,6 +1,5 @@
--- fwd_ret_1 on D must be the total return from the close of D to the close of the
--- next session of the same security. This test finds that session by row number, not
--- by lead(), on the rows of signals over the last 60 sessions.
+{# A returned row is a fwd_ret_1 that differs from the return to the next session of the same
+   security, found by row number rather than lead() (last 60 sessions). #}
 with sessions as (
 
     select distinct date

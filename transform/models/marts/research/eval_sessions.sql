@@ -1,11 +1,6 @@
-{#
-  The evaluation calendar, one row per session. fold is 0 before the first session
-  with a universe, 1 to eval_folds for the development folds (contiguous, of about
-  equal length), and eval_folds + 1 for the holdout from holdout_start. The label of a
-  session with horizon h ends h sessions later, in label_fold_h. sdp.evaluation lets a
-  period use a session only when the session and the end of its label are both inside
-  the period.
-#}
+{# Evaluation calendar. fold is 0 before the first universe session, 1..eval_folds for
+   development (contiguous, about equal), eval_folds + 1 for the holdout. label_fold_h is the
+   fold of the session h later. #}
 {%- set horizons = [1, 5, 21] %}
 {%- set k = var('eval_folds') | int %}
 

@@ -11,18 +11,14 @@ from sdp.config import settings
 
 @pytest.fixture
 def tmp_data_root(tmp_path, monkeypatch):
-    """Point settings.data_root at a temporary directory.
-
-    The properties vendor_dir, raw_dir, staging_dir and warehouse_path all
-    derive from data_root, so patching it is sufficient.
-    """
+    """Point settings.data_root at a temp dir; the other path properties derive from it."""
     monkeypatch.setattr(settings, "data_root", tmp_path)
     return tmp_path
 
 
 @pytest.fixture
 def lake(tmp_data_root):
-    """Return a helper that writes small partitions into the temporary lake."""
+    """Return a writer of (ticker, value) partitions in the temporary lake."""
 
     def write(ds: dal.Dataset, d: dt.date, rows: list[tuple]):
         path = ds.partition_file(d)
@@ -39,11 +35,7 @@ def lake(tmp_data_root):
 
 @pytest.fixture
 def ca_lake(tmp_data_root, tmp_path):
-    """Publish a corporate action table through the real ingest path.
-
-    Each call replaces the table. The fixture goes through _publish, so it
-    exercises the audits and the atomic replace.
-    """
+    """Publish a corporate action table; each call replaces it."""
     from sdp.ingest import massive_corporate_actions as ca
 
     def write(ds: dal.Dataset, pull: dt.date, rows: list[tuple],
@@ -60,8 +52,7 @@ def ca_lake(tmp_data_root, tmp_path):
 
         if audit:
             return ca._publish(ds.name, vendor, pull)
-        # Most tests care about the shape of the published table and not about
-        # the audits, which have their own suite. Build and replace directly.
+        # Skip the audits; they have their own suite.
         staged = ca.build(ds.name, vendor, pull)
         dest = ca.raw_path(ds.name)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -73,8 +64,6 @@ def ca_lake(tmp_data_root, tmp_path):
 
 @pytest.fixture
 def staged_parquet(tmp_path):
-    """Write one staged Parquet file from a SQL select and return its path."""
-
     def write(name: str, select_sql: str):
         path = tmp_path / f"{name}.parquet"
         duckdb.execute(f"copy ({select_sql}) to '{path}' (format parquet)")

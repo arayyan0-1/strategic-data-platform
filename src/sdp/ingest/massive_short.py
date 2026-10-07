@@ -1,12 +1,10 @@
-# src/sdp/ingest/massive_short.py
-"""Ingest of the two FINRA short datasets, both event streams keyed on 'date'.
+"""FINRA short datasets, both event streams keyed on 'date'.
 
-massive_short_volume: daily off-exchange short volume, coverage from 2024-02-06.
-massive_short_interest: short interest on a two-week cadence, partition 'date'
-equals the settlement date, coverage from 2017-12-29.
+massive_short_volume: daily off-exchange short volume.
+massive_short_interest: short interest on a two-week cadence; the 'date' partition is the
+settlement date.
 
-total_volume is FINRA off-exchange volume only, much smaller than the
-day-aggregate volume, so never divide one by the other.
+total_volume is off-exchange only, so never divide it by the day-aggregate volume.
 """
 from __future__ import annotations
 
@@ -39,12 +37,12 @@ SHORT_INTEREST = dal.SHORT_INTEREST.name
 _VOLUME_PATH = "/stocks/v1/short-volume"
 _INTEREST_PATH = "/stocks/v1/short-interest"
 
-# Measured on 2026-08-22 with a sort on the ascending date.
+# First date each endpoint serves.
 VOLUME_FLOOR = dt.date(2024, 2, 6)
 INTEREST_FLOOR = dt.date(2017, 12, 29)
 
-# The vendor caps days_to_cover at 999.99. A row at the cap means "at or above
-# 999.99", not always a zero avg_daily_volume, so the cap is not a measurement.
+# The vendor caps days_to_cover at 999.99. A row at the cap means "at or above", not
+# necessarily a zero avg_daily_volume.
 DAYS_TO_COVER_SENTINEL = 999.99
 
 _PAGE_LIMIT = 50_000
@@ -53,15 +51,16 @@ _PAGE_LIMIT = 50_000
 # ---------- WRITE ----------
 
 def build(dataset: str, vendor_file: Path, d: dt.date) -> Path:
-    """Convert the vendor NDJSON to staged Parquet. The 'date' column is the
-    partition, and for short interest it is the settlement date. The vendor
-    'settlement_date' column stays, because raw/ records what the vendor sent."""
+    """Convert the vendor NDJSON to staged Parquet.
+
+    The 'date' column is the partition (the settlement date for short interest). The
+    vendor 'settlement_date' column stays, because raw/ records what the vendor sent.
+    """
     staged = settings.staging_dir / dataset / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
 
-    # The short volume endpoint already gives a 'date' column with the same
-    # value. Drop the vendor copy and write the partition column, so that the
-    # file has one column with that name.
+    # Short volume already has a 'date' column with the same value. Drop it so the file
+    # has one column of that name.
     exclude = "exclude (date)" if dataset == SHORT_VOLUME else ""
 
     duckdb.execute(f"""
@@ -109,8 +108,7 @@ def audit_short_volume(staged: Path, d: dt.date) -> int:
     if negative:
         fatal.append(f"{negative} rows with a null or negative volume")
     if short_gt_total:
-        # This gives a ratio above 100 percent. It is a wrong number and not an
-        # unusual one.
+        # A ratio above 100 percent is a wrong number, not an unusual one.
         fatal.append(f"{short_gt_total} rows with short_volume above total_volume")
     if fatal:
         raise AuditFailure(f"{SHORT_VOLUME} {d}: " + ". ".join(fatal) + ".")
@@ -118,8 +116,7 @@ def audit_short_volume(staged: Path, d: dt.date) -> int:
     if null_ratio:
         log.warning("%s: %s rows have a null short_volume_ratio.", d, null_ratio)
     if fractional:
-        # Known and documented. The aggregate volumes are fractional and the
-        # per-venue values are clean integers.
+        # Aggregate volumes are fractional; per-venue values are integers.
         log.info("%s: %s rows have a fractional total_volume.", d, fractional)
     log.info("%s: %s short volume rows.", d, n_rows)
     return n_rows
@@ -158,8 +155,8 @@ def audit_short_interest(staged: Path, d: dt.date) -> int:
     if negative:
         fatal.append(f"{negative} rows with a null or negative short_interest")
     if wrong_date:
-        # The request named one settlement date. A different date in the answer
-        # puts the rows in the wrong partition.
+        # The request named one settlement date; another date would put rows in the
+        # wrong partition.
         fatal.append(f"{wrong_date} rows with a settlement_date that is not {d}")
     if fatal:
         raise AuditFailure(f"{SHORT_INTEREST} {d}: " + ". ".join(fatal) + ".")
@@ -226,8 +223,8 @@ def ingest_short_volume(d: dt.date, *, refetch: bool = False,
 
 def ingest_short_interest(d: dt.date, *, refetch: bool = False,
                           rebuild: bool = False) -> Path | None:
-    """Ingest one settlement date. Most sessions have none, so the endpoint
-    returns nothing and this returns None, which is correct."""
+    """Ingest one settlement date. Most dates have none: the endpoint returns nothing and
+    this returns None."""
     return _ingest(
         SHORT_INTEREST, _INTEREST_PATH,
         {"settlement_date": d.isoformat(), "limit": _PAGE_LIMIT},

@@ -1,12 +1,6 @@
-{#
-  The relations between assets that a trader reads as one number, from the monitor ETFs,
-  one row per relation and session over the whole history. A ratio is the price of the
-  first ETF over the second. A correlation is over 63 sessions of daily returns, and it
-  is null until the window is full. stock_yield_corr is the correlation of SPY with the
-  change of the 10-year Treasury yield: negative when bad growth news drives yields,
-  positive when inflation and rate news drive them (2022). change_1 is the change of one
-  session: a log return for a ratio and a difference for a correlation.
-#}
+{# Asset relations a trader reads as one number, from the monitor ETFs, per relation and session
+   over the whole history. A ratio is the first ETF's price over the second; a correlation is
+   over 63 sessions of daily returns. change_1 is a log return or a difference. #}
 
 with px as (
 
@@ -14,8 +8,8 @@ with px as (
 
 ), yields as (
 
-    -- A row of core.rates holds the yield of the close before, so the change over
-    -- session D is the row after D less the row of D.
+    -- A rates row holds the previous close's yield, so the change over D is the row after D
+    -- less the row of D.
     select date, lead(t_10y) over (order by date) - t_10y as dy_10y
     from {{ ref('rates') }}
 

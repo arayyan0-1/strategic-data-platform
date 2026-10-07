@@ -1,7 +1,6 @@
--- Recompute the factor part of a sample of fund rows with the loadings and the factor
--- returns in long form, and compare it with the four parts. A factor that the parts
--- leave out or count twice would make them differ. A macro factor with no change adds 0.
--- The return must equal the parts plus alpha plus the residual.
+{# A returned row is a fund row whose parts differ from the loadings times the factor returns in
+   long form, or whose return is not the parts plus alpha plus the residual. A macro factor with
+   no change adds 0. #}
 {% set model = ['market', 'size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                 'dividend_yield', 'high_52w', 'ind_nodur', 'ind_durbl', 'ind_manuf', 'ind_enrgy',
                 'ind_chems', 'ind_buseq', 'ind_telcm', 'ind_utils', 'ind_shops', 'ind_hlth',

@@ -1,10 +1,8 @@
-"""The principal components of the daily changes of the Treasury curve, from 3 months to
-30 years, over the history of core.rates. The first three are level, slope and
-curvature. Each loading is the move in bps of a maturity for a move of one unit of the
-component. The signs are fixed so that level is a rise of every yield, slope a rise of
-the long end against the short end, and curvature a rise of the 5-year against the
-3-month and the 30-year. var_share is the share of the variance of the daily changes
-that the component explains.
+"""Principal components of daily Treasury yield changes (3 months to 30 years).
+
+The first three are level, slope and curvature. Signs are fixed so level is a rise of every yield,
+slope a rise of the long end against the short, curvature a rise of the 5-year against the 3-month
+and 30-year.
 """
 import numpy as np
 

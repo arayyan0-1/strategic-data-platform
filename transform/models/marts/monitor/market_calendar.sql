@@ -1,11 +1,6 @@
-{#
-  The material corporate actions after the last session, up to 45 days ahead, for
-  liquid tickers (dollar volume of $20M or more on the last session): every split, and
-  each dividend that is special or pays 1% or more of the price at once. It reads the
-  vendor tables directly, because a pending split has no factor yet and the staging
-  model keeps only events with one. dividend_yield is the cash dividend over the last close. It
-  is not annualized.
-#}
+{# Material corporate actions up to 45 days after the last session, for liquid tickers ($20M
+   dollar volume): every split and each special or 1%+ dividend. Reads staging, as a pending
+   split has no factor yet. dividend_yield is not annualized. #}
 
 with last_session as (
 

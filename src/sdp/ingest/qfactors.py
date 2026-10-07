@@ -1,16 +1,13 @@
-# src/sdp/ingest/qfactors.py
-"""The daily q5 factors of Hou, Xue and Zhang, from global-q.org.
+"""Daily q5 factors of Hou, Xue and Zhang, from global-q.org.
 
     python -m sdp.ingest.qfactors             # pull when the table is a month old
     python -m sdp.ingest.qfactors --force     # pull now
     python -m sdp.ingest.qfactors --rebuild   # build again from the newest vendor pull
 
-The factors are the market excess return, size (me), investment (ia), profitability
-(roe) and expected growth (eg), with the risk-free rate. The file states the whole
-history and the authors publish a new vintage about once a year, so the table is
-current state: one file in raw/, replaced by each pull. The page links the file of the
-latest vintage, and its name carries the year. The file gives percent. The table holds
-fractions.
+Factors: market excess return, size (me), investment (ia), profitability (roe), expected
+growth (eg), and the risk-free rate. The table is current state: each file states the whole
+history and a new vintage appears about once a year. The page links the latest vintage, and
+the file name carries its year. Returns arrive in percent and are stored as fractions.
 """
 from __future__ import annotations
 
@@ -38,7 +35,7 @@ LINK = re.compile(r'href="([^"]*q5_factors_daily_(\d{4})\.csv)"')
 
 MAX_AGE_DAYS = 30
 MIN_ROWS = 10_000     # The daily file starts in 1967.
-MAX_ABS = 0.5         # No daily factor return reaches 50 percent.
+MAX_ABS = 0.5         # Sanity bound on a daily factor return (50 percent).
 
 
 def _pull_dir(pull_date: dt.date) -> Path:
@@ -111,7 +108,7 @@ def build(src: Path, pull_date: dt.date) -> Path:
 
 
 def audit(staged: Path) -> int:
-    """Raise AuditFailure on a table that would give wrong numbers. Return the row count."""
+    """Raise AuditFailure on a table that would give wrong numbers; return the row count."""
     n, dups, nulls, worst = one(f"""
         select count(*), count(*) - count(distinct date),
                count(*) filter ({" or ".join(f"{c} is null" for c in COLUMNS)}),
@@ -143,9 +140,11 @@ def published_pull() -> dt.date | None:
 
 def ingest(pull_date: dt.date | None = None, *, force: bool = False,
            rebuild: bool = False) -> Path:
-    """Pull the newest factor file and publish the table. Without force, do nothing while
-    the published table is younger than MAX_AGE_DAYS. rebuild reads the newest vendor
-    pull and does not download."""
+    """Pull the newest factor file and publish the table.
+
+    Without force, do nothing while the published table is younger than MAX_AGE_DAYS.
+    rebuild reads the newest vendor pull without downloading.
+    """
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
     last = published_pull()
     if not (force or rebuild) and last and (pull_date - last).days < MAX_AGE_DAYS:

@@ -1,5 +1,5 @@
--- The jump and the volatility of each link, recomputed from int_prices_adjusted, agree
--- with the link table and are within the limit.
+{# A returned row is a link whose jump or volatility, recomputed from int_prices_adjusted,
+   differs from the link table or exceeds the limit. #}
 with old_bars as (
 
     select l.new_key, p.date, p.adj_close_split

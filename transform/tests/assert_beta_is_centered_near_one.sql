@@ -1,7 +1,5 @@
--- Beta is measured against the cap-weighted market of the in-universe names, so the
--- cap-weighted mean beta of those names must sit near 1. A sign error, a wrong window
--- or a wrong weight would move it far off. The band is wide: the weights drift over
--- the year of the window, and the test is about gross errors, not calibration.
+{# A returned row is a recent session where the cap-weighted mean beta of the universe is outside
+   0.8 to 1.2. The band is wide: it catches gross errors (sign, window, weight), not calibration. #}
 with last as (select max(date) as d from {{ ref('signals') }})
 
 select

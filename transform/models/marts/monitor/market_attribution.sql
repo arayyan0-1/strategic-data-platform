@@ -1,19 +1,6 @@
-{#
-  What moved the in-universe market on each session of the last year, from the style and
-  industry model. The market is cap-weighted (each weight the cap of the session before)
-  or equal-weighted. Its return is split two ways, and each way sums to the return:
-
-  - kind factor: the market factor, the industries together, each style (the exposures
-    of the session before times the style return) and the stock-specific part.
-  - kind industry: the return of the names of each Fama-French 12 industry, times their
-    weight.
-
-  Under cap weights the industries sum to 0 (the constraint of the model) and each style
-  to about 0 (the z-scores are centered on the cap), so the cap-weighted market splits
-  into the market factor and the stock-specific part. The residuals are neutral under the
-  root of the cap, not the cap, so that part is not 0. The equal-weighted market holds
-  more small names, so its industries and styles show.
-#}
+{# What moved the in-universe market on each session of the last year, cap- or equal-weighted.
+   Two splits that each sum to the return: kind factor (market, industries, each style,
+   stock-specific) and kind industry. #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 

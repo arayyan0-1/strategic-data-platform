@@ -1,8 +1,5 @@
--- A short run of wrong class counts takes the last good count: NFLX on 2025-11-28 misses its
--- 10-for-1 split, FAST on 2025-06-30 its 2-for-1 split, KLAC its split for two pulls, and HALO
--- on 2025-08-29 is 1,000 times too small. COF has the new count after its merger on
--- 2025-05-30 and the old count for two pulls, so only the old count is carried. The counts
--- around each run stay, and so does a run with no count after it (CRWD and CAST).
+{# A returned row is a month-end whose cap_source or cap differs from the expected one for a
+   known wrong class count (NFLX, HALO, FAST, COF, KLAC, CRWD, CAST), or a low NFLX universe cap. #}
 with cases (ticker, month_end, expected, cap_low, cap_high) as (
     values
         ('NFLX', date '2025-10-31', 'class_shares',  4.0e11, 5.5e11),

@@ -1,6 +1,5 @@
--- The industry returns are the industry coefficients less the market, which is their
--- cap-weighted mean. So their cap-weighted sum is 0 on each session. A different sum
--- means a wrong market factor or a wrong industry map.
+{# A returned row is a session where the cap-weighted sum of the industry returns is not 0: a
+   wrong market factor or industry map. #}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',
                      'Utils', 'Shops', 'Hlth', 'Money', 'Other', 'Unknown'] %}
 with days as (

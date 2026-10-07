@@ -16,10 +16,7 @@ def sleeps(monkeypatch):
 
 
 def _client(*steps):
-    """Return a client that answers each request with the next step, and the request list.
-
-    A step is an httpx.Response, or an httpx exception class that the transport raises.
-    """
+    """Return (client, requests). A step is an httpx.Response or an exception class to raise."""
     queue = list(steps)
     seen: list[httpx.Request] = []
 

@@ -1,27 +1,11 @@
-{#
-  The bid-ask spread of each common stock as a fraction of the price. The plan has no
-  quotes, so spread comes from a published cost model: market microstructure invariance
-  (Kyle and Obizhaeva 2016). Half the spread is
-
-      spread_kappa0 · (σ / 0.02) · (W / W*)^(-1/3),   W = σ · dollar volume,
-
-  with σ the root mean square of the daily returns over the 21 sessions before D, the
-  dollar volume over the 20 sessions before D (int_universe.adv), and the benchmark
-  stock of the paper: $40, one million shares a day and 2% a day, so W* = 800,000.
-  spread_kappa0 is the calibration of the linear model on 439,765 portfolio transition
-  orders (2001 to 2005). For the benchmark stock it implies a spread of 16.4 bps against
-  a quoted 12.0 bps. The spread is at least one tick (tick_size over the close).
-
-  spread_ar is the estimate from daily prices (Abdi and Ranaldo 2017): 4 E[(c − η)(c − η')]
-  over the 21 terms that the close of D makes known, with c the log close and η the mean
-  of the log high and the log low. It is noise for a liquid stock, where the daily range
-  is far wider than the spread, and it stays only as a diagnostic.
-#}
+{# Spread as a fraction of price, modelled (no quotes on this plan) by Kyle-Obizhaeva invariance:
+   half spread = spread_kappa0 (σ/0.02)(σ·dollar volume/8e5)^(-1/3), floored at one tick.
+   spread_ar (Abdi-Ranaldo) is a diagnostic only. #}
 
 with s as (
 
-    -- The windows run over the full series of the security. A type that the vendor
-    -- changes for some days (an ADR that is CS on two days) must not cut a window.
+    -- Windows run over the security's full series; the type filter comes last so a brief
+    -- vendor type change does not cut a window.
     select
         u.security_key,
         p.date,

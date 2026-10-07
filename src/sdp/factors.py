@@ -1,22 +1,7 @@
-# src/sdp/factors.py
-"""Factor-mimicking portfolios from a panel of returns. NumPy only, with no I/O. The dbt
-Python models read the warehouse and call these functions.
+"""Factor constructions and cross-sectional standardization for panels of returns.
 
-Four constructions:
-
-- style_returns: a cross-sectional regression on each session. Each coefficient is the
-  return of a portfolio with unit exposure to one characteristic and zero exposure to
-  the others (Fama-MacBeth, as in a Barra model).
-- pca_returns: eigenportfolios of the trailing correlation matrix, formed at each
-  rebalance and held out of sample.
-- mimic_returns: a rolling projection of a target return series (a published factor) on
-  a set of traded base portfolios, held out of sample.
-- fund_loadings: a rolling ridge regression of the return of each fund on the factor
-  returns, held out of sample. The loadings are the exposures of a security that the
-  cross-section cannot describe from its characteristics.
-
-A row of a panel is a session and a column is a name. A return on row d is the return
-from the close of session d - 1 to the close of session d.
+NumPy only, no I/O. A row of a panel is a session and a column is a name. A return on row d
+is the return from the close of session d - 1 to the close of session d.
 """
 from __future__ import annotations
 
@@ -29,9 +14,11 @@ from sdp.risk import eligible
 
 
 def _each(fn, n: int) -> None:
-    """Call fn(i) for each i in range(n), in threads. A call writes only to the slice of its
-    own i in the arrays that it fills, so the order of the calls does not change the result.
-    NumPy releases the GIL in the sorts, the ufuncs and the LAPACK calls that dominate fn."""
+    """Call fn(i) for each i in range(n), in threads.
+
+    A call must write only to the slice of its own i, so the order of calls doesn't change
+    the result. NumPy releases the GIL in the sorts, ufuncs and LAPACK calls that dominate fn.
+    """
     workers = min(8, os.cpu_count() or 1)
     if workers == 1 or n < 2 * workers:
         for i in range(n):
@@ -49,13 +36,12 @@ def _each(fn, n: int) -> None:
 
 
 def filled(a) -> np.ndarray:
-    """Return a float array with NaN where a masked array from DuckDB has a NULL."""
+    """Return a float array with NaN where a DuckDB masked array has a NULL."""
     return np.ma.filled(np.ma.asarray(a, dtype=float), np.nan)
 
 
 def stack(columns) -> np.ndarray:
-    """Return the columns of a fetch from DuckDB as one float array, a column each, with NaN
-    for a NULL and for an infinite value."""
+    """Stack DuckDB result columns into a float array; NULL and inf become NaN."""
     columns = list(columns)
     X = np.empty((len(columns[0]), len(columns)))
     for j, c in enumerate(columns):
@@ -64,8 +50,8 @@ def stack(columns) -> np.ndarray:
     return X
 
 
-# The warehouse expression of each style characteristic. The alias u is int_universe and
-# the alias s is signals. A characteristic that the log cannot take is null.
+# Warehouse expression of each style characteristic. Alias u is int_universe, s is signals.
+# Where the log is undefined the characteristic is null.
 STYLE_SQL = {
     "size": "case when u.market_cap > 0 then ln(u.market_cap) end",
     "liquidity": "case when u.adv > 0 and u.market_cap > 0 then ln(u.adv / u.market_cap) end",
@@ -79,11 +65,13 @@ STYLE_SQL = {
 
 
 def zscore_fit(x: np.ndarray, w: np.ndarray) -> tuple[float, float, float, float]:
-    """Return the parameters that standardize one cross-section: the lower and upper
-    winsor bounds (the median plus or minus 5 robust standard deviations), the w-weighted
-    mean of the winsorized values and their equal-weighted standard deviation. A
-    cross-section with fewer than 3 finite values, or with no spread, gets a standard
-    deviation of 0, and zscore_apply then gives 0 for every value."""
+    """Return (lo, hi, mu, sd), the parameters that standardize one cross-section.
+
+    lo and hi are the winsor bounds (median plus or minus 5 robust standard deviations),
+    mu is the w-weighted mean of the winsorized values and sd their equal-weighted
+    standard deviation. With fewer than 3 finite values, or no spread, sd is 0 and
+    zscore_apply gives 0 for every value.
+    """
     x = np.asarray(x, dtype=float)
     ok = np.isfinite(x)
     if ok.sum() < 3:
@@ -100,9 +88,11 @@ def zscore_fit(x: np.ndarray, w: np.ndarray) -> tuple[float, float, float, float
 
 def zscore_apply(x: np.ndarray, params: tuple[float, float, float, float],
                  clip: float = 3.0) -> np.ndarray:
-    """Standardize x with the parameters of zscore_fit: winsorize, center, scale and clip at
-    plus or minus clip. A missing value becomes 0, the mean. The values of x need not be
-    the values that gave the parameters."""
+    """Standardize x with the parameters of zscore_fit: winsorize, center, scale, clip.
+
+    The clip is at plus or minus `clip`. A missing value becomes 0, the mean. x need not be
+    the data that gave the parameters.
+    """
     lo, hi, mu, sd = params
     x = np.asarray(x, dtype=float)
     z = np.zeros_like(x)
@@ -114,17 +104,22 @@ def zscore_apply(x: np.ndarray, params: tuple[float, float, float, float],
 
 
 def zscore(x: np.ndarray, w: np.ndarray, clip: float = 3.0) -> np.ndarray:
-    """Standardize one cross-section. Winsorize at the median plus or minus 5 robust
-    standard deviations, center on the w-weighted mean, divide by the equal-weighted
-    standard deviation and clip at plus or minus clip. A missing value becomes 0, the
-    mean. With w the market cap, the cap-weighted market has an exposure of 0."""
+    """Standardize one cross-section.
+
+    Winsorize at the median plus or minus 5 robust standard deviations, center on the
+    w-weighted mean, divide by the equal-weighted standard deviation and clip at plus or
+    minus `clip`. A missing value becomes 0, the mean. With w the market cap, the
+    cap-weighted market has an exposure of 0.
+    """
     return zscore_apply(x, zscore_fit(x, w), clip)
 
 
 def _medians(V: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
-    """Return the median of each row of V, where a row has its finite values first in the
-    sort order and NaN last. lower and upper are the positions of the two middle values.
-    A partition finds them with less work than a sort."""
+    """Return the median of each row of V.
+
+    A row has its finite values first in sort order and NaN last; lower and upper are the
+    positions of the two middle values. A partition finds them with less work than a sort.
+    """
     out = np.empty(V.shape[0])
     for i in range(V.shape[0]):
         p = np.partition(V[i], (lower[i], upper[i]))
@@ -133,8 +128,7 @@ def _medians(V: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
 
 
 def _block_fit(B: np.ndarray, w: np.ndarray) -> np.ndarray:
-    """Return zscore_fit for each column of the block B (rows by columns) as an array of
-    shape (columns, 4). The columns share one pass: one sort for each median."""
+    """Return zscore_fit for each column of the block B as an array of shape (columns, 4)."""
     k = B.shape[1]
     P = np.zeros((k, 4))
     P[:, 0], P[:, 1] = -np.inf, np.inf
@@ -161,8 +155,8 @@ def _block_fit(B: np.ndarray, w: np.ndarray) -> np.ndarray:
 
 
 def _block_apply(B: np.ndarray, P: np.ndarray, clip: float) -> np.ndarray:
-    """Return zscore_apply for each column of the block B, with the parameters P of shape
-    (columns, 4). The operations on each value are those of zscore_apply."""
+    """Return zscore_apply for each column of the block B, given parameters P of shape
+    (columns, 4)."""
     lo, hi, mu, sd = P.T
     live = sd > 0
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -172,8 +166,10 @@ def _block_apply(B: np.ndarray, P: np.ndarray, clip: float) -> np.ndarray:
 
 def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
                 clip: float = 3.0) -> np.ndarray:
-    """Return the z-score of each column of X within each session (zscore), centered on
-    the w-weighted mean. Rows keep their order. A missing value becomes 0."""
+    """Return the z-score (see zscore) of each column of X within each session.
+
+    Centered on the w-weighted mean. Rows keep their order; a missing value becomes 0.
+    """
     day = np.asarray(day)
     Z = np.zeros_like(X, dtype=float)
     order = np.argsort(day, kind="stable")
@@ -188,8 +184,8 @@ def standardize(day: np.ndarray, X: np.ndarray, w: np.ndarray,
 
 def standardize_fit(day: np.ndarray, X: np.ndarray, w: np.ndarray
                     ) -> tuple[np.ndarray, np.ndarray]:
-    """Return the sessions and the parameters of zscore_fit for each session and column of
-    X, as an array of shape (sessions, columns, 4)."""
+    """Return the sessions and the zscore_fit parameters for each session and column of X,
+    as an array of shape (sessions, columns, 4)."""
     day = np.asarray(day)
     order = np.argsort(day, kind="stable")
     days, starts = np.unique(day[order], return_index=True)
@@ -203,9 +199,11 @@ def standardize_fit(day: np.ndarray, X: np.ndarray, w: np.ndarray
 
 def standardize_apply(day: np.ndarray, X: np.ndarray, days: np.ndarray, P: np.ndarray,
                       clip: float = 3.0) -> tuple[np.ndarray, np.ndarray]:
-    """Return the z-scores of the rows of X under the parameters of standardize_fit, and
-    a flag for the rows whose session has parameters. The z-scores of a row with no
-    parameters are 0. Rows keep their order."""
+    """Return the z-scores of the rows of X under the parameters of standardize_fit, and a
+    flag for the rows whose session has parameters.
+
+    A row with no parameters gets 0. Rows keep their order.
+    """
     day = np.asarray(day)
     Z = np.zeros_like(X, dtype=float)
     known = np.isin(day, days)
@@ -222,8 +220,7 @@ def standardize_apply(day: np.ndarray, X: np.ndarray, days: np.ndarray, P: np.nd
 
 
 def weighted_median(x: np.ndarray, w: np.ndarray) -> float:
-    """Return the smallest value of x with at least half of the total weight w at or below
-    it."""
+    """Return the smallest value of x with at least half the total weight w at or below it."""
     order = np.argsort(x, kind="stable")
     cum = np.cumsum(w[order])
     return float(x[order][np.searchsorted(cum, 0.5 * cum[-1])])
@@ -231,8 +228,10 @@ def weighted_median(x: np.ndarray, w: np.ndarray) -> float:
 
 def clip_returns(r: np.ndarray, w: np.ndarray, k: float) -> np.ndarray:
     """Clip the returns r of one session at their w-weighted median plus or minus k robust
-    standard deviations (1.4826 times the w-weighted median absolute deviation). Return r
-    unchanged when k is 0 or the deviation is 0."""
+    standard deviations (1.4826 times the w-weighted MAD).
+
+    Return r unchanged when k is 0 or the deviation is 0.
+    """
     if k <= 0:
         return r
     med = weighted_median(r, w)
@@ -247,21 +246,23 @@ def cross_section_returns(
     groups: np.ndarray | None = None, n_groups: int = 0, cap: np.ndarray | None = None,
     min_names: int = 100, return_clip: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Regress the returns of each session on the exposures Z, with weights w. Return the
-    sessions, the market return, the style returns (one column for each column of Z), the
-    group returns (one column for each group), the count of names and the weighted R².
+    """Regress the returns of each session on the exposures Z, with weights w.
+
+    Return the sessions, the market return, the style returns (one column per column of Z),
+    the group returns (one column per group), the count of names and the weighted R².
 
     Without groups, the design has an intercept, and the intercept is the market. With
-    groups (an integer code from 0 to n_groups - 1 for each row), the design has one dummy
-    for each group and no intercept. The market is then the mean of the group
-    coefficients weighted by cap, and each group return is its coefficient less the
-    market, so the cap-weighted group returns sum to 0 (the constraint of a Barra model).
-    A group with no names in a session gets NaN. A session with fewer than min_names
-    usable rows gets NaN.
+    groups (an integer code from 0 to n_groups - 1 per row), the design has one dummy per
+    group and no intercept. The market is then the cap-weighted mean of the group
+    coefficients, and each group return is its coefficient less the market, so the
+    cap-weighted group returns sum to 0 (the constraint of a Barra model). A group with no
+    names in a session gets NaN, and so does a session with fewer than min_names usable
+    rows.
 
     With return_clip above 0, the fit uses the returns clipped by clip_returns, so one
     extreme return has a bounded effect on a coefficient. The residual and the R² use the
-    raw returns. With 0, the fit uses the raw returns."""
+    raw returns.
+    """
     day = np.asarray(day)
     order = np.argsort(day, kind="stable")
     days, starts = np.unique(day[order], return_index=True)
@@ -314,8 +315,13 @@ def style_returns(
     day: np.ndarray, X: np.ndarray, r: np.ndarray, w: np.ndarray, *, min_names: int = 100
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Standardize the characteristics X within each session and regress the returns on
-    them with an intercept. Return the sessions, the factor returns (the intercept first,
-    then one column for each column of X), the count of names and the weighted R²."""
+    them with an intercept (Fama-MacBeth, as in a Barra model).
+
+    Each coefficient is the return of a portfolio with unit exposure to one characteristic
+    and zero exposure to the others. Return the sessions, the factor returns (the
+    intercept first, then one column per column of X), the count of names and the
+    weighted R².
+    """
     Z = standardize(day, X, w)
     days, market, F, _, n, r2 = cross_section_returns(day, Z, r, w, min_names=min_names)
     return days, np.column_stack([market, F]), n, r2
@@ -330,11 +336,12 @@ def pca_returns(
 
     At each rebalance row d, the eligible names (sdp.risk.eligible) give a correlation
     matrix over rows d - window to d - 1. The weights of component j are its eigenvector
-    divided by the volatility of each name, scaled to a gross exposure of 1. The weights
-    earn the returns of rows d to d + step - 1, so each return is out of sample. A name
-    with no return on a row earns 0. The first component has a positive net weight. The
-    sign of each later component follows the previous rebalance, so a series does not
-    flip. The order of components 2 to k can change between rebalances."""
+    divided by each name's volatility, scaled to a gross exposure of 1. They earn the
+    returns of rows d to d + step - 1, so each return is out of sample. A name with no
+    return on a row earns 0. The first component has a positive net weight; the sign of
+    each later component follows the previous rebalance so a series doesn't flip. The
+    order of components 2 to k can change between rebalances.
+    """
     T, N = R.shape
     F = np.full((T, k), np.nan)
     share = np.full((T, k), np.nan)
@@ -354,8 +361,8 @@ def pca_returns(
         _, s, Vt = np.linalg.svd(Z, full_matrices=False)
         fits[i] = (cols, sd, Vt[:k].copy(), s ** 2)
 
-    # The decompositions are independent. The sign of a component follows the rebalance
-    # before it, so the weights come in order.
+    # The decompositions are independent; the signs follow the previous rebalance, so the
+    # weights are built in order.
     _each(fit, len(rebalances))
     prev: np.ndarray | None = None
     for d, found in zip(rebalances, fits, strict=True):
@@ -385,10 +392,11 @@ def mimic_returns(
     each fit.
 
     At each rebalance row d, a ridge regression of y on the base returns B over rows
-    d - window to d - 1 gives the weights b. Rows with a missing target or base value do
-    not enter the fit. The portfolio B @ b earns rows d to d + step - 1. It has no
-    intercept, because an intercept is not a traded asset. The target can end before B
-    (a published factor lags), and the portfolio then carries it forward."""
+    d - window to d - 1 gives the weights b. Rows with a missing target or base value stay
+    out of the fit. The portfolio B @ b earns rows d to d + step - 1 and has no intercept,
+    because an intercept is not a traded asset. The target can end before B (a published
+    factor lags), and the portfolio then carries it forward.
+    """
     T, m = B.shape
     out = np.full(T, np.nan)
     r2 = np.full(T, np.nan)
@@ -398,7 +406,7 @@ def mimic_returns(
         if ok.sum() < min_obs:
             continue
         Xf = np.column_stack([np.ones(ok.sum()), BB[ok]])
-        # The penalty scales with the base returns, and the intercept has none.
+        # The penalty scales with the base returns; the intercept has none.
         pen = ridge * np.sum(BB[ok] ** 2) / m * np.eye(m + 1)
         pen[0, 0] = 0.0
         coef = np.linalg.solve(Xf.T @ Xf + pen, Xf.T @ yy[ok])
@@ -414,10 +422,12 @@ def mimic_returns(
 def ridge_loadings(
     y: np.ndarray, X: np.ndarray, penalty: float
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return the loadings and the intercept of a ridge regression of each column of the
-    n x m matrix y on the n x k matrix X. The penalty acts on the standardized columns of X.
-    The intercept has no penalty. The loadings are in the units of X. A column of X with no
-    variance gets the loading 0."""
+    """Return the loadings and intercept of a ridge regression of each column of the n x m
+    matrix y on the n x k matrix X.
+
+    The penalty acts on the standardized columns of X, not on the intercept. Loadings are
+    in the units of X. A column of X with no variance gets the loading 0.
+    """
     mu = X.mean(axis=0)
     sd = np.where(np.ptp(X, axis=0) > 0, X.std(axis=0), np.inf)
     Z = (X - mu) / sd
@@ -428,9 +438,11 @@ def ridge_loadings(
 
 
 def _same_rows(fin: np.ndarray, cols: np.ndarray) -> list[np.ndarray]:
-    """Split cols into the groups of columns of fin with the same pattern of true values. A
-    group keeps the order of cols. The bits of a column are packed into 64-bit words, which
-    sort faster than the rows of a byte array."""
+    """Split cols into groups of columns of fin with the same pattern of true values.
+
+    A group keeps the order of cols. The bits of a column are packed into 64-bit words,
+    which sort faster than the rows of a byte array.
+    """
     packed = np.packbits(fin[:, cols], axis=0)
     packed = np.vstack([packed, np.zeros((-packed.shape[0] % 8, packed.shape[1]), dtype=np.uint8)])
     words = np.ascontiguousarray(packed.T).view(np.uint64)
@@ -448,12 +460,13 @@ def fund_loadings(
     """Return the rebalance rows, the loadings (fits x funds x factors), the intercepts,
     the in-sample R squared and the count of rows of each fit.
 
-    R holds the daily returns of the funds and X the factor returns, one row for each
-    session. At each rebalance row d, a ridge regression (ridge_loadings) of the return of
-    a fund on X over rows d - window to d - 1 gives the loadings. The loadings earn the rows
-    d to d + step - 1. A fund gets a fit when U is true for it on row d and it has at least
-    min_returns returns before row d. At least min_obs rows of the window must also have
-    its return and every factor. Other funds get NaN. The fit reads no row from d on."""
+    R holds the daily returns of the funds and X the factor returns, one row per session.
+    At each rebalance row d, a ridge regression (ridge_loadings) of each fund's return on
+    X over rows d - window to d - 1 gives the loadings, which earn rows d to d + step - 1.
+    A fund gets a fit when U is true for it on row d, it has at least min_returns returns
+    before row d, and at least min_obs rows of the window have its return and every
+    factor. Other funds get NaN. The fit reads no row from d on.
+    """
     T, N = R.shape
     K = X.shape[1]
     seen = np.cumsum(np.isfinite(R), axis=0)

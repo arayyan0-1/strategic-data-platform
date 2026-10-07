@@ -1,8 +1,6 @@
--- The strongest statement about the boundary. Across a split, the unadjusted
--- series has a very large false return and the adjusted series does not.
--- An error of one day makes the adjusted count equal to or larger than the
--- unadjusted count. This test cannot fire on unusual data, because it compares
--- two counts on the same rows.
+{# A returned row means that across splits the adjusted series has as many jumps over ln 2 as the
+   unadjusted one. A one-day boundary error does this. It compares two counts on the same rows,
+   so unusual data cannot fire it. #}
 with steps as (
     select
         ticker,

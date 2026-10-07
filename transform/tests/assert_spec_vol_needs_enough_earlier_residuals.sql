@@ -1,5 +1,5 @@
--- A name has an own_vol and a spec_vol only when it has spec_vol_min_obs residuals before
--- the row. A forecast from fewer residuals gives false extremes for a new listing.
+{# A returned row has an own_vol or spec_vol with fewer than spec_vol_min_obs earlier residuals,
+   or none with enough. #}
 with rows as (
 
     select security_key, date, own_vol, spec_vol,

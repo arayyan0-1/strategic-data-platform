@@ -1,11 +1,6 @@
-{#
-  The daily total return of each fund line, on each session with a bar. A fund line is the
-  primary line of a security with a type in fund_types. These are the funds that the
-  universe leaves out. The return is the adjusted close of the session over the adjusted
-  close of the session before, less 1. It is null when the line has no bar on the session
-  before, so a return never spans two sessions. adv is the trailing dollar volume of
-  int_universe.
-#}
+{# Daily total return of each fund line (primary line, type in fund_types). ret is null without a
+   bar on the previous session, so a return never spans two sessions. adv is the trailing dollar
+   volume from int_universe. #}
 {{ config(materialized='view') }}
 
 with sessions as (

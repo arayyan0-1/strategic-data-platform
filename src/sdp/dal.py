@@ -1,8 +1,6 @@
-# src/sdp/dal.py
-"""The only entry point for reads of the data lake. No other module opens a
-Parquet file or a DuckDB database. Every lake accessor returns a lazy
-DuckDBPyRelation. warehouse() returns a read-only connection to the dbt
-warehouse. Price adjustment is a dbt model, not here.
+"""Read access to the data lake and the dbt warehouse.
+
+Lake accessors return lazy relations on one shared in-memory connection.
 """
 from __future__ import annotations
 
@@ -20,10 +18,12 @@ PartitionKey = Literal["date"]
 
 @dataclass(frozen=True)
 class Dataset:
-    """A published dataset in raw/. key='date' is an event stream: one immutable
-    partition per session, backfillable, read with series(). key=None is current
-    state: one table with no date in the path, replaced by each pull, read with
-    current()."""
+    """A published dataset in raw/.
+
+    key='date' is an event stream (one immutable partition per session, read with
+    series()). key=None is current state (one table replaced by each pull, read with
+    current()).
+    """
 
     name: str
     key: PartitionKey | None
@@ -52,25 +52,20 @@ TICKERS = Dataset("massive_tickers", "date", union_by_name=True)
 SPLITS = Dataset("massive_splits", None)
 DIVIDENDS = Dataset("massive_dividends", None)
 
-# The FINRA short datasets are event streams. Short interest is keyed on the
-# settlement date.
+# Short interest is keyed on the settlement date.
 SHORT_VOLUME = Dataset("massive_short_volume", "date", union_by_name=True)
 SHORT_INTEREST = Dataset("massive_short_interest", "date", union_by_name=True)
 
-# Ticker details: shares outstanding, market cap and the industry code. One
-# request per ticker, so one partition per month, on its last session.
+# One request per ticker, so one partition per month, on its last session.
 TICKER_DETAILS = Dataset("massive_ticker_details", "date", union_by_name=True)
 
-# The Fama-French daily factors. The library restates the whole history in each
-# file, so the table is current state.
+# The library restates the whole history in each file.
 FRENCH = Dataset("french_factors", None)
 
-# Rates, credit spreads, volatility and financial conditions from FRED, one row per
-# series and date. FRED revises values and serves a rolling window of some series, so
-# the table is current state: the fold of the kept pulls.
+# FRED revises values and serves a rolling window of some series, so the table folds
+# the kept pulls.
 FRED = Dataset("fred_series", None)
 
-# The daily q5 factors of Hou, Xue and Zhang. Current state, like the French factors.
 QFACTORS = Dataset("q_factors", None)
 
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
@@ -80,8 +75,10 @@ _con: duckdb.DuckDBPyConnection | None = None
 
 
 def con() -> duckdb.DuckDBPyConnection:
-    """The shared in-memory connection that owns every relation. Two relations
-    joined together must come from one connection."""
+    """Return the shared in-memory connection that owns every relation.
+
+    Relations that are joined must come from one connection.
+    """
     global _con
     if _con is None:
         _con = duckdb.connect()
@@ -96,8 +93,7 @@ class MissingPartition(FileNotFoundError):
 # ---------- partition discovery ----------
 
 def _require_event_stream(ds: Dataset, function: str) -> None:
-    """Refuse a current-state dataset. It has no partition to describe, and an
-    empty list would be the wrong answer in the right shape."""
+    """Raise for a current-state dataset; an empty answer would look valid."""
     if ds.key is None:
         raise ValueError(
             f"{ds.name} holds current state and has no date partition, so "
@@ -106,10 +102,7 @@ def _require_event_stream(ds: Dataset, function: str) -> None:
 
 
 def partitions(ds: Dataset) -> list[dt.date]:
-    """Return every published partition date, in ascending order.
-
-    The list is empty when no partition exists.
-    """
+    """Return every published partition date, ascending."""
     _require_event_stream(ds, "partitions")
     if not ds.root.exists():
         return []
@@ -119,17 +112,14 @@ def partitions(ds: Dataset) -> list[dt.date]:
         try:
             d = dt.date.fromisoformat(p.name[len(prefix):])
         except ValueError:
-            continue  # Not a partition directory. Ignore it.
+            continue  # Not a partition directory.
         if ds.partition_file(d).exists():
             found.append(d)
     return sorted(found)
 
 
 def coverage(ds: Dataset) -> tuple[dt.date, dt.date] | None:
-    """Return the first and last published partition dates.
-
-    Return None when no partition exists.
-    """
+    """Return the first and last published partition dates, or None."""
     _require_event_stream(ds, "coverage")
     parts = partitions(ds)
     return (parts[0], parts[-1]) if parts else None
@@ -154,9 +144,11 @@ def series(
     start: dt.date | None = None,
     end: dt.date | None = None,
 ) -> duckdb.DuckDBPyRelation:
-    """Rows of every published partition from start to end, both inclusive. A
-    gap inside the range is not an error, because a failed audit leaves no
-    partition. Use gaps() to find missing sessions."""
+    """Return the rows of every published partition from start to end, inclusive.
+
+    A gap inside the range is not an error: a failed audit leaves no partition.
+    Use gaps() to find missing sessions.
+    """
     if ds.key != "date":
         raise ValueError(
             f"{ds.name} holds current state and not an event stream. It has no "
@@ -178,10 +170,7 @@ def series(
 
 
 def on_date(ds: Dataset, d: dt.date) -> duckdb.DuckDBPyRelation:
-    """Return one session of an event stream.
-
-    This function raises MissingPartition when the date has no partition.
-    """
+    """Return one session of an event stream; raise MissingPartition if it is absent."""
     if ds.key != "date":
         raise ValueError(
             f"{ds.name} holds current state and has no date partition. "
@@ -195,9 +184,9 @@ def on_date(ds: Dataset, d: dt.date) -> duckdb.DuckDBPyRelation:
 
 
 def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
-    """The XNYS sessions from start to end that have no partition. The calendar
-    import is inside the function, because it is slow and most reads skip it."""
+    """Return the XNYS sessions from start to end that have no partition."""
     _require_event_stream(ds, "gaps")
+    # Imported here: the calendar is slow to load and most reads skip it.
     import exchange_calendars as xcals
 
     sessions = xcals.get_calendar("XNYS").sessions_in_range(
@@ -210,9 +199,10 @@ def gaps(ds: Dataset, start: dt.date, end: dt.date) -> list[dt.date]:
 # ---------- current state: one table ----------
 
 def current(ds: Dataset) -> duckdb.DuckDBPyRelation:
-    """A current-state table as the vendor states it now. One table, replaced
-    by each pull, so this read is not point-in-time. A past belief of the vendor
-    comes from the dated files in vendor/."""
+    """Return a current-state table as the vendor states it now.
+
+    Not point-in-time. A past belief of the vendor comes from the dated files in vendor/.
+    """
     if ds.key is not None:
         raise ValueError(
             f"{ds.name} is an event stream. Use series(ds, start, end) or "
@@ -228,14 +218,15 @@ def current(ds: Dataset) -> duckdb.DuckDBPyRelation:
 # ---------- named accessors ----------
 
 def day_aggs(start: dt.date | None = None, end: dt.date | None = None):
-    """Daily OHLCV bars, one row per ticker and session. Unadjusted on purpose,
-    so the published partitions stay immutable."""
+    """Return daily OHLCV bars, one row per ticker and session. Unadjusted."""
     return series(DAY_AGGS, start, end)
 
 
 def tickers(start: dt.date | None = None, end: dt.date | None = None):
-    """Ticker reference data, point-in-time. A row for a date means the name was
-    live and tradeable then. Instrument-type filtering is a dbt decision."""
+    """Return ticker reference data, point-in-time.
+
+    A row for a date means the name was live and tradeable then.
+    """
     return series(TICKERS, start, end)
 
 
@@ -245,31 +236,34 @@ def tickers_on(d: dt.date):
 
 
 def splits():
-    """Return the split table as the vendor states it now. See current()."""
+    """Return the split table as the vendor states it now (see current())."""
     return current(SPLITS)
 
 
 def dividends():
-    """Return the dividend table as the vendor states it now. See current()."""
+    """Return the dividend table as the vendor states it now (see current())."""
     return current(DIVIDENDS)
 
 
 def ticker_details(start: dt.date | None = None, end: dt.date | None = None):
-    """Monthly ticker details of the common stock, point-in-time: shares outstanding,
-    market cap (for the whole company) and the SIC industry code."""
+    """Return monthly ticker details, point-in-time.
+
+    Columns include shares outstanding, market cap (whole company) and the SIC code.
+    """
     return series(TICKER_DETAILS, start, end)
 
 
 def french_factors():
-    """Return the Fama-French daily factors as the library states them now, as
-    fractions. crsp_month names the version of the library files."""
+    """Return the Fama-French daily factors as fractions. crsp_month names the library version."""
     return current(FRENCH)
 
 
 def fred_series():
-    """Return the FRED series in long form: series_id, date, value, in the units of
-    FRED (percent for rates and spreads). A value is the observation of its date, which
-    FRED publishes on the next business day or later."""
+    """Return FRED series in long form: series_id, date, value, in FRED units.
+
+    Rates and spreads are in percent. FRED publishes a date's value the next business
+    day or later.
+    """
     return current(FRED)
 
 
@@ -279,23 +273,28 @@ def q_factors():
 
 
 def short_volume(start: dt.date | None = None, end: dt.date | None = None):
-    """Daily FINRA off-exchange short volume. total_volume here is FINRA
-    off-exchange only, much smaller than the day-aggregate volume, so never
-    divide one dataset by the other."""
+    """Return daily FINRA off-exchange short volume.
+
+    total_volume is off-exchange only, so never divide it by the day-aggregate volume.
+    """
     return series(SHORT_VOLUME, start, end)
 
 
 def short_interest(start: dt.date | None = None, end: dt.date | None = None):
-    """Short interest, keyed on the settlement date, not the publication date.
-    A study must apply the ~8-session publication lag itself (the staging model
-    does), or it reads a number before the market had it."""
+    """Return short interest keyed on the settlement date, not the publication date.
+
+    Apply the publication lag before use (int_short_interest does), or a study reads
+    a number before the market had it.
+    """
     return series(SHORT_INTEREST, start, end)
 
 
 def warehouse() -> duckdb.DuckDBPyConnection:
-    """Return a read-only connection to the dbt warehouse, in UTC. A build publishes
-    a new file. DuckDB keeps one open database per path, so close every warehouse
-    connection before a new one can read the newer build."""
+    """Return a read-only connection to the dbt warehouse, in UTC.
+
+    A build publishes a new file and DuckDB keeps one open database per path, so close
+    every warehouse connection before connecting again to read the newer build.
+    """
     path = settings.warehouse_path
     if not path.exists():
         raise MissingPartition(
@@ -307,7 +306,7 @@ def warehouse() -> duckdb.DuckDBPyConnection:
 
 
 def status() -> str:
-    """Return one line for each dataset with its partition count and range."""
+    """Return one line per dataset with its partition count and range."""
     lines = []
     for ds in DATASETS.values():
         if ds.key is None:

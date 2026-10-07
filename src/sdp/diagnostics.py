@@ -1,6 +1,6 @@
-# src/sdp/diagnostics.py
-"""Measurements that close the open questions. Each function answers one question
-with a number. Run after the backfill. Every read goes through sdp.dal.
+"""Data diagnostics: each function answers one question with a number.
+
+Run after the backfill. Every read goes through sdp.dal.
 
     python -m sdp.diagnostics
 """
@@ -10,8 +10,8 @@ import datetime as dt
 
 from sdp import dal
 
-# A universe proxy so a diagnostic needs no dbt run. The dbt model is the
-# definition, and the two can disagree.
+# Universe proxy so a diagnostic needs no dbt run. The dbt model is the definition; the
+# two can disagree.
 MIN_PRICE = 5.0
 MIN_ADV = 1_000_000.0
 ADV_WINDOW = 20
@@ -29,7 +29,7 @@ def _sql(query: str, **relations) -> list[tuple]:
 
 
 def _liquid_bars_sql() -> str:
-    """A trailing liquidity screen that ends at D-1, as a CTE body."""
+    """Return a trailing liquidity screen that ends at D-1, as a CTE body."""
     return f"""
         select ticker, date, close,
                avg(close * volume) over (
@@ -43,9 +43,11 @@ def _liquid_bars_sql() -> str:
 # ---------- the identifier ----------
 
 def figi_reuse() -> str:
-    """How many CS tickers map to more than one composite_figi in the window? A
-    freed-then-reused ticker would join two companies into one fat-tailed series,
-    so a large count means a ticker key is not defensible."""
+    """Count the CS tickers that map to more than one composite_figi in the window.
+
+    A freed-then-reused ticker would join two companies into one series, so a large count
+    means a ticker key is not defensible.
+    """
     rows = _sql("""
         with cs as (
             select ticker, composite_figi, share_class_figi, date
@@ -69,8 +71,10 @@ def figi_reuse() -> str:
 
 
 def figi_exposure() -> str:
-    """What share of the traded universe falls back off FIGI? Reports the raw CS
-    null rate and the rate after the liquidity filter."""
+    """Report the share of the traded universe that falls back off FIGI.
+
+    Gives the raw CS null rate and the rate after the liquidity filter.
+    """
     rows = _sql(f"""
         with liquid as ({_liquid_bars_sql()}),
         screened as (
@@ -102,9 +106,11 @@ def figi_exposure() -> str:
 # ---------- the ambiguous event key ----------
 
 def corporate_action_duplicates() -> str:
-    """How many events share a ticker and date and disagree about the factor? An
-    as-of join against the raw rows would duplicate price rows. The staging model
-    collapses them first, and this is the exposure it hides."""
+    """Count the events that share a ticker and date and disagree about the factor.
+
+    An as-of join against the raw rows would duplicate price rows. dbt collapses them
+    first, and this measures what that hides.
+    """
     # The window is the first to the last day-aggregate session in the lake.
     coverage = dal.coverage(dal.DAY_AGGS)
     in_window_sql = (
@@ -141,10 +147,12 @@ def corporate_action_duplicates() -> str:
 # ---------- the null dividend factor ----------
 
 def dividend_factor_nulls() -> str:
-    """Is the null dividend factor structural or a defect? The factor needs a
-    price on the ex-date, so a null means the vendor has no price. The deciding
-    check is the null rate inside the traded tape against outside it, over the
-    whole bar history (a short window would count early delistings as untraded)."""
+    """Compare the null dividend factor rate inside the traded tape with the rate outside.
+
+    The factor needs a price on the ex-date, so a null means the vendor has no price
+    (structural, not a defect). The comparison runs over the whole bar history, because a
+    short window would count early delistings as untraded.
+    """
     rows = _sql("""
         with traded as (select distinct ticker from _bars),
         d as (select ticker, historical_adjustment_factor as f,

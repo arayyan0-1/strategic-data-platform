@@ -1,24 +1,6 @@
-{#
-  The score of each move of the monitor, one row per family, subject, horizon and
-  session, over the whole history. A score is as rare as a move of that many standard
-  deviations of a normal distribution: a score of 3 is a move that the family passes on
-  about 1 day in 370.
-
-  z_raw is the move over h sessions divided by the volatility known before the last
-  session of the move, times the root of h (macros/scores.sql). z is the score: z_raw
-  mapped to the normal quantile of the share of the pool of its family that is as large.
-  Each z_raw uses trailing data only. The map uses the whole pool, as a table of rarity.
-
-  - etf: the log return of a monitor ETF over 1, 5 and 21 sessions. An ETF whose
-    20-session volatility is under monitor_min_etf_vol a year (a T-bill fund) has no row,
-    because each accrual looks like a large move.
-  - rate and rate_step: the change of a market_rates measure over one session, with the
-    volatility at least monitor_tick for a measure in percentage points. rate_step holds
-    the groups of the var monitor_step_groups, which move in steps.
-  - relation: the change of a market_relation_values relation over 21 sessions.
-  - specific: resid_z of the names of a cap of monitor_big_cap or more (style_residuals).
-    Its z_raw is the value that the model gives, so the map follows the model.
-#}
+{# Score of each monitor move, per family, subject, horizon and session: a score of 3 is as rare
+   as a normal 3 sigma move. z_raw is trailing (macros/scores.sql); only the map to z uses the
+   family's pool. Families: etf, rate, rate_step, relation, specific. #}
 
 {% set step_groups = sql_list('monitor_step_groups') %}
 {% set measures = market_rate_measures() %}
@@ -35,6 +17,8 @@ with etf as (
 
 ), etf_moves as (
 
+    -- An ETF under monitor_min_etf_vol (a T-bill fund) has no row: each accrual looks like a
+    -- large move.
     select
         family, subject, date, x, 0.0 as min_sd,
         coalesce(count(x) over v = 20
@@ -52,6 +36,8 @@ with etf as (
 ), level as (
 
     -- A price moves in proportion to its level, so its changes are log returns.
+    -- rate_step holds monitor_step_groups, which move in steps; monitor_tick floors the
+    -- volatility of pct measures.
     select d.measure, d.grp, d.unit, l.date,
            case when d.unit in ('fx', 'price') then ln(l.value) else l.value end as x
     from (

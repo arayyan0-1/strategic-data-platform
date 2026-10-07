@@ -1,7 +1,4 @@
-"""The IC of each signal, target and horizon over the holdout, by the rules of
-signal_ic_summary. Read it once for a signal, when the signal is final, and record
-the result. A signal that meets the holdout many times is fitted to it.
-"""
+"""IC of each signal, target and horizon over the holdout, by the rules of signal_ic_summary."""
 from sdp.evaluation import summarize
 
 

@@ -1,8 +1,4 @@
-"""The dbt runner publishes the warehouse only after a clean build.
-
-Tests use a fake dbt script that writes to the file in SDP_WAREHOUSE. No real
-dbt runs.
-"""
+"""Tests for sdp.transform: the warehouse is published only after a clean build."""
 import datetime as dt
 import os
 import subprocess
@@ -43,7 +39,7 @@ sys.exit(int(os.environ.get("FAKE_DBT_EXIT", "0")))
 
 @pytest.fixture
 def fake_dbt(tmp_data_root, tmp_path, monkeypatch):
-    """Install a fake dbt. Each run adds one row to the table `runs`."""
+    """Install a fake dbt that writes to SDP_WAREHOUSE and adds one row to `runs` per run."""
     script = tmp_path / "bin" / "dbt"
     script.parent.mkdir()
     script.write_text(FAKE_DBT, encoding="utf-8")

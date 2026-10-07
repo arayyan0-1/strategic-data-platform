@@ -1,5 +1,4 @@
-"""The evaluation protocol: the purge of labels at fold boundaries, the walk-forward
-split and the standard errors of overlapping labels."""
+"""Tests for sdp.evaluation: label purge, walk-forward split and standard errors under overlap."""
 import numpy as np
 import pytest
 

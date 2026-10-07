@@ -1,7 +1,5 @@
--- Dividend yield is trailing cash over price, so it is never negative and, for a
--- payer, sits in a sane annual band. A units error (cash not divided by price, or
--- a split blowup inside the window) would move the median far out. Check payers
--- on recent dense sessions.
+{# A returned row is a recent session where the median payer yield is not in (0, 0.15]: a units
+   or split error. #}
 with last as (select max(date) as d from {{ ref('signals') }})
 
 select

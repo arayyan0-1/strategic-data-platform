@@ -1,10 +1,5 @@
--- WOLF left bankruptcy on 2025-09-29 with 26M new shares. The pull of 2025-09-30 has no
--- class count and values the 156M old shares at the new price, so its cap is refused and
--- the universe has no cap until the next month-end. The pull of 2025-10-31 counts the new
--- shares, and its vendor cap stays. The vendor cap of HON on 2026-06-30 disagrees with the
--- class count before it and agrees with the count after it, so it stays. The pull of LLYVA
--- on 2026-08-31 has no class count and a vendor cap of all three classes, so it takes the
--- class count of the pull before.
+{# A returned row is a month-end whose cap_source differs from the expected rule (WOLF, HON,
+   LLYVA), or a WOLF universe cap that should be null. #}
 with cases (ticker, month_end, expected) as (
     values
         ('WOLF',  date '2025-09-30', 'refused'),

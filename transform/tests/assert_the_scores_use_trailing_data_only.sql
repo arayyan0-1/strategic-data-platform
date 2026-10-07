@@ -1,6 +1,5 @@
--- The trailing z of the last 30 sessions of SPY and of the market factor, over one
--- and 21 sessions, recomputed by a weighted sum over the sessions before each date.
--- A z that used a later session, or one session too many, would differ.
+{# A returned row is a z_raw of SPY or the market factor (last 30 sessions, 1 and 21 sessions)
+   that differs from a weighted sum over the sessions before each date. #}
 {% set lam = 0.5 ** (1.0 / var('monitor_halflife')) %}
 {% set k = var('monitor_vol_window') %}
 

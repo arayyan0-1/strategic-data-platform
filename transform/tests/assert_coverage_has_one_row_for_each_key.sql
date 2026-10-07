@@ -1,4 +1,4 @@
--- One row per security and session in each coverage table, and every z-score inside the clip.
+{# A returned row is a duplicate key in a coverage table, or a z-score beyond the clip. #}
 select 'duplicate exposure key' as problem, security_key, date
 from {{ ref('coverage_exposures') }}
 group by security_key, date

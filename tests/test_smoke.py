@@ -1,6 +1,4 @@
-"""Import every module and verify that Settings resolves absolute paths.
-dbt and Jupyter start from their own directories, so relative paths break.
-"""
+"""Import every module and check that Settings resolves absolute paths."""
 import importlib
 import pkgutil
 from pathlib import Path
@@ -9,12 +7,12 @@ import pytest
 
 import sdp
 
-# Discovered, not listed, so this test also imports each module added later.
+# Discovered, not listed, so a new module is imported too.
 MODULES = sorted(m.name for m in pkgutil.walk_packages(sdp.__path__, "sdp."))
 
 
 def test_discovery_finds_the_known_modules():
-    """walk_packages returns nothing silently when the path is wrong."""
+    """walk_packages returns nothing, without an error, when the path is wrong."""
     assert {"sdp.dal", "sdp.backfill", "sdp.daily", "sdp.dashboard",
             "sdp.ingest.common", "sdp.ingest.massive_tickers"} <= set(MODULES)
 
@@ -25,6 +23,7 @@ def test_module_imports(name):
 
 
 def test_settings_paths_are_absolute_and_under_data_root():
+    """dbt and Jupyter start from their own directories, so a relative path breaks."""
     from sdp.config import settings
 
     assert settings.data_root.is_absolute()
@@ -35,7 +34,6 @@ def test_settings_paths_are_absolute_and_under_data_root():
 
 
 def test_every_dal_dataset_has_a_known_kind():
-    """An event stream keys on 'date'. A current-state dataset has no key."""
     from sdp import dal
 
     for ds in dal.DATASETS.values():
@@ -43,7 +41,6 @@ def test_every_dal_dataset_has_a_known_kind():
 
 
 def test_backfill_targets_are_all_event_streams():
-    """Check that the backfill runner cannot reach a current-state dataset."""
     from sdp import backfill, dal
 
     by_module = {
@@ -53,15 +50,13 @@ def test_backfill_targets_are_all_event_streams():
         "short_interest": dal.SHORT_INTEREST,
         "ticker_details": dal.TICKER_DETAILS,
     }
-    # Every target must appear here, so that a new target cannot enter the
-    # runner without a statement of its kind.
+    # A new target must be listed here, so it states its kind.
     assert set(backfill.TARGETS) == set(by_module)
     for name in backfill.TARGETS:
         assert by_module[name].key == "date"
 
 
 def test_the_dbt_runner_gives_dbt_the_repo_paths():
-    """dbt starts from its own directory. The lake path must not be relative."""
     from sdp import transform
     from sdp.config import settings
 
@@ -73,7 +68,7 @@ def test_the_dbt_runner_gives_dbt_the_repo_paths():
 
 
 def test_the_dbt_profile_reads_the_limits_of_the_runner():
-    """A memory limit or a thread count that stays in Settings has no effect."""
+    """A limit that stays in Settings and never reaches the profile has no effect."""
     from sdp import transform
     from sdp.config import settings
 

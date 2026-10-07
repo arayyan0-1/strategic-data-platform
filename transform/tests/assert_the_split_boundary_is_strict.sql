@@ -1,6 +1,5 @@
--- A split applies overnight. On the execution date all trading is already
--- adjusted. The as-of join must therefore use a strict comparison. If it uses
--- ">=" then a bar on the execution date selects that same event.
+{# A returned row is a price whose next_split_date is on or before its date. A split applies
+   overnight, so the join must be strict. #}
 select ticker, date, next_split_date
 from {{ ref('int_prices_adjusted') }}
 where next_split_date is not null

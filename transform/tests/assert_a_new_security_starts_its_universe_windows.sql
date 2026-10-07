@@ -1,7 +1,5 @@
--- A new security starts its windows at zero, also when it takes a ticker that another
--- security used. FB was Facebook until 2022 and a fund from 2025-06-26. WOLF came out of
--- bankruptcy as a new security on 2025-09-29. The count of sessions of a security is
--- the rank of the session in the series of its primary line.
+{# A returned row is a primary-line count that is not the session's rank, or a new security on a
+   used ticker (FB, WOLF) whose windows do not start at zero. #}
 with recomputed as (
     select
         ticker,

@@ -1,21 +1,6 @@
-"""The exposures of each liquid fund to the factors of the style model and to a block of
-macro factors. A fund is not a company, so its size or its dividend yield means nothing,
-and its return is a weighted sum of names that the style model already holds. Instead,
-every fund_step sessions, a ridge regression of the daily return of the fund on the factor
-returns over the fund_window sessions before gives one loading for each factor
-(sdp.factors.fund_loadings). A factor return is the return of a portfolio with unit
-exposure, so a loading is in the units of the z-score of a stock.
+"""Ridge loadings of each liquid fund on the style-model and macro factors, refit every fund_step.
 
-A row is one fit of one fund. The loadings earn the sessions from fit_date to last_date.
-window_end is the last session that the fit reads. It is the session before fit_date.
-intercept is the daily constant of the fit. It is not a factor part. r2_in is the share of
-the variance of the returns in the window that the fit explains.
-
-The fund lines come from int_fund_returns. A fund gets a fit when its trailing dollar volume
-is at least fund_min_adv on fit_date and it has at least fund_min_returns returns before
-fit_date. At least fund_min_obs rows of the window must also have its return and every
-factor. The vars fund_window, fund_step, fund_ridge and fund_macro set the window, the step,
-the penalty and the macro factors.
+A row is one fit: the loadings apply from fit_date to last_date and read the window to window_end.
 """
 import numpy as np
 

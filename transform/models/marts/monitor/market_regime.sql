@@ -1,13 +1,6 @@
-{#
-  The regime of the stock market on the last session, one row per measure, against its
-  own history: pctile is the share of the sessions with a lower or equal value, z is
-  the distance from the mean in standard deviations, and change_21 is the change over
-  21 sessions. stress says which end of the range is the stress end, so a reader and
-  market_exceptions can tell good from bad. The rate, spread and volatility measures come
-  from core.rates, so each is the FRED value known before the session. The history of
-  each measure is the history of the lake, and it is shorter for the credit spreads,
-  which FRED serves from 2023 only.
-#}
+{# Each regime measure on the last session against its own history (the lake's, shorter for the
+   credit spreads FRED serves from 2023 only): pctile, z, change_21. stress says which end of the
+   range is the stress end. #}
 
 with series as (
 

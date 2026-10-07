@@ -1,15 +1,6 @@
-{#
-  The cost of each quintile long-short, from the model spreads (spreads). Each leg is equal
-  weight. A name that enters a leg is bought, and a name that leaves is sold, each at
-  half its spread, so the cost of a leg on a session is the sum of those half spreads
-  over the count of names. The cost is paid at the close of the formation session, the
-  session of the gross return in signal_long_short. Gross is its ret, with no clip. Net
-  is gross less cost. Both are daily.
-
-  capacity is the size of each leg at which the trade in a name of the 10th percentile
-  of dollar volume, among the names traded that session, is 5% of that volume. It is a
-  rough limit before impact dominates. The spread cost does not include impact.
-#}
+{# Cost of each quintile long-short from the model spreads: a name entering or leaving a leg pays
+   half its spread at the formation close. net is signal_long_short ret less cost. capacity is a
+   rough size limit; it excludes impact. #}
 
 with legs as (
 
@@ -36,8 +27,7 @@ with legs as (
 
 ), moves as (
 
-    -- A name in the leg now and not before enters. A name in the leg before and not
-    -- now leaves.
+    -- In the leg now and not before: enters. In the leg before and not now: leaves.
     select
         coalesce(c.signal, p.signal)            as signal,
         coalesce(c.leg, p.leg)                  as leg,
@@ -59,7 +49,7 @@ with legs as (
         on sp.security_key = m.security_key and sp.date = s.date
     left join {{ ref('int_universe') }} u
         on u.security_key = m.security_key and u.date = s.date and u.is_primary_line
-    -- The first session builds the legs from nothing. That is a start, not a trade.
+    -- The first session builds the legs from nothing; that is a start, not a trade.
     where (m.enters or m.leaves) and m.rn > 1
 
 ), leg_costs as (

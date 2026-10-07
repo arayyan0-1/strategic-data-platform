@@ -1,11 +1,6 @@
-{#
-  The scores of the market monitor. A score is a move in sigma that is as rare as a
-  move of that many sigma of a normal distribution on the history of its family.
-
-  move_z divides a move by the volatility known before the last session of the move.
-  calibrated maps that ratio to the rarity of the ratio in the pool of its family.
-  two_sided_z is the normal quantile behind the map.
-#}
+{# Scores of the market monitor: a move in sigma that is as rare as that many sigma of a normal
+   on its family's history. move_z divides a move by trailing volatility, calibrated maps the
+   ratio to its rarity in the pool, two_sided_z is the normal quantile. #}
 
 {# A polynomial in x by Horner's rule. #}
 {% macro horner(coefficients, x) -%}
@@ -16,11 +11,8 @@
     {{ ns.expr }}
 {%- endmacro %}
 
-{#
-  The z for which a normal variable has |Z| >= z with probability q, so 0.0027 gives 3.
-  q is the name of a column with values in (0, 1]. The approximation is a rational
-  function with a relative error under 1.2e-9.
-#}
+{# The z with P(|Z| >= z) = q for a standard normal (0.0027 gives 3). q names a column with
+   values in (0, 1]. Rational approximation, relative error under 1.2e-9. #}
 {% macro two_sided_z(q) -%}
     {%- set a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
                  1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00] -%}
@@ -40,18 +32,10 @@
     end
 {%- endmacro %}
 
-{#
-  The trailing z of the move over h sessions, for each h in horizons. moves is a relation
-  with the columns family, subject, date, x (the change of one session), min_sd (the least
-  volatility) and elig (true when the row belongs to the pool). The volatility is the
-  square root of an exponentially weighted mean of x squared over the sessions before
-  the row: half-life monitor_halflife, at most monitor_vol_window sessions, at least
-  monitor_min_obs. The weight of session j is lam^(i-1-j) for a row i, so the sum
-  is lam^(i-1) times a sum of x squared times lam^-j, which a window function sums. The
-  mean is divided by the sum of its weights, so a short history is not biased.
-  The weights grow as 2^(n / half-life) with n sessions, so they overflow after about
-  1,000 half-lives.
-#}
+{# Trailing z of the move over each h in horizons. moves has family, subject, date, x
+   (one-session change), min_sd (volatility floor) and elig (in the pool). Volatility is an
+   exponentially weighted RMS of earlier x (monitor_halflife, _vol_window, _min_obs). The running
+   weights overflow after about 1,000 half-lives. #}
 {% macro move_z(moves, horizons) -%}
     {%- set lam = 0.5 ** (1.0 / var('monitor_halflife')) -%}
     (
@@ -86,14 +70,9 @@
     )
 {%- endmacro %}
 
-{#
-  The score of each row of raw, a relation with the columns family, subject, h, date,
-  elig and z_raw. Only rows with elig form the pool of a family and a horizon, and only
-  they get a score. The share q of the pool at least as large as |z_raw| becomes the z of
-  a normal variable with that two-sided tail share. The rank counts the row itself and
-  takes half of it, so the largest row of a pool of n has q = 0.5 / n. The pool is the
-  full history of the family, as a table of rarity. Each z_raw in it uses trailing data.
-#}
+{# Score of each row of raw (family, subject, h, date, elig, z_raw); only elig rows form a pool
+   per family and horizon. q is the share of the pool at least as large as |z_raw|, counting half
+   the row itself (the largest of n has q = 0.5 / n). #}
 {% macro calibrated(raw) -%}
     (
     with pool as (

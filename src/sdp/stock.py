@@ -1,22 +1,6 @@
-# src/sdp/stock.py
-"""The views of the market monitor that read one security, a pair or a portfolio on request.
+"""Per-security monitor views: search, profile, pair and portfolio.
 
-- search: the securities of the last session, for the command bar.
-- profile: one security. Its route sets the model: the universe (the style and industry
-  model), coverage (common stock and ADRs that the fit leaves out, on the same scale), a
-  fund (loadings from a ridge fit, with macro factors) or none (price statistics only).
-  The profile has its exposures, its risk and the part of it that each factor explains,
-  where its return came from, the names that move with it, its signals, short interest,
-  corporate actions and largest stock-specific moves. It also has the price of the last
-  year with its moving averages and volume, for the chart.
-- pair: two tickers against each other: the ratio and its z-score, the rolling
-  correlation and beta, the hedge ratio and the half-life of the ratio. The half-life
-  shows only when a Dickey-Fuller test rejects a random walk at 5%.
-- portfolio: holdings with weights. Their exposures, risk and recent moves, split by
-  factor and by holding. A request is never cached.
-
-Each view opens a read-only connection to the warehouse and closes it. A view other than
-the portfolio is cached until the build stamp changes.
+Views are cached per build stamp, except the portfolio, which is computed per request.
 """
 from __future__ import annotations
 
@@ -39,38 +23,31 @@ STYLES = ("size", "liquidity", "beta", "momentum", "reversal", "volatility",
           "dividend_yield", "high_52w")
 INDUSTRIES = ("nodur", "durbl", "manuf", "enrgy", "chems", "buseq", "telcm", "utils",
               "shops", "hlth", "money", "other", "unknown")
-# The factors of the style model, in the order of a loading vector.
+# Style-model factors, in loading-vector order.
 MODEL = ("market", *STYLES, *(f"ind_{i}" for i in INDUSTRIES))
 WINDOWS = (("1d", 1), ("1w", 5), ("1m", 21), ("3m", 63), ("6m", 126), ("1y", 252))
-# The covariance of the factor returns halves the weight of a session every
-# FACTOR_HALF_LIFE sessions. The effective sample is then about 120 sessions, more than
-# five times the 22 factors. The oldest of the FACTOR_WINDOW sessions has under 0.1% of the
-# weight of the newest.
+# Factor covariance weights halve every FACTOR_HALF_LIFE sessions, over FACTOR_WINDOW sessions.
 FACTOR_HALF_LIFE = 42
 FACTOR_WINDOW = 504
 CACHE_SIZE = 64
-# The price chart shows the sessions of the last CHART_DAYS days, with the average of the
-# last MOVING_AVERAGES sessions at each one.
+# Price chart window in days, and moving-average lengths in sessions.
 CHART_DAYS = 365
 MOVING_AVERAGES = (50, 200)
-# The 5% critical value of the Dickey-Fuller t for a fit with a constant, 250 points.
+# 5% Dickey-Fuller critical value (constant, 250 points).
 ADF_CRITICAL = -2.87
 
-# The tables that hold the exposures and the residuals of each route.
 EXPOSURES = {"universe": "factors.style_exposures", "coverage": "factors.coverage_exposures"}
 RESIDUALS = {"universe": "factors.style_residuals", "coverage": "factors.coverage_residuals",
              "fund": "factors.fund_residuals"}
-# The columns of fund_exposures that are not loadings. The other columns are macro factors.
+# fund_exposures columns that are not loadings; the rest are macro factors.
 FUND_FIXED = frozenset({"security_key", "ticker", "fit_date", "window_end", "last_date",
                         "r2_in", "n_obs", "ridge", "intercept"}) | frozenset(MODEL)
-# The page shows a fund industry when its loading is this large, and the three largest always.
+# Show a fund industry when its loading is at least this large; the top three always show.
 INDUSTRY_NOTE = 0.05
-# The in-sample R2 of a fund fit above which the loadings read as the exposures of the fund,
-# and above which they read as a partial picture.
+# In-sample R2 above which fund loadings read as exposures (tight) or a partial picture.
 R2_TIGHT = 0.9
 R2_PARTIAL = 0.6
-# For each macro factor: a label and the kind of the change. A yield and a spread change in
-# percentage points. The others change in log points.
+# Macro factor: (label, kind). Yields and spreads change in points, prices in log points.
 MACRO = {
     "d_t_10y": ("10-year Treasury yield", "yield"),
     "d_t_2y": ("2-year Treasury yield", "yield"),
@@ -87,7 +64,7 @@ COLUMN = re.compile(r"^[a-z0-9_]+$")
 
 MAX_HOLDINGS = 60
 PORTFOLIO_SESSIONS = 253
-# A UK-listed fund is not in the lake. The closest US-listed fund is a suggestion.
+# UK-listed funds are not in the lake; suggest the closest US-listed equivalent.
 UK_FUNDS = {"VWRL": "VT", "VWRP": "VT", "VWRA": "VT", "SWDA": "URTH", "IWDA": "URTH",
             "VUSA": "VOO", "VUAG": "VOO", "CSPX": "IVV", "EQQQ": "QQQ", "CNDX": "QQQ",
             "VFEM": "VWO", "EMIM": "IEMG"}
@@ -107,7 +84,7 @@ def _rows(wh: duckdb.DuckDBPyConnection, sql: str, params: list | tuple = ()) ->
 
 
 def _num(v: Any) -> Any:
-    """Return a value that JSON can carry for a NumPy scalar, None for NaN."""
+    """Convert NumPy scalars to Python numbers; NaN and inf become None."""
     if isinstance(v, np.integer):
         return int(v)
     if isinstance(v, np.floating | float):
@@ -128,8 +105,10 @@ def _ticker(t: str) -> str:
 
 
 def resolve(wh: duckdb.DuckDBPyConnection, ticker: str) -> str:
-    """Return the security_key of the security that held the ticker last. A ticker matches
-    without regard to case, and the same case comes first."""
+    """Return the security_key of the security that last held the ticker.
+
+    Matching ignores case; an exact-case match wins.
+    """
     t = _ticker(ticker)
     row = _one(wh, """
         select security_key from intermediate.int_universe
@@ -142,14 +121,14 @@ def resolve(wh: duckdb.DuckDBPyConnection, ticker: str) -> str:
 
 
 def _tables(wh: duckdb.DuckDBPyConnection) -> set[str]:
-    """Return the names of the tables in the schema factors, as schema.table."""
+    """Return the factors-schema table names as schema.table."""
     return {f"{s}.{t}" for s, t in wh.execute("""
         select table_schema, table_name from information_schema.tables
         where table_schema = 'factors'""").fetchall()}
 
 
 def _macro(wh: duckdb.DuckDBPyConnection, have: set[str]) -> list[str]:
-    """Return the macro factors of the fund fits, in the order of the table."""
+    """Return the macro factor columns of fund_exposures, in table order."""
     if "factors.fund_exposures" not in have:
         return []
     cols = [r[0] for r in wh.execute("describe factors.fund_exposures").fetchall()]
@@ -157,9 +136,7 @@ def _macro(wh: duckdb.DuckDBPyConnection, have: set[str]) -> list[str]:
 
 
 def _route(wh: duckdb.DuckDBPyConnection, have: set[str], key: str, last: str | None) -> str:
-    """Return the route of a security on its last session: universe when the style model
-    has exposures for it, coverage when the coverage table has them, fund when a fit covers
-    the session, else none."""
+    """Return the route on the last session: universe, coverage, fund or none."""
     if last is None:
         return "none"
     for route, table in EXPOSURES.items():
@@ -175,8 +152,10 @@ def _route(wh: duckdb.DuckDBPyConnection, have: set[str], key: str, last: str | 
 
 
 def search(wh: duckdb.DuckDBPyConnection) -> dict:
-    """Return the securities of the last session, the most traded first, as compact rows
-    of ticker, name, type, cap and trailing dollar volume."""
+    """Return the last session's securities, most traded first, as compact rows.
+
+    Each row is [ticker, name, type, cap, trailing dollar volume].
+    """
     rows = wh.execute("""
         select ticker, left(name, 48), type_filled, round(market_cap), round(adv)
         from intermediate.int_universe
@@ -186,8 +165,7 @@ def search(wh: duckdb.DuckDBPyConnection) -> dict:
 
 
 def _price_stats(px: np.ndarray, dates: list) -> dict:
-    """Return the returns over the standard windows, the volatility, drawdown and the shape
-    of the daily returns over the last year."""
+    """Return window returns, volatility, drawdown and return-shape statistics."""
     out: dict[str, Any] = {}
     for name, n in WINDOWS:
         out[f"ret_{name}"] = float(px[-1] / px[-1 - n] - 1) if len(px) > n else None
@@ -210,7 +188,7 @@ def _price_stats(px: np.ndarray, dates: list) -> dict:
 
 
 def _moving_average(x: np.ndarray, n: int) -> np.ndarray:
-    """Return the mean of the last n values at each point, NaN before the first full window."""
+    """Return the trailing n-value mean at each point; NaN before the first full window."""
     out = np.full(len(x), np.nan)
     if len(x) >= n:
         c = np.cumsum(np.insert(x, 0, 0.0))
@@ -219,15 +197,16 @@ def _moving_average(x: np.ndarray, n: int) -> np.ndarray:
 
 
 def _digits(x: np.ndarray, n: int = 6) -> list:
-    """Return the values with n significant digits, None where a value is not finite. The
-    page shows no more, and a short number keeps the payload small."""
+    """Round to n significant digits to keep the payload small; non-finite values become None."""
     return [float(f"{v:.{n}g}") if np.isfinite(v) else None for v in x]
 
 
 def _price_series(dates: list[dt.date], px: np.ndarray, volume: np.ndarray) -> dict:
-    """Return the series of the price chart: one row for each session of the last CHART_DAYS
-    days. Each moving average uses all the sessions in hand, so the first row has one too.
-    The volume is adjusted for splits."""
+    """Return the price chart series for the last CHART_DAYS days.
+
+    Moving averages use all sessions in hand, so the first row has one too. Volume is
+    split-adjusted.
+    """
     start = dates[-1] - dt.timedelta(days=CHART_DAYS) if dates else None
     first = next((i for i, d in enumerate(dates) if d > start), 0)
     out = {"dates": [d.isoformat() for d in dates[first:]], "px": _digits(px[first:])}
@@ -238,10 +217,12 @@ def _price_series(dates: list[dt.date], px: np.ndarray, volume: np.ndarray) -> d
 
 
 def _factor_cov(wh: duckdb.DuckDBPyConnection, macro: list[str]) -> np.ndarray | None:
-    """Return the exponentially weighted covariance of the daily factor returns over the
-    last FACTOR_WINDOW sessions, in the order of MODEL and then macro. A null style return
-    counts as 0. With macro factors, only the sessions with every macro change count, so
-    a pending change does not enter as 0. Return None with fewer than 60 sessions."""
+    """Return the EW covariance of daily factor returns over the last FACTOR_WINDOW sessions.
+
+    Order is MODEL, then macro. A null style return counts as 0. With macro factors, only sessions
+    with every macro change count, so a pending change never enters as 0. Return None under 60
+    sessions.
+    """
     style = ", ".join(f"coalesce(s.{c}, 0)" for c in MODEL)
     if macro:
         cols = style + ", " + ", ".join(f"x.{c}" for c in macro)
@@ -257,9 +238,11 @@ def _factor_cov(wh: duckdb.DuckDBPyConnection, macro: list[str]) -> np.ndarray |
 
 
 def _vector(route: str, row: dict | None, macro: list[str]) -> np.ndarray:
-    """Return the exposures of a security in the order of MODEL and then macro. A stock has
-    a market exposure of 1, its style z-scores and a 1 on its industry. A fund has its
-    loadings. A security with no model has zeros."""
+    """Return exposures in MODEL-then-macro order.
+
+    A stock has market 1, its style z-scores and a 1 on its industry. A fund has its loadings. A
+    security with no model has zeros.
+    """
     names = [*MODEL, *macro]
     x = np.zeros(len(names))
     if row is None:
@@ -278,9 +261,10 @@ def _vector(route: str, row: dict | None, macro: list[str]) -> np.ndarray:
 
 
 def _split(names: list[str], x: np.ndarray, omega: np.ndarray, spec_vol: float) -> dict | None:
-    """Split the variance of a security or a portfolio into the market, the industries
-    together, each style, each macro factor and the specific part (Euler: exposure times
-    the covariance row). Annualized. The shares sum to 1."""
+    """Split annualized variance into market, industries, styles, macro factors and specific.
+
+    Euler decomposition: exposure times the covariance row. The shares sum to 1.
+    """
     parts = x * (omega @ x) * 252
     spec = spec_vol ** 2 * 252
     total = parts.sum() + spec
@@ -299,9 +283,10 @@ def _split(names: list[str], x: np.ndarray, omega: np.ndarray, spec_vol: float) 
 
 def _risk(wh: duckdb.DuckDBPyConnection, route: str, row: dict, macro: list[str],
           spec_vol: float | None) -> dict | None:
-    """Return the risk split of one security (see _split). The covariance of the factors
-    weights recent sessions more (FACTOR_HALF_LIFE). A stock uses the style factors alone.
-    A fund uses the style and macro factors together."""
+    """Return the risk split of one security (see _split).
+
+    A stock uses the style factors alone; a fund uses style and macro factors together.
+    """
     omega = _factor_cov(wh, macro)
     if omega is None or spec_vol is None:
         return None
@@ -314,9 +299,7 @@ def _macro_meta(name: str) -> dict:
 
 
 def _fund_payload(fit: dict, earlier: dict | None, macro: list[str]) -> dict:
-    """Return the fit of a fund for the page: the loadings beside those of an earlier fit,
-    and the statistics of the fit. A fund industry is of note when its loading is
-    INDUSTRY_NOTE or more, and the three largest are always of note."""
+    """Return a fund's fit for the page: loadings beside an earlier fit's, plus fit statistics."""
     e = earlier or {}
 
     def pair(col: str) -> dict:
@@ -338,7 +321,7 @@ def _fund_payload(fit: dict, earlier: dict | None, macro: list[str]) -> dict:
 
 
 def _route_note(route: str, head: dict, fund: dict | None) -> str:
-    """Return one line that says what the route is and how far to trust it."""
+    """Return one line saying what the route is and how far to trust it."""
     if route == "universe":
         return ("Common stock in the model universe. The fit of each session includes it, "
                 "so this is the most reliable split.")
@@ -376,10 +359,11 @@ def _route_note(route: str, head: dict, fund: dict | None) -> str:
 def _parts(wh: duckdb.DuckDBPyConnection, route: str, keys: list[str], since: str,
            macro: list[str]) -> list[dict]:
     """Return one row per security and session of the last year: the return and its parts.
-    A stock has market, industry, each style and specific. A fund adds alpha and each
-    macro factor, with pend_<factor> true when that change is pending. A security with no
-    model has its price return as the specific part. The parts of a stock are its exposures
-    of the session before times the factor returns of the session."""
+
+    A stock has market, industry, each style and specific: exposures of the session before times
+    the session's factor returns. A fund adds alpha and each macro factor, with pend_<factor> true
+    while that change is pending. A security with no model books its whole return as specific.
+    """
     ph = ", ".join("?" * len(keys))
     if route in EXPOSURES:
         ex, rs = EXPOSURES[route], RESIDUALS[route]
@@ -426,11 +410,12 @@ def _parts(wh: duckdb.DuckDBPyConnection, route: str, keys: list[str], since: st
 
 def _related(wh: duckdb.DuckDBPyConnection, have: set[str], route: str, key: str,
              last: str) -> list[dict]:
-    """Return the names that move with a security over the last year. A stock gets ten by
-    the correlation of its stock-specific moves (each clipped at 3 sigma, so one shared day
-    of news cannot make two names look related) and ten by the correlation of returns. The
-    names come from the universe and from coverage together. A fund gets ten funds and ten
-    stocks by the correlation of returns."""
+    """Return the names that move with a security over the last year.
+
+    A stock gets ten by correlation of stock-specific moves (clipped at 3 sigma, so one shared day
+    of news cannot link two names) and ten by return correlation, across the universe and coverage
+    tables. A fund gets ten funds and ten stocks by return correlation.
+    """
     tables = [t for t in (RESIDUALS["universe"], RESIDUALS["coverage"]) if t in have]
     if not tables or route == "none":
         return []
@@ -479,10 +464,11 @@ def _related(wh: duckdb.DuckDBPyConnection, have: set[str], route: str, key: str
 
 def _similar_funds(wh: duckdb.DuckDBPyConnection, fit: dict, macro: list[str],
                    omega: np.ndarray | None) -> list[dict]:
-    """Return the ten funds with the nearest loadings in the same fit. The measure is the
-    cosine of the two loading vectors after each loading is scaled by the volatility of its
-    factor. The scale puts a duration and a stock beta in the same unit: the volatility of
-    the part."""
+    """Return the ten funds with the nearest loadings in the same fit.
+
+    The measure is the cosine of the loading vectors after scaling each loading by the volatility
+    of its factor, which puts duration and stock beta in one unit.
+    """
     if omega is None:
         return []
     names = [*MODEL, *macro]
@@ -510,8 +496,7 @@ def _similar_funds(wh: duckdb.DuckDBPyConnection, fit: dict, macro: list[str],
 
 
 def _attach(wh: duckdb.DuckDBPyConnection, last: str, *lists: list[dict]) -> None:
-    """Add the name, industry, cap and one-month return to each row that has a
-    security_key."""
+    """Add name, industry, cap and one-month return to each row that has a security_key."""
     keys = list({r["security_key"] for rows in lists for r in rows})
     if not keys:
         return
@@ -531,7 +516,7 @@ def _attach(wh: duckdb.DuckDBPyConnection, last: str, *lists: list[dict]) -> Non
 
 
 def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
-    """Return the profile of the security that holds the ticker (see the module docstring)."""
+    """Return the profile of the security that holds the ticker, shaped by its route."""
     key = resolve(wh, ticker)
     have = _tables(wh)
     head = _one(wh, """
@@ -551,7 +536,7 @@ def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
     route = _route(wh, have, key, last)
     macro = _macro(wh, have) if route == "fund" else []
 
-    # The volume in shares of today: close / adj_close_split is the split factor, inverted.
+    # Volume in today's shares: close / adj_close_split inverts the split factor.
     prices = wh.execute("""
         select date, coalesce(adj_close_total, adj_close_split) as px,
                coalesce(volume * close / nullif(adj_close_split, 0), volume) as volume
@@ -691,7 +676,7 @@ def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
 
 
 def _rolling(fn, n: int, *xs: np.ndarray) -> list:
-    """Return fn over each trailing window of n points, None before the first full one."""
+    """Return fn over each trailing window of n points; None before the first full window."""
     return [None if i + 1 < n else _num(fn(*(x[i + 1 - n:i + 1] for x in xs)))
             for i in range(len(xs[0]))]
 
@@ -708,10 +693,9 @@ def _beta(a: np.ndarray, b: np.ndarray) -> float:
 def reversion(x: np.ndarray) -> tuple[float | None, float | None]:
     """Return the Dickey-Fuller t of the series x and its half-life in sessions.
 
-    The fit is dx(t) = a + b * x(t-1) + e by least squares. The half-life comes from the
-    AR(1) coefficient 1 + b. It is None when t is not below ADF_CRITICAL, because the slope
-    of a random walk is negative in most samples. A coefficient of 0 or less gives a
-    half-life of 0.
+    Fits dx(t) = a + b * x(t-1) + e by least squares; the half-life comes from the AR(1)
+    coefficient 1 + b. It is None unless t is below ADF_CRITICAL, because the slope of a random
+    walk is negative in most samples. A coefficient of 0 or less gives a half-life of 0.
     """
     dx, w = np.diff(x), x[:-1] - x[:-1].mean()
     sww = float(w @ w)
@@ -729,7 +713,7 @@ def reversion(x: np.ndarray) -> tuple[float | None, float | None]:
 
 
 def pair(wh: duckdb.DuckDBPyConnection, a: str, b: str) -> dict:
-    """Return the pair view of the tickers a and b (see the module docstring)."""
+    """Return the pair view of tickers a and b: ratio, z-score, rolling correlation and beta."""
     ka, kb = resolve(wh, a), resolve(wh, b)
     rows = wh.execute("""
         with p as (
@@ -786,10 +770,11 @@ class BadHoldings(ValueError):
 
 
 def parse_holdings(raw: Any) -> list[dict]:
-    """Return the lines of a portfolio request as dicts with a ticker, an amount and a
-    weight. The request is a list of dicts with a ticker and an amount (a percent, a
-    fraction or a money value). A ticker that repeats adds its amounts, and the ticker CASH
-    is cash. The weight is the amount over the sum of the amounts, so it needs no unit."""
+    """Return the lines of a portfolio request as dicts with ticker, amount and weight.
+
+    A repeated ticker adds its amounts, and the ticker CASH is cash. The weight is the amount over
+    the sum of amounts, so the unit (percent, fraction or money value) does not matter.
+    """
     if not isinstance(raw, list) or not raw:
         raise BadHoldings("The holdings must be a list of lines.")
     if len(raw) > MAX_HOLDINGS:
@@ -815,18 +800,18 @@ def parse_holdings(raw: Any) -> list[dict]:
 
 
 def combine(weights: np.ndarray, X: np.ndarray) -> np.ndarray:
-    """Return the exposures of a portfolio: the sum of weight times exposures of each holding.
-    X has one row per holding."""
+    """Return the portfolio exposures, weights @ X, with one row of X per holding."""
     return weights @ X
 
 
 def variance_split(weights: np.ndarray, X: np.ndarray, omega: np.ndarray,
                    spec_var: np.ndarray) -> dict:
-    """Split the annual variance of a portfolio x'Omega x + sum of w^2 s^2, with x the
-    combined exposures and s^2 the daily specific variance of each holding. Return the part
-    of each factor, the specific part of each holding and the contribution of each holding.
-    The parts of the factors and the specific parts sum to the total. So do the
-    contributions."""
+    """Split the annual portfolio variance x'Omega x + sum(w^2 s^2) by factor and by holding.
+
+    x is the combined exposures and s^2 the daily specific variance of each holding. Return the
+    part of each factor, the specific part of each holding and the contribution of each holding.
+    The factor and specific parts sum to the total, and so do the contributions.
+    """
     x = combine(weights, X)
     omega_x = omega @ x
     by_factor = x * omega_x * 252
@@ -852,9 +837,10 @@ def _unresolved_reason(ticker: str) -> str:
 
 
 def portfolio(wh: duckdb.DuckDBPyConnection, lines: list[dict]) -> dict:
-    """Return the view of a portfolio (see the module docstring). The lines come from
-    parse_holdings. A ticker that does not resolve is reported with a reason, and the
-    numbers leave its weight out."""
+    """Return the portfolio view for lines from parse_holdings.
+
+    A ticker that does not resolve is reported with a reason, and the numbers leave its weight out.
+    """
     have = _tables(wh)
     macro = _macro(wh, have)
     names = [*MODEL, *macro]
@@ -923,7 +909,6 @@ def portfolio(wh: duckdb.DuckDBPyConnection, lines: list[dict]) -> dict:
             modelled.append((len(holdings), row, spec["spec_vol"] if spec else None))
         holdings.append(h)
 
-    # The return series of each resolved holding over the last year.
     series: dict[str, dict[str, np.ndarray]] = {}
     pending: dict[str, dict[str, np.ndarray]] = {}
     pos = {d: i for i, d in enumerate(cal)}
@@ -1042,9 +1027,10 @@ def portfolio(wh: duckdb.DuckDBPyConnection, lines: list[dict]) -> dict:
 
 
 def portfolio_view(holdings: Any) -> dict:
-    """Return the portfolio view of a request body. It opens its own connection and never
-    uses the cache, because each request has its own holdings. Raise BadHoldings for a
-    malformed request."""
+    """Return the portfolio view for a request body, on its own connection and never cached.
+
+    Raise BadHoldings for a malformed request.
+    """
     lines = parse_holdings(holdings)
     wh = dal.warehouse()
     try:
@@ -1057,7 +1043,7 @@ VIEWS = {"search": search, "profile": profile, "pair": pair}
 
 
 def view(kind: str, *args: str) -> dict:
-    """Return a view, from the cache when the build stamp is the same."""
+    """Return a view, from the cache when the build stamp is unchanged."""
     from sdp import transform
 
     stamp = (transform.last_build() or {}).get("published_utc")

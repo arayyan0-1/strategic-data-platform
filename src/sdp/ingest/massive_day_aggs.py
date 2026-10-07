@@ -1,4 +1,4 @@
-# src/sdp/ingest/massive_day_aggs.py
+"""Day aggregate bars: S3 flat file in, audited Parquet partition out."""
 from __future__ import annotations
 
 import datetime as dt
@@ -56,7 +56,7 @@ def download(d: dt.date, *, force: bool = False) -> Path:
         log.info("The vendor file is already present: %s", dest)
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # Unique for each call, for the reason given in rest._temp_beside.
+    # Unique per call; see rest._temp_beside.
     tmp = _temp_beside(dest)
     try:
         _s3().download_file(settings.massive_s3_bucket, _s3_key(d), str(tmp))
@@ -68,8 +68,7 @@ def download(d: dt.date, *, force: bool = False) -> Path:
 
 
 def build(d: dt.date) -> Path:
-    """Convert the vendor CSV to staged Parquet: set column types and sort. No
-    business logic."""
+    """Convert the vendor CSV to staged Parquet: set types and sort. No business logic."""
     src = vendor_path(d)
     staged = settings.staging_dir / DATASET / f"{d:%Y-%m-%d}.parquet"
     staged.parent.mkdir(parents=True, exist_ok=True)
@@ -128,8 +127,10 @@ def audit(staged: Path) -> None:
 # ---------- PUBLISH ----------
 
 def ingest(d: dt.date, *, refetch: bool = False, rebuild: bool = False) -> Path | None:
-    """Publish one session. The default skips a published partition. refetch
-    downloads the vendor file again. rebuild reads the vendor file on disk only."""
+    """Publish one session; skip a published partition by default.
+
+    refetch downloads the vendor file again. rebuild reads the vendor file on disk only.
+    """
     check_mode(refetch, rebuild)
     if not is_session(d):
         log.info("%s is not an XNYS session. Skipped.", d)

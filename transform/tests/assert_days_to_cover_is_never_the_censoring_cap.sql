@@ -1,5 +1,4 @@
--- The vendor gives 999.99 for days_to_cover when the true ratio is 999.99 or more.
--- This cap is not a measurement, so the staging model must set it to null.
+{# A returned row is a days_to_cover at the vendor's 999.99 cap, which must be null. #}
 select
     settlement_date,
     ticker,

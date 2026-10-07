@@ -1,6 +1,5 @@
--- A market cap from the ticker details must be positive and below $10T, and Apple must
--- be between $1T and $10T on the last session. A wrong share count or a split that the
--- price move does not cancel breaks one of these.
+{# A returned row is a universe cap outside (0, $10T], or an AAPL cap outside $1T to $10T on the
+   last session. #}
 select 'range' as check_name, ticker, date, market_cap
 from {{ ref('int_universe') }}
 where in_universe and (market_cap <= 0 or market_cap > 1e13)

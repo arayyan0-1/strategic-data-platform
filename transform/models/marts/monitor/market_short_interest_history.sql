@@ -1,9 +1,6 @@
-{#
-  Short interest across the in-universe common stock, per settlement: the dollar value
-  sold short (shares short times the close of the settlement date), its share of the
-  total cap, the median days to cover, and the count of names with 10 days to cover or
-  more. A settlement is public about eight sessions later (effective_date).
-#}
+{# Short interest across in-universe common stock per settlement: dollar value short, share of
+   total cap, median days to cover, and the count of names with 10 or more. effective_date is
+   when it was public. #}
 
 select
     s.settlement_date,

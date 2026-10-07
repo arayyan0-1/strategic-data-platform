@@ -1,7 +1,5 @@
-# src/sdp/ingest/common.py
-"""The parts that the ingest modules share: the audit error, the XNYS calendar, the
-publish step, the two modes that publish a date again, and the download of a public
-file."""
+"""Shared ingest helpers: the audit error, the XNYS calendar, publish, refetch and rebuild
+modes, and the download of a public file."""
 from __future__ import annotations
 
 import argparse
@@ -27,14 +25,16 @@ XNYS = xcals.get_calendar("XNYS")
 
 
 class AuditFailure(RuntimeError):
-    """A staged file failed a fatal check. The partition is not published."""
+    """A staged file failed a fatal check; the partition is not published."""
 
 
 def get_public(url: str, attempts: int = 4, *, user_agent: str | None = "Mozilla/5.0") -> bytes:
-    """Return the body of a public URL. A transport error or HTTP 5xx causes a retry
-    with backoff. A 4xx error raises at once. The client sends no credentials. With
-    user_agent None, the client sends its own default, which FRED needs: FRED stalls a
-    request with a set User-Agent."""
+    """Return the body of a public URL.
+
+    Retry a transport error or HTTP 5xx with backoff; raise at once on a 4xx. The client
+    sends no credentials. user_agent=None sends the client's default, which FRED needs
+    because it stalls a request with a set User-Agent.
+    """
     last = ""
     headers = {"User-Agent": user_agent} if user_agent else {}
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=True,
@@ -57,7 +57,7 @@ def get_public(url: str, attempts: int = 4, *, user_agent: str | None = "Mozilla
 
 
 def one(sql: str) -> tuple:
-    """Run a query and return its first row. Raise when the query returns no row."""
+    """Run a query and return its first row; raise if there is none."""
     row = duckdb.execute(sql).fetchone()
     if row is None:
         raise RuntimeError(f"The query returned no row: {sql[:120]}")
@@ -76,8 +76,7 @@ def check_mode(refetch: bool, rebuild: bool) -> None:
 
 
 def require_file(path: Path) -> Path:
-    """Return the vendor file. Raise when it does not exist, because a rebuild
-    does not download."""
+    """Return the vendor file; raise if it is missing, because a rebuild does not download."""
     if not path.exists():
         raise FileNotFoundError(
             f"The vendor file does not exist: {path}. A rebuild reads only vendor/ "
@@ -87,8 +86,7 @@ def require_file(path: Path) -> Path:
 
 
 def vendor_ndjson(dataset: str, d: dt.date) -> Path | None:
-    """Return the vendor NDJSON file of one date, gzip or plain. Return None when
-    no file exists."""
+    """Return the vendor NDJSON file of one date (gzip or plain), or None."""
     for suffix in (".ndjson.gz", ".ndjson"):
         path = settings.vendor_dir / dataset / f"{d:%Y-%m-%d}{suffix}"
         if path.exists():
@@ -97,7 +95,7 @@ def vendor_ndjson(dataset: str, d: dt.date) -> Path | None:
 
 
 def require_vendor_ndjson(dataset: str, d: dt.date) -> Path:
-    """Return the vendor NDJSON file of one date. Raise when no file exists."""
+    """Return the vendor NDJSON file of one date; raise if it is missing."""
     return vendor_ndjson(dataset, d) or require_file(
         settings.vendor_dir / dataset / f"{d:%Y-%m-%d}.ndjson.gz"
     )
@@ -105,8 +103,7 @@ def require_vendor_ndjson(dataset: str, d: dt.date) -> Path:
 
 @contextmanager
 def keep_on_failure(path: Path | None) -> Iterator[None]:
-    """Keep a copy of a vendor file while a refetch replaces it. Put the copy
-    back when the block raises, so a failed refetch keeps the earlier bytes."""
+    """Back up a vendor file during a refetch and restore it if the block raises."""
     if path is None or not path.exists():
         yield
         return
@@ -123,8 +120,7 @@ def keep_on_failure(path: Path | None) -> Iterator[None]:
 
 
 def publish(staged: Path, dest: Path) -> Path:
-    """Move a staged file into raw/. The move is atomic, because both paths are
-    on one filesystem."""
+    """Move a staged file into raw/. Atomic, as both paths are on one filesystem."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     os.replace(staged, dest)
     log.info("Published %s", dest)
@@ -132,7 +128,7 @@ def publish(staged: Path, dest: Path) -> Path:
 
 
 def add_mode_flags(parser: argparse.ArgumentParser) -> None:
-    """Add the two modes as flags that exclude each other."""
+    """Add --refetch and --rebuild as mutually exclusive flags."""
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--refetch", action="store_true",

@@ -1,7 +1,4 @@
-"""The daily driver.
-
-Tests use a fake backfill and a fake ingest. No network.
-"""
+"""Tests for sdp.daily, with a fake backfill and fake ingests."""
 import datetime as dt
 import json
 import os
@@ -17,7 +14,6 @@ NOON = dt.datetime(2024, 1, 10, 12, 0, tzinfo=dt.UTC)
 
 
 def _touch(path, mtime: float) -> None:
-    """Create a file and set its mtime."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x", encoding="utf-8")
     os.utime(path, (mtime, mtime))
@@ -77,8 +73,7 @@ def no_public_download(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def notifications(monkeypatch):
-    """Stub the DNS probe and record the desktop notifications, so no test does a
-    DNS lookup or shows an alert."""
+    """Stub the DNS probe and record desktop notifications: no lookup, no alert."""
     monkeypatch.setattr(daily, "_online", lambda: True)
     sent = []
     monkeypatch.setattr(daily, "_notify", sent.append)
@@ -170,8 +165,10 @@ def test_every_backfill_target_is_a_daily_event_stream():
 
 
 class TestDbtStale:
-    """Freshness comes from the stamp of the last publish, not from the
-    warehouse mtime. A failed build can still write the warehouse file."""
+    """Freshness reads the stamp of the last publish, not the warehouse mtime.
+
+    A failed build can still write the warehouse file.
+    """
 
     @staticmethod
     def _stamp(mtime: float) -> None:

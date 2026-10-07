@@ -1,23 +1,6 @@
-{#
-  The risk state of each factor on its last session, in units of its own history:
-
-  - z_1d is the score of the last return and z_1m the score of the log return of the last
-    21 sessions (factor_scores). A score of 3 is as rare as a 3 sigma move of a normal
-    distribution on the history of the factors of its family. It is null while the factor
-    has no volatility to divide by.
-  - vol_63 is the annualized volatility of the last 63 sessions. vol_pctile is the share
-    of the history of the factor with a lower or equal vol_63: 0.95 is a high-volatility
-    regime for the factor.
-  - drawdown is the fall from the peak of the compounded return. dd_pctile is the share
-    of the history with a smaller fall: 0.95 is a drawdown deeper than 95% of its days.
-  - corr_63 and corr_252 are the correlations with the market factor (style) over 63 and
-    252 sessions. A large difference is a change in how the factor trades.
-  - crowding_z comes from short interest (factor_crowding), for the styles only.
-  - rate_corr_63 is the correlation over 63 sessions with the change of the 10-year
-    Treasury yield over the same session. A row of core.rates holds the yield of the
-    close before, so the change over session D is the row after D less the row of D. The
-    last session has no change yet, so the window ends one session earlier.
-#}
+{# Risk state of each factor on its last session, in units of its own history: scores, volatility
+   and drawdown percentiles, correlations to the market factor and the 10-year yield change, and
+   crowding. #}
 
 with r as (
 
@@ -31,6 +14,8 @@ with r as (
 
 ), yields as (
 
+    -- A rates row holds the previous close's yield, so the change over D is the row after D
+    -- less the row of D. The last session has no change yet.
     select date, lead(t_10y) over (order by date) - t_10y as dy_10y
     from {{ ref('rates') }}
 

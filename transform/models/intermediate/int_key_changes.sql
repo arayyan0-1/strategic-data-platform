@@ -1,21 +1,6 @@
-{#
-  One row per change of FIGI key between two consecutive rows of a ticker, with each test
-  of a link as a column. int_security_links takes the rows where linked is true.
-
-  - The identity tests: the CIK stays (same_cik), and each name with no spaces or
-    punctuation starts with the first word of the other name (same_name).
-  - The structure tests: no gap in the bars (consecutive), the old key stops on every
-    ticker (old_stops), the new key starts on the link date on every ticker (new_starts).
-  - The price test (price_continues): the split-adjusted jump from the last old bar to
-    the first new bar is within link_max_jump_sigma of the volatility of the old key.
-
-  The rule links a change that passes every test. A reviewed decision in the seed
-  security_link_decisions (link or refuse) overrides the identity tests only: a new
-  holding company can take a new CIK (XOM, DMRC) or a new name (LH), and no name rule
-  separates that from a different company on the ticker (GORO). The structure and price
-  tests always apply. needs_review marks a change that passes the structure and price
-  tests, fails an identity test and has no decision: it looks like one security.
-#}
+{# One row per change of FIGI key on a ticker, with a column per link test. A reviewed decision
+   in security_link_decisions overrides the identity tests only. needs_review: passes structure
+   and price, fails identity, no decision. #}
 
 with episodes as not materialized (
 
@@ -33,10 +18,8 @@ with episodes as not materialized (
 
 ), changes as (
 
-    -- A change from one FIGI key to another between two consecutive rows of a ticker.
-    -- The first row of a ticker has no old key and drops out. The old CIK and name
-    -- are the last known values, because the vendor can change the CIK inside an
-    -- episode (CBLS).
+    -- A change from one FIGI key to another between two consecutive rows of a ticker. The old
+    -- CIK and name are the last known values, as the vendor can change the CIK inside an episode.
     select *
     from (
         select
@@ -182,8 +165,8 @@ with episodes as not materialized (
         coalesce(o.last_date < c.link_date, false)                          as old_stops,
         -- A merger can give the ticker the FIGI of the other company.
         coalesce(n.first_date = c.link_date, false)                         as new_starts,
-        -- A larger jump is the price of a different claim: cash in the deal, a
-        -- distribution, or an exchange ratio that the vendor does not record.
+        -- A larger jump is a different claim: cash in the deal, a distribution, or an
+        -- unrecorded exchange ratio.
         coalesce(r.n_returns >= {{ var('link_min_returns') }}
                  and abs(s.jump) <= {{ var('link_max_jump_sigma') }} * r.vol, false)
                                                                             as price_continues

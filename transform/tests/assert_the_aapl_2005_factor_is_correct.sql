@@ -1,6 +1,5 @@
--- The named check. The 2-for-1 split of AAPL on 2005-02-28 has factor 0.017857,
--- which is 1/56, that is 1/2 x 1/7 x 1/4 compounded with the splits of 2014 and
--- of 2020. If this number does not appear, the cumulative semantics are wrong.
+{# The named check: AAPL's 2-for-1 split on 2005-02-28 has factor 1/56 (1/2 x 1/7 x 1/4 with the
+   later splits). A returned row means the cumulative semantics are wrong. #}
 select *
 from {{ ref('int_corporate_actions') }}
 where ticker = 'AAPL'

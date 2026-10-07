@@ -1,6 +1,5 @@
--- A coverage row has an own_vol and a spec_vol only when the name has spec_vol_min_obs
--- residuals before the row, in the universe and in the coverage set together. A forecast from
--- fewer residuals gives false extremes for a new listing.
+{# A returned row is a coverage own_vol or spec_vol that disagrees with spec_vol_min_obs earlier
+   residuals (universe and coverage together). #}
 with history as (
 
     select security_key, date, false as is_universe

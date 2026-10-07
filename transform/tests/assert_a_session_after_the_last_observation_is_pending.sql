@@ -1,6 +1,5 @@
--- A macro factor is pending on a session exactly when its series has no observation on or
--- after the session, and a fund row has macro_pending exactly when a factor of fund_macro
--- is pending. The last observation of each series is read from the series itself.
+{# A returned row is a macro factor or fund row whose pending flag disagrees with the last
+   observation of its series. #}
 {% set defs = macro_factors() %}
 with ends as (
 

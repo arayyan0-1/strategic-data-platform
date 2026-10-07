@@ -1,6 +1,4 @@
-"""ingest() skips an unchanged republish. thin_vendor_pulls() keeps one dividend
-pull per ISO week after 30 days. No test touches the network.
-"""
+"""Tests for corporate action ingest: skipping an unchanged republish, thinning old pulls."""
 import datetime as dt
 import gzip
 import json
@@ -26,8 +24,8 @@ ROWS = {
                 "historical_adjustment_factor": 0.99},
 }
 
-# 120 daily pulls from a Wednesday to a Wednesday. The last 30 days start on
-# Monday 2026-08-24, so the older pulls end on Sunday 2026-08-23.
+# 120 daily pulls, Wednesday to Wednesday. The last 30 days start on Monday 2026-08-24,
+# so the older pulls end on Sunday 2026-08-23.
 FIRST, NEWEST, CUTOFF = D(2026, 5, 27), D(2026, 9, 23), D(2026, 8, 24)
 DATES = [FIRST + dt.timedelta(days=i) for i in range(120)]
 SUNDAYS = [d for d in DATES if d.isoweekday() == 7 and d < CUTOFF]
@@ -42,7 +40,6 @@ def test_the_calendar_of_the_thinning_tests():
 
 
 def _vendor(dataset, pull, *, gz=True):
-    """Write a valid one-row vendor pull."""
     suffix = ".ndjson.gz" if gz else ".ndjson"
     path = settings.vendor_dir / dataset / f"{pull:%Y-%m-%d}{suffix}"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,7 +53,7 @@ def _vendor(dataset, pull, *, gz=True):
 
 
 def _touch(dataset, dates):
-    """Write empty vendor files. The thinning reads only the file names."""
+    """Write empty vendor files; the thinning reads only the names."""
     vdir = settings.vendor_dir / dataset
     vdir.mkdir(parents=True, exist_ok=True)
     for d in dates:
@@ -68,7 +65,7 @@ def _kept(dataset):
 
 
 def _age(dataset, pull):
-    """Set old mtimes, vendor file before table, so that a republish shows."""
+    """Backdate the vendor file before the table, so a later republish is visible."""
     for f in ca._vendor_files(dataset, pull):
         os.utime(f, (900_000_000, 900_000_000))
     raw = ca.raw_path(dataset)
@@ -82,8 +79,7 @@ def _published(ds):
 
 @pytest.fixture
 def fetch(tmp_data_root, monkeypatch):
-    """Replace the network fetch with a local one that acts as dump_ndjson does.
-    Return the list of calls."""
+    """Replace dump_ndjson with a local fake. Return the list of calls."""
     calls = []
 
     def fake(dataset, path, params, pull_date, *, force=False, **_):
@@ -99,7 +95,7 @@ def fetch(tmp_data_root, monkeypatch):
 
 @pytest.fixture
 def builds(monkeypatch):
-    """Record the pull date of each call to build()."""
+    """Record the pull date of each build() call."""
     calls = []
     real = ca.build
 
@@ -163,8 +159,7 @@ class TestSkipAnUnchangedRepublish:
         assert _published(dal.SPLITS) == [(P1,)]
 
     def test_a_vendor_file_newer_than_the_table_publishes(self, fetch, builds):
-        """A forced fetch can write new bytes and then fail its audit. The next
-        run builds those bytes again, so the failure stays visible."""
+        """A forced fetch can write new bytes and then fail its audit; the next run builds them."""
         ca.ingest(SPLITS, P1)
         _age(SPLITS, P1)
         os.utime(ca._vendor_files(SPLITS, P1)[0])
@@ -243,7 +238,7 @@ class TestThinVendorPulls:
         assert ca.thin_vendor_pulls(DIVIDENDS) == []
 
     def test_a_pinned_pull_survives(self, tmp_data_root):
-        """A finding or a study can depend on one pull, so a pin keeps it."""
+        """A pin keeps a pull that a study depends on."""
         _touch(DIVIDENDS, DATES)
         (settings.vendor_dir / DIVIDENDS / "pinned.txt").write_text(
             "# the evidence pull of a finding\n2026-06-10\n\n", encoding="utf-8")

@@ -1,8 +1,6 @@
-{#
-  The security master: one row per security_key, with its current ticker, name and
-  type (from its last session), its runs of tickers in order, and its first and last
-  session. A reused ticker gives two rows, one for each security.
-#}
+{# Security master: one row per security_key with its latest ticker, name and type, its tickers
+   in order (e.g. BLL > BALL), and its first and last session. A reused ticker gives one row per
+   security. #}
 
 with lines as (
 
@@ -25,8 +23,8 @@ with lines as (
 
 ), runs as (
 
-    -- The runs of tickers in order, so a ticker that comes back shows twice. A security
-    -- with one ticker has one run, so only the other securities need the order.
+    -- Runs of tickers in order, so a ticker that comes back shows twice. Skipped for a
+    -- security with one ticker.
     select security_key, ticker, date
     from lines
     semi join (select security_key from summary where not one_ticker) using (security_key)

@@ -1,6 +1,5 @@
--- A short-interest signal on session D uses a settlement whose effective date (the first
--- session on which FINRA had published it) is on or before D. A join on the settlement
--- date would use a number about eight sessions before the market saw it.
+{# A returned row is a short-interest signal that uses a settlement published after the session
+   (a join on settlement_date would). #}
 select security_key, date, short_as_of
 from {{ ref('signals') }}
 where short_as_of > date

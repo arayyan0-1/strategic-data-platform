@@ -1,16 +1,8 @@
-# src/sdp/dashboard.py
-"""A local status page for the data lake.
+"""Local status server for the data lake and the market monitor.
 
-    python -m sdp.dashboard
+    python -m sdp.dashboard [--port PORT]
 
-Serves http://127.0.0.1:8787. Use --port to select a different port. The page
-shows what each dataset holds, what is missing, and how old the dbt build is. The
-market monitor (sdp.market) is at /market, and its views of one stock or a pair
-(sdp.stock) at /market/stock.json?t=, /market/pair.json?a=&b= and /market/search.json.
-The view of a portfolio is a POST to /market/portfolio.json. One button pulls the
-missing sessions and builds the dbt models. The page is local only and does not need
-the network, except when it pulls. The pull runs in a background thread, so the page
-stays live while it works.
+Serves 127.0.0.1 only. A pull started from the page runs in a background thread.
 """
 from __future__ import annotations
 
@@ -41,8 +33,6 @@ _job: dict = {"running": False, "phase": "idle", "started": None,
 _snap_lock = threading.Lock()
 _snap_cache: dict = {"at": 0.0, "snap": None}
 
-
-# ---------- the background pull ----------
 
 def _progress(ev: dict) -> None:
     with _job_lock:
@@ -88,8 +78,10 @@ def _start_job(force_dbt: bool = False) -> bool:
 
 
 def _snapshot() -> dict:
-    """Return the status snapshot, cached for SNAPSHOT_TTL seconds. The lock
-    lets one thread read the lake while the other threads wait for its result."""
+    """Return the status snapshot, cached for SNAPSHOT_TTL seconds.
+
+    The lock lets one thread read the lake while the others wait for its result.
+    """
     with _snap_lock:
         now = time.monotonic()
         if _snap_cache["snap"] is None or now - _snap_cache["at"] >= SNAPSHOT_TTL:
@@ -99,14 +91,16 @@ def _snapshot() -> dict:
 
 
 def _clear_snapshot() -> None:
-    """Remove the cached snapshot, so the next poll reads the lake again."""
+    """Drop the cached snapshot so the next poll reads the lake again."""
     with _snap_lock:
         _snap_cache["snap"] = None
 
 
 def _state() -> dict:
-    """Return the snapshot and the job. Read the job first, so a finished job
-    always comes with a snapshot from after the job."""
+    """Return the snapshot and the job.
+
+    The job is read first, so a finished job always comes with a snapshot taken after it.
+    """
     with _job_lock:
         job = {"running": _job["running"], "phase": _job["phase"],
                "started": _job["started"], "log": list(_job["log"]),
@@ -120,17 +114,14 @@ def _state() -> dict:
     return snap
 
 
-# ---------- the server ----------
-
 def _host_allowed(headers: Mapping[str, str], port: int) -> bool:
-    """Return True when the Host header names this server. This stops DNS rebinding."""
+    """Return True when the Host header names this server (blocks DNS rebinding)."""
     host = (headers.get("Host") or "").lower()
     return host in {f"127.0.0.1:{port}", f"localhost:{port}"}
 
 
 def _request_allowed(headers: Mapping[str, str], port: int) -> bool:
-    """Return True when a POST comes from this page. The Origin check stops a POST
-    from a different web page."""
+    """Return True when a POST comes from this page; the Origin check blocks other sites."""
     if not _host_allowed(headers, port):
         return False
     origin = headers.get("Origin")
@@ -153,7 +144,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         except ConnectionError:
-            return  # The client closed the connection. No one reads the reply.
+            return  # The client closed the connection.
         except OSError as exc:
             if exc.errno != errno.EPROTOTYPE:  # macOS gives this for a closing socket.
                 raise
@@ -182,7 +173,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, json.dumps({"error": "not found"}))
 
     def _view(self) -> None:
-        """Serve a view of sdp.stock: the search index, a stock or a pair."""
+        """Serve the search, stock and pair views of sdp.stock."""
         url = urlsplit(self.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         routes = {"/market/search.json": ("search",),
@@ -200,8 +191,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send(500, json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
 
     def _portfolio(self) -> None:
-        """Serve the view of a portfolio. The body is JSON: {"holdings": [{"ticker", "amount"}]}.
-        The log never holds the holdings, so a failure logs the type of the error only."""
+        """Serve the portfolio view. The body is {"holdings": [{"ticker", "amount"}]}.
+
+        A failure logs the error type only, so the log never holds the holdings.
+        """
         try:
             size = int(self.headers.get("Content-Length") or "")
         except ValueError:

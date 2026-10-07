@@ -1,21 +1,12 @@
-# src/sdp/ingest/fred.py
-"""Rates, credit, money markets, the Federal Reserve balance sheet, volatility, financial
-conditions, currencies and commodities from FRED.
+"""FRED series: rates, credit, money markets, the Fed balance sheet, volatility, currencies.
 
     python -m sdp.ingest.fred             # pull when the table is from an earlier day
     python -m sdp.ingest.fred --force     # pull now
     python -m sdp.ingest.fred --rebuild   # build again from the vendor pulls
 
-Each pull downloads one CSV per series, with the whole history that FRED serves. FRED
-revises some values, so the table is current state: one file in raw/, replaced by each
-pull. FRED serves only the last three years of the ICE BofA spreads, so the table is
-the fold of every kept pull: each (series, date) takes the value of the newest pull
-that has it, and a date that left the window keeps its last value. vendor/ keeps each
-pull, gzipped. Pulls older than KEEP_DAYS are thinned to one per ISO week, which still
-covers every date of a three-year window.
-
-The values keep the units of FRED: percent for rates and spreads, index points for the
-volatility, dollar and stress indices, dollars for the balance sheet and prices.
+The table is current state and folds every kept pull: each (series, date) takes the value
+of the newest pull that has it, so a date that left FRED's window keeps its last value.
+vendor/ keeps each pull gzipped; pulls older than KEEP_DAYS are thinned to one per ISO week.
 """
 from __future__ import annotations
 
@@ -38,7 +29,7 @@ log = logging.getLogger(__name__)
 
 DATASET = dal.FRED
 
-# The series and what each holds. The id is the FRED series id.
+# FRED series id -> description and unit.
 SERIES = {
     "DTB4WK": "4-week Treasury bill, secondary market, discount basis, percent",
     "DTB3": "3-month Treasury bill, secondary market, discount basis, percent",
@@ -120,12 +111,12 @@ SERIES = {
 
 MAX_AGE_DAYS = 1
 KEEP_DAYS = 30
-MIN_VALUES = 500      # The shortest series (the ICE spreads) has about 750 values.
-MAX_ABS = 1000.0      # No rate, spread or index reaches 1,000.
-# The series in dollar amounts or prices have their own limit.
+MIN_VALUES = 500      # Floor under the shortest series (the ICE spreads).
+MAX_ABS = 1000.0      # Sanity bound for a rate, spread or index.
+# Series in dollar amounts or prices have their own limits.
 LIMITS = {"WALCL": 5e7, "WSHOTSL": 5e7, "WSHOMCB": 5e7, "WRESBAL": 5e7, "WTREGEN": 5e7,
           "RRPONTSYD": 1e5, "RPONTSYD": 1e5, "SOFRVOL": 1e5, "CBBTCUSD": 1e7}
-STALE_DAYS = 21       # A weekly series is about 10 days behind. Longer is unusual.
+STALE_DAYS = 21       # A weekly series lags about 10 days; warn beyond this.
 
 
 def _pull_dir(pull_date: dt.date) -> Path:
@@ -137,9 +128,11 @@ def _file(pull: Path, series: str) -> Path:
 
 
 def vendor_pulls() -> list[tuple[dt.date, Path]]:
-    """Return the vendor pulls that hold a file for one or more series, oldest first. A
-    pull from before a series joined SERIES has no file for it and still counts, so the
-    fold keeps the dates that only the older pulls hold."""
+    """Return the vendor pulls with a file for any series, oldest first.
+
+    A pull from before a series joined SERIES still counts, so the fold keeps the dates
+    that only older pulls hold.
+    """
     root = settings.vendor_dir / DATASET.name
     out = []
     for p in sorted(root.glob("????-??-??")) if root.exists() else []:
@@ -180,8 +173,8 @@ def build(pulls: list[tuple[dt.date, Path]]) -> Path:
     staged.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
     try:
-        # Each file has two columns: the date and the series id as the header of the
-        # value. An empty value is a day with no observation.
+        # Each file has two columns: the date, and the value under the series id.
+        # An empty value is a day with no observation.
         con.execute(f"""
             create temp table raw as
             select regexp_extract(filename, '([A-Z0-9]+)\\.csv\\.gz$', 1)           as series_id,
@@ -206,7 +199,7 @@ def build(pulls: list[tuple[dt.date, Path]]) -> Path:
 
 
 def audit(staged: Path, pull_date: dt.date) -> int:
-    """Raise AuditFailure on a table that would give wrong numbers. Return the row count."""
+    """Raise AuditFailure on a table that would give wrong numbers; return the row count."""
     n, dups = one(f"""
         select count(*), count(*) - count(distinct (series_id, date))
         from read_parquet('{staged}')""")
@@ -247,8 +240,8 @@ def published_pull() -> dt.date | None:
 
 
 def thin(today: dt.date, *, keep_days: int = KEEP_DAYS, dry_run: bool = False) -> list[Path]:
-    """Delete the vendor pulls older than keep_days, except the first pull and the
-    newest pull of each ISO week. Return the deleted directories."""
+    """Delete vendor pulls older than keep_days, keeping the first pull and the newest of
+    each ISO week. Return the deleted directories."""
     pulls = vendor_pulls()
     if not pulls:
         return []
@@ -273,9 +266,11 @@ def thin(today: dt.date, *, keep_days: int = KEEP_DAYS, dry_run: bool = False) -
 
 def ingest(pull_date: dt.date | None = None, *, force: bool = False,
            rebuild: bool = False) -> Path:
-    """Pull every series and publish the fold of the kept pulls. Without force, do
-    nothing when the published table has a pull of pull_date or later. rebuild folds
-    the vendor pulls and does not download."""
+    """Pull every series and publish the fold of the kept pulls.
+
+    Without force, do nothing when the published table has a pull of pull_date or later.
+    rebuild folds the vendor pulls without downloading.
+    """
     pull_date = pull_date or dt.datetime.now(dt.UTC).date()
     last = published_pull()
     if not (force or rebuild) and last and (pull_date - last).days < MAX_AGE_DAYS:

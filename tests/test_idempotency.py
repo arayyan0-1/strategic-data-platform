@@ -1,7 +1,6 @@
-"""Content-level idempotency: a rerun of one date yields identical rows.
+"""Content-level idempotency: a rerun of one date gives the same rows.
 
-Parquet metadata differs between runs, so these tests compare rows, not files.
-The rebuild tests also check that a rebuild reads vendor/ only.
+Parquet metadata differs between runs, so the tests compare rows, not files.
 """
 import datetime as dt
 import gzip
@@ -53,7 +52,6 @@ def test_day_aggs_build_is_idempotent(tmp_data_root):
 
 
 def test_tickers_build_is_idempotent(tmp_data_root):
-    """This failed while build() wrote now() as pulled_at."""
     vendor = settings.vendor_dir / tick.DATASET / "2024-01-03.ndjson"
     vendor.parent.mkdir(parents=True, exist_ok=True)
     vendor.write_text(NDJSON, encoding="utf-8")
@@ -70,19 +68,16 @@ def test_the_tickers_build_writes_no_wall_clock_column(tmp_data_root):
     vendor.write_text(NDJSON, encoding="utf-8")
 
     rel = duckdb.connect().read_parquet(str(tick.build(vendor, D)))
-    # last_updated_utc is the revision stamp of the vendor record. It comes from
-    # the vendor file and it is identical on every rebuild, so it is not a clock
-    # reading taken at build time.
+    # last_updated_utc is the vendor's revision stamp, the same on every rebuild.
     timestamps = [c for c, t in zip(rel.columns, rel.types, strict=True)
                   if "TIMESTAMP" in str(t) and c != "last_updated_utc"]
     assert timestamps == [], f"a wall-clock column breaks idempotency: {timestamps}"
 
 
 class TestVendorDuplicates:
-    """Vendor pagination can deliver one record twice.
+    """Vendor pagination can deliver a record twice, and different ones on each pull.
 
-    A transport artifact — two pulls of the same date give different duplicates.
-    Without removal, the duplicate-ticker audit fails at random.
+    Without removal, the duplicate-ticker audit would fail at random.
     """
 
     DUPLICATED = (
@@ -105,8 +100,7 @@ class TestVendorDuplicates:
         assert [r[0] for r in rows] == ["AAA", "BBB"]
 
     def test_the_newest_copy_is_kept(self, tmp_data_root):
-        """read_json chooses the type of last_updated_utc, so compare and do not
-        assume a string."""
+        """read_json picks the type of last_updated_utc, so compare; don't assume a string."""
         rel = duckdb.connect().read_parquet(str(tick.build(self._vendor(), D)))
         (kept,) = rel.filter("ticker = 'AAA'").project("last_updated_utc").fetchall()
         (newest,) = duckdb.connect().sql(
@@ -131,7 +125,6 @@ class TestVendorDuplicates:
 # ---------- the two modes that publish a date again ----------
 
 def _day_aggs_vendor(n=6000):
-    """Write a vendor CSV that passes the day-aggregate audit."""
     path = day.vendor_path(D)
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = ["ticker,volume,open,close,high,low,window_start,transactions"]
@@ -142,7 +135,6 @@ def _day_aggs_vendor(n=6000):
 
 
 def _tickers_vendor(n=6000, n_cs=4000, suffix=".ndjson.gz"):
-    """Write a vendor NDJSON file that passes the tickers audit."""
     path = settings.vendor_dir / tick.DATASET / f"{D:%Y-%m-%d}{suffix}"
     path.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps({
@@ -169,7 +161,7 @@ def _damage(dest):
 
 @pytest.fixture
 def offline(monkeypatch):
-    """Make every download fail, so a test proves that a rebuild uses vendor/ only."""
+    """Make every download fail, to prove that a rebuild reads vendor/ only."""
 
     def fail(*args, **kwargs):
         raise AssertionError("a rebuild must not download")

@@ -1,7 +1,5 @@
--- Recompute each macro change for the sessions where the series has an observation dated
--- on the session and on the session before: the later value less the earlier one, or the
--- log of their ratio. The last session counts, so the change of a session does not wait
--- for a later row.
+{# A returned row is a macro change that differs from the later observation less the earlier one
+   (or the log ratio) where the series has observations on the session and the one before. #}
 {% set defs = macro_factors() %}
 with sessions as (
 

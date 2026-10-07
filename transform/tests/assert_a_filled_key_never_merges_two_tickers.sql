@@ -1,5 +1,5 @@
--- Two tickers share a key on one session only when both state that FIGI themselves (a
--- when-issued line). A filled FIGI that joins a second ticker merges two securities.
+{# A returned row is a session where two tickers share a key through a filled FIGI. Only a
+   self-stated FIGI (a when-issued line) may be shared. #}
 select security_key, date, list(ticker) as tickers, list(key_rule) as rules
 from {{ ref('int_universe') }}
 group by security_key, date

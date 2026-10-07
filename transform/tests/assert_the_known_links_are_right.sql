@@ -1,11 +1,6 @@
--- OKE took a new FIGI in a reorganization on 2026-09-11 and stays one security. XOM did
--- the same on 2026-07-02, when its name changed from Exxon Mobil to ExxonMobil. MSGE is
--- a spin-off: its old FIGI went on as SPHR. HR is a merger: its new FIGI traded as HTA.
--- WOLF left bankruptcy with a sixth of its shares, and its price jumped 18 times. GORO
--- became Goldgroup Mining, with an older FIGI and, three sessions later, the Goldgroup
--- CIK. Each of those four stays two securities. LH moved into a holding company under a
--- new name, and a reviewed decision links it. BYND had another FIGI for one session at
--- a reverse split, and the flicker does not start a security.
+{# A returned row is a named FIGI change that is one security when it should be two, or the
+   reverse. Cases: new holding companies and flickers stay one security; spin-offs, mergers,
+   bankruptcy and a new company on a ticker become two. #}
 with cases (ticker, before_date, after_date, one_security) as (
     values
         ('OKE',  date '2026-09-10', date '2026-09-11', true),

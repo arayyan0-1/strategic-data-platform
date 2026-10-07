@@ -1,12 +1,6 @@
--- The loadings that a fund earns on a session come from a fit that ends before it.
---  - Each fit ends on the session before its first session, and it reads at most fund_window
---    rows.
---  - Every residual row lies between the first and the last session of its fit.
---  - A ridge fit with a free intercept has a mean return equal to the intercept plus the
---    loadings times the mean factor returns, over the rows that it reads. The test
---    recomputes both sides from the returns and the factor returns of the fund_window
---    sessions that end on window_end, for a sample of funds. A fit that read another row
---    would break the equality.
+{# A returned row is a fund fit that does not end the session before it starts, reads rows
+   outside its window (mean return != intercept + loadings x mean factors), or has a residual
+   outside its fit. #}
 {% set macro = var('fund_macro') %}
 {% set model = ['market', 'size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                 'dividend_yield', 'high_52w', 'ind_nodur', 'ind_durbl', 'ind_manuf', 'ind_enrgy',

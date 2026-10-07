@@ -1,13 +1,6 @@
-{#
-  The stock-specific moves of the last session: the liquid in-universe names (market
-  cap of $2B or more, or trailing dollar volume of $20M or more) with the largest
-  residual in units of their own residual volatility (style_residuals). A raw mover list
-  mixes the market, the industry and the styles with news. This list keeps the part
-  that no factor explains. factor_part is the market, industry and style parts together.
-  resid_score is the score of resid_z: the map of the names of a cap of monitor_big_cap
-  or more (market_scores), so a score of 3 is as rare as a 3 sigma move of a normal
-  distribution for those names. A smaller name uses the same map and passes it more often.
-#}
+{# Largest stock-specific moves of the last session among liquid names ($2B cap or $20M trailing
+   dollar volume), in units of each name's residual volatility. factor_part is market + industry
+   + style. resid_score is the market_scores map for monitor_big_cap names. #}
 
 with last_session as (
 
@@ -40,9 +33,8 @@ with last_session as (
 
 ), counted as (
 
-    -- The smallest size in the pool that is at least abs(resid_z) gives the count. No such
-    -- size means a count of 0. This reads the sorted pool once, where a join on
-    -- abs(z_raw) >= abs(resid_z) would pair every mover with every pool row.
+    -- The smallest pool size at least abs(resid_z) gives the count (0 if none). An as-of join reads
+    -- the sorted pool once; a range join would pair every mover with every pool row.
     select t.*, coalesce(p.n_ge, 0) as n_ge
     from (select *, abs(resid_z) as a from today) t
     asof left join pool p on t.a <= p.a

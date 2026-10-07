@@ -1,16 +1,4 @@
-"""The exposures of each in-universe name on each session: its industry, its z-score on
-each style (sdp.factors.standardize) and the return of the next session. The styles are
-the characteristics of a Barra model that daily prices and the monthly ticker details
-give: size (log market cap), liquidity (log dollar volume over market cap), beta,
-momentum, reversal, volatility, dividend yield and the 52-week high.
-
-The regression weight is the square root of the market cap. A name with no market cap
-takes the median ratio of cap to dollar volume of its session, so it keeps a weight and
-its size z-score is 0. The var style_center sets the mean of each z-score: sqrt_cap (the
-regression weight) or cap (as in Barra, so the cap-weighted market has no style
-exposure). style_clip is the largest z-score. style_factor_returns and style_residuals
-read this table.
-"""
+"""Industry, style z-scores and next-session return of each in-universe name and session."""
 import numpy as np
 
 from sdp.factors import STYLE_SQL, filled, stack, standardize

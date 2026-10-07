@@ -1,6 +1,5 @@
--- The p-value of each effect is the two-sided tail area of the standard normal density
--- beyond |t|. The check integrates the density from |t| to |t| + 10 by the midpoint rule
--- and allows a relative difference of 1e-4.
+{# A returned row is a seasonality p-value that differs by over 1e-4 relative from the two-sided
+   normal tail beyond |t|, integrated by the midpoint rule from |t| to |t| + 10. #}
 with steps as (
 
     select i, 0.0005 as h from range(0, 20000) as r(i)

@@ -1,9 +1,7 @@
-"""Fama-French factors mimicked with portfolios that trade in this universe
-(sdp.factors.mimic_returns). The base assets are the style, industry and statistical
-factor portfolios. Every 21 sessions, a ridge regression of each published factor on the base
-returns over the trailing year gives the weights, and the weights earn the next 21
-sessions out of sample. The library lags about two months, and the mimics carry each
-factor to the last session. r2_<factor> is the in-sample fit of the latest weights."""
+"""Fama-French factors mimicked by ridge portfolios of the style and PCA factors.
+
+Weights are refit every 21 sessions and earn the next 21 out of sample. r2_<factor> is the fit.
+"""
 import numpy as np
 
 from sdp.factors import filled, mimic_returns

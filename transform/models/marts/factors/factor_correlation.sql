@@ -1,8 +1,5 @@
-{#
-  The correlation of the daily returns of each pair of factors over the last two
-  years, on the sessions that both have. A lagged factor (ff) has fewer sessions,
-  and n_days says how many.
-#}
+{# Correlation of the daily returns of each pair of factors over the last two years, on the
+   sessions both have. n_days says how many (a lagged factor such as ff has fewer). #}
 
 with r as (
 

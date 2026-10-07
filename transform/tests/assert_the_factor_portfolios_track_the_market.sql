@@ -1,6 +1,6 @@
--- The market style factor and the first eigenportfolio are both a market portfolio, so
--- each must track the cap-weighted return of the universe. A sign error, a
--- date shift or a lost weight breaks the correlation.
+{# A returned row means the style market factor or the first eigenportfolio does not track the
+   cap-weighted universe return (correlation under 0.9 or 0.8): a sign error, date shift or lost
+   weight. #}
 with r as (
     select b.date, b.cap_ret, s.market, p.pc1
     from {{ ref('market_breadth') }} b

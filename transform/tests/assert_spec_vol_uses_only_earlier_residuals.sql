@@ -1,6 +1,5 @@
--- Recompute own_vol for a sample of rows from the residuals before the row, with the weight
--- decay^(rows between) written out. The running sums of the model must give the same
--- number. A residual of the row itself, or of a later row, would make them differ.
+{# A returned row is an own_vol that differs from a recomputation over the earlier residuals
+   only, with the weights written out. #}
 {% set decay = 0.5 ** (1.0 / var('spec_vol_half_life')) %}
 with rows as (
 

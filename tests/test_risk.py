@@ -1,7 +1,6 @@
-"""Covariance estimators, risk models and the name selection in sdp.risk.
+"""Tests for sdp.risk on small synthetic panels with fixed seeds.
 
-Each test uses a small synthetic panel with a fixed seed. The two shapes cover
-T > N and N > T, because QIS takes a different path for each.
+REGIMES covers T > N and N > T, because QIS takes a different path for each.
 """
 import numpy as np
 import pytest
@@ -10,7 +9,7 @@ from sdp import risk
 
 REGIMES = [(7, 60, 40), (11, 40, 60)]  # (seed, T, N)
 
-# Sorted eigenvalues of qis at ranks 0, 1, N//2, N-2 and N-1, computed once.
+# Sorted qis eigenvalues at ranks 0, 1, N//2, N-2 and N-1.
 GOLDEN = {
     7: [0.00013444271642973853, 0.00020559082485389633, 0.00042589872761421635,
         0.0020739624884999848, 0.0020744249048109415],
@@ -91,8 +90,11 @@ def test_gmv_uses_a_ridge_on_an_exactly_singular_matrix():
 
 
 def selection_panel():
-    """Return (R, U, A) for 5 rows and 5 names. Name 0 has a gap on row 2, name 1 is out
-    of the universe on row 3 and name 4 has a gap on row 4 only."""
+    """Return (R, U, A) for 5 rows and 5 names.
+
+    Name 0 has a gap on row 2, name 1 is out of the universe on row 3, name 4 has a gap
+    on row 4 only.
+    """
     R = np.full((5, 5), 0.01)
     R[2, 0] = np.nan
     R[4, 4] = np.nan

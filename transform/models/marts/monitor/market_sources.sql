@@ -1,9 +1,6 @@
-{#
-  How fresh each source of the warehouse is: the last date of its data, the date of the
-  pull behind it where the source is current state, and the age in days at which the
-  data is late (max_age_days). The page shows a source in red past that age. The last
-  row counts the changes of FIGI key that need a reviewed link decision (pending).
-#}
+{# Freshness of each warehouse source: last data date, the pull date for current-state sources,
+   and the age in days past which it is late (max_age_days). The last row counts FIGI changes
+   that need a reviewed link decision (pending). #}
 
 select 'Massive day bars' as source, max(date) as last_date, null::date as pulled,
        4 as max_age_days, 'the last session in the lake' as note, null::bigint as pending

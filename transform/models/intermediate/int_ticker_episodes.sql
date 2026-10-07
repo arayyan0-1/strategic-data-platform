@@ -1,12 +1,6 @@
-{#
-  The ticker reference per date, with the key of each episode. int_tickers_keyed adds the
-  links between episodes and gives the security key.
-
-  Most rows of a ticker repeat the row before them in every field that sets the key. The
-  logic runs on runs of such rows and not on rows, so no window sorts all rows. A run is a
-  set of consecutive rows of one ticker with the same name, CIK and FIGIs. A join gives
-  each row the result of its run.
-#}
+{# The ticker reference per date with an episode key. The logic runs on runs of consecutive rows
+   with the same name, CIK and FIGIs, so no window sorts all rows; a join gives each row its
+   run's result. #}
 
 with reference as not materialized (
 
@@ -36,9 +30,8 @@ with reference as not materialized (
 
 ), mixed as (
 
-    -- A group is a run when no other group of its ticker has a date inside it. A ticker
-    -- is mixed when the fields go from one value to another and back (a FIGI that the
-    -- vendor drops for one session).
+    -- A group is a run when no other group of its ticker has a date inside it. A ticker is
+    -- mixed when the fields go from one value to another and back.
     select ticker
     from (
         select
@@ -90,18 +83,15 @@ with reference as not materialized (
 
     select
         *,
-        -- The first word of the name. A new issuer changes it. A rename by the same
-        -- fund family or company mostly keeps it.
+        -- A new issuer changes the first word of the name; a rename mostly keeps it.
         lower(regexp_extract(name, '[A-Za-z0-9]+')) as name_word
     from runs
 
 ), smoothed as (
 
-    -- The vendor gives a name another FIGI for one session and the old one again on the
-    -- next, as at the reverse splits of WORX, UPLD and BYND. A FIGI on one session
-    -- between two sessions of the same other FIGI takes that FIGI, so the flicker does
-    -- not start a security for one day. A run of more than one row has no flicker. The
-    -- raw FIGIs stay in the run, because the join to the rows needs them.
+    -- The vendor can give a name another FIGI for one session around a reverse split. A FIGI on
+    -- one session between two sessions of the same other FIGI takes that FIGI. The raw FIGIs
+    -- stay in the run because the join back to the rows needs them.
     select
         * exclude (sc_before, sc_after, cf_before, cf_after),
         case when n_rows = 1 and share_class_figi <> sc_before and sc_before = sc_after
@@ -125,12 +115,10 @@ with reference as not materialized (
 
 ), flagged as (
 
-    -- The vendor drops an identifier of a name on some dates, and it gives the CIK
-    -- of a related issuer on others (CMSpC alternates between CMS Energy and
-    -- Consumers Energy). An episode is a run of one ticker that stays with one
-    -- security. A new episode starts when a FIGI changes, or when the first word of
-    -- the name changes and the CIK is not the known one. A new issuer on a reused
-    -- ticker can start with no CIK (STRC in July 2025).
+    -- An episode is a run of one ticker that stays with one security. It ends when a FIGI
+    -- changes, or when the first word of the name changes and the CIK is not the known one.
+    -- The vendor drops identifiers on some dates and gives a related issuer's CIK on others,
+    -- and a new issuer on a reused ticker can start with no CIK.
     select
         *,
         coalesce(sm_share_class_figi <> last_value(sm_share_class_figi ignore nulls) over earlier, false)
@@ -159,9 +147,8 @@ with reference as not materialized (
 
 ), filled as (
 
-    -- Each run takes the identifiers of its episode. The key is a label and not a
-    -- price input, so a value that the vendor states on a later date of the same
-    -- episode is not look-ahead.
+    -- Each run takes the identifiers of its episode. The key is a label, not a price input,
+    -- so a value stated on a later date of the same episode is not look-ahead.
     select
         * exclude (starts_episode),
         first_value(sm_share_class_figi ignore nulls) over whole as episode_share_class_figi,
@@ -194,10 +181,8 @@ with reference as not materialized (
 
 ), blocked_sc as (
 
-    -- A filled FIGI that another ticker states on the same date belongs to that
-    -- ticker. The old ticker of a renamed company (IIVI, now COHR) can pass to a new
-    -- issuer with no FIGI, and the fill must not merge the two. This lists the blocked
-    -- dates of each run.
+    -- A filled FIGI that another ticker states on the same date belongs to that ticker, so the
+    -- fill must not merge the two (e.g. IIVI became COHR). Lists the blocked dates of each run.
     select ticker, first_date, list(date) as dates
     from (
         select n.ticker, n.first_date, n.date
@@ -279,9 +264,7 @@ with reference as not materialized (
 
 select
     * exclude (episode_share_class_figi, episode_composite_figi),
-    -- Prefer the security identifier (FIGI), fall back to an issuer id made
-    -- unique by ticker. key_rule records which rule fired, so the fallback rate
-    -- is measurable.
+    -- Prefer the FIGI, fall back to the CIK made unique by ticker. key_rule records which fired.
     coalesce(
         share_class_figi,
         episode_share_class_figi,

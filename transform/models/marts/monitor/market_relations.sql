@@ -1,16 +1,6 @@
-{#
-  Relations between assets that a trader reads as one number, from the monitor ETFs,
-  one row per relation and session over two years (market_relation_values). A ratio is
-  the price of the first ETF over the second, rebased to 1 at the start. A correlation
-  is over 63 sessions of daily returns. change_21 is the change over 21 sessions (a
-  return for a ratio, a difference for a correlation). z_21 is the score of that change
-  (market_scores): a score of 3 is as rare as a 3 sigma move of a normal distribution on
-  the history of the relations. pctile is the share of the window with a lower or equal
-  value.
-
-  Credit spreads, the VIX term structure and the dollar are measured, not proxied, in
-  market_rates.
-#}
+{# market_relation_values over two years: a ratio rebased to 1 at the start, change_21 over 21
+   sessions, z_21 the market_scores score of that change, pctile the share of the window at or
+   below the value. Credit, VIX term and the dollar are in market_rates. #}
 
 with last_session as (
 

@@ -1,8 +1,5 @@
--- Recompute spec_vol for a sample of rows from the residuals before the row, with the
--- weight decay^(rows between) written out. A row with macro_pending has no weight. The
--- running sums of the model must give the same number, and a row with fewer than
--- fund_spec_vol_min_obs earlier weights has none. A residual of the row itself, or of a
--- later row, would make them differ.
+{# A returned row is a fund spec_vol that differs from a recomputation over earlier residuals
+   (macro_pending rows have no weight), or is set or missing against fund_spec_vol_min_obs. #}
 {% set decay = 0.5 ** (1.0 / var('fund_spec_vol_half_life')) %}
 with rows as (
 

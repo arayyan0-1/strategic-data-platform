@@ -1,7 +1,5 @@
--- In each period, the false discovery rate procedure keeps at least the effects that
--- pass the Bonferroni limit (p below fdr over the count of tests), and at most the
--- effects that pass fdr with no correction. The count of tests in the model is the
--- count of tests with a p-value.
+{# A returned row is a period where the Benjamini-Hochberg count is below the Bonferroni count or
+   above the uncorrected count, or the model's n_tests is not the count of tests with a p-value. #}
 with tests as (
 
     select period, count(p) as n_tests

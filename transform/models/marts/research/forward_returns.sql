@@ -1,7 +1,5 @@
-{#
-  The labels. Forward total return over 1, 5 and 21 sessions, kept apart from
-  the factors so a label cannot leak into one. lead() looks strictly forward.
-#}
+{# Forward total return over 1, 5 and 21 sessions, apart from the factors so a label cannot leak
+   into one. #}
 
 with base as (
 

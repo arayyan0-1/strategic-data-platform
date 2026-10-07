@@ -1,14 +1,6 @@
-{#
-  The cross-asset board: one row per ETF of the monitor_etfs seed. Each ETF is the
-  security that holds its ticker on the last session, so a ticker that a new fund
-  reused (IBIT) shows only the current fund. Returns use the total-adjusted close and
-  count sessions back from the last one: a week is 5, a month 21, a quarter 63, a
-  year 252. The year to date starts at the last close of the previous year. z_1d, z_1w
-  and z_1m are the scores of the log returns over 1, 5 and 21 sessions (market_scores):
-  a score of 3 is as rare as a 3 sigma move of a normal distribution on the history of
-  the monitor ETFs. They are null for an ETF with a 20-session volatility under the var
-  monitor_min_etf_vol a year.
-#}
+{# Cross-asset board: one row per monitor_etfs ETF, each the security holding its ticker on the
+   last session. Returns use the total-adjusted close, counted back in sessions. z_1d, z_1w and
+   z_1m are market_scores, null below monitor_min_etf_vol. #}
 
 with last_session as (
 

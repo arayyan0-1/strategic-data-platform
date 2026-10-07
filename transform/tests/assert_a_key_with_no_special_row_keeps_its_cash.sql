@@ -1,9 +1,5 @@
--- The regular amount differs from the total amount only for a key with a special row.
--- Take each dividend key from the vendor rows. With no special row, both amounts are
--- equal, so the yield of a name that pays no special dividend does not change. With
--- only special rows, the regular amount is null. With both kinds, it is set and no
--- larger than the total. A row with no type counts as regular. A vendor key with no
--- row in the model is a failure.
+{# A returned row is a dividend key whose regular_cash_amount disagrees with the vendor rows:
+   equal to cash with no special row, null with only special rows, at most cash otherwise. #}
 with vendor as (
 
     select

@@ -1,9 +1,6 @@
--- The gap between the settlement date and the effective date must be exactly
--- the configured number of XNYS sessions.
---
--- Counting in sessions and not in calendar days is the point. A market holiday
--- inside the window would shorten a calendar-day lag and let a signal read the
--- number before it was public.
+{# A returned row is a settlement whose gap to effective_date is not the configured number of
+   sessions. Sessions, not calendar days: a holiday would shorten a calendar lag and let a signal
+   read the number early. #}
 with sessions as (
 
     select date as session

@@ -1,5 +1,4 @@
-{# The FRED series, one row per series and date, in the units of FRED. A null value is
-   a day with no observation. #}
+{# FRED series in FRED's units, one row per series and date. A null value is no observation. #}
 
 select
     series_id,

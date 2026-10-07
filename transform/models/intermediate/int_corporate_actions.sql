@@ -1,8 +1,5 @@
-{#
-  One row per (ticker, event_date, kind). The vendor can give two rows for one
-  key that disagree on the factor. Collapse them and record the disagreement, so
-  an as-of join cannot turn one price row into two.
-#}
+{# One row per (ticker, event_date, kind). Duplicate vendor rows that disagree on the factor are
+   collapsed and the disagreement recorded, so a join cannot turn one price row into two. #}
 
 with splits_src as (
 
@@ -16,8 +13,7 @@ with splits_src as (
     from {{ ref('stg_massive__splits') }}
     where ticker is not null
       and execution_date is not null
-      -- factor is null (fatal at ingest, so absent here) or 0 (RYCEF, no valid
-      -- adjustment). Drop both.
+      -- Drop a null factor (fatal at ingest, so absent) and a zero factor (no valid adjustment).
       and historical_adjustment_factor > 0
       and split_from > 0
       and split_to > 0
@@ -51,9 +47,8 @@ with splits_src as (
     where ticker is not null
       and ex_dividend_date is not null
       and currency = 'USD'
-      -- Keep the null factor. It is structural (no vendor price on the ex-date).
-      -- `factor > 0` alone would drop nulls silently, and the as-of join would
-      -- then report 1.0 for an unknown date.
+      -- Keep the null factor: it is structural (no vendor price on the ex-date). `factor > 0`
+      -- alone would drop it silently and the join would report 1.0 for an unknown date.
       and (historical_adjustment_factor is null or historical_adjustment_factor > 0)
 
 ), dividends_grouped as (
@@ -71,10 +66,8 @@ with splits_src as (
         bool_or(factor is null)                       as factor_is_null,
         -- Per-share cash on the ex-date. Every row counts, specials included.
         max(cash_amount)                              as cash_amount,
-        -- The same, from the rows that are not special. It feeds the dividend yield.
-        -- A row with no type counts as regular. The result is null when every row of
-        -- the key is special. The vendor can send one dividend twice, so it takes the
-        -- largest amount and not the sum.
+        -- Same, from the rows not marked special; feeds the dividend yield. A row with no type
+        -- is regular. Null when every row is special. Max, not sum: the vendor can repeat a row.
         max(cash_amount) filter (where distribution_type is distinct from 'special')
                                                       as regular_cash_amount
     from dividends_src
@@ -101,15 +94,14 @@ select
     cash_amount,
     regular_cash_amount,
     n_events > 1 as is_collapsed,
-    -- True when this event, or any later one on the same ticker, was collapsed.
-    -- The factor is cumulative, so an ambiguity travels back through earlier dates.
+    -- True when this or any later event on the ticker was collapsed. The factor is cumulative,
+    -- so an ambiguity travels back through earlier dates.
     bool_or(n_events > 1) over (
         partition by ticker, kind
         order by event_date desc
         rows between unbounded preceding and current row
     ) as has_collapsed_at_or_after,
-    -- Validation only: reproduce the cumulative split factor from the ratios.
-    -- Never a substitute for the vendor factor.
+    -- Validation only: the cumulative split factor rebuilt from the ratios.
     case when kind = 'split' then
         exp(sum(ln(ratio)) over (
             partition by ticker, kind

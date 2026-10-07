@@ -1,31 +1,12 @@
-{#
-  The return of each in-universe name split into the parts of the style and industry
-  model (style_factor_returns) and a residual. The residual is the part that the market,
-  the industry and the eight styles do not explain: the stock-specific move, where news
-  and alpha live. A row is dated on the session of the return.
-
-  spec_vol is the forecast of the volatility of the residual, and resid_z is the residual
-  in units of it. The forecast reads only the sessions before the row, in three steps:
-  - own_vol is the root mean square of the residuals of the name before the row. The
-    weight of a residual halves every spec_vol_half_life rows.
-  - The shrinkage moves own_vol toward the cap-weighted mean of its size decile on the
-    session. The pull grows with the distance from the mean, at the rate
-    spec_vol_shrinkage.
-  - vol_regime is the square root of the weighted mean, over the sessions before, of the
-    cross-section mean of z squared, with z from the forecast of the two steps above. The
-    weight of a session halves every spec_vol_regime_half_life sessions. It raises every
-    forecast when the residuals of the last sessions were large, and lowers every forecast
-    when they were small. spec_vol is the shrunk own_vol times vol_regime.
-
-  All three are null until the name has spec_vol_min_obs residuals before the row, so a
-  new listing has no false extreme.
-#}
+{# Each in-universe name's return split into market, industry and style parts and a
+   stock-specific residual, dated on the session of the return. spec_vol forecasts the residual's
+   volatility from earlier sessions only; resid_z = resid / spec_vol. #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',
                      'Utils', 'Shops', 'Hlth', 'Money', 'Other', 'Unknown'] %}
-{# The running sums below hold the weight decay^(-k), which grows fast with k. A half-life
-   below 2 leaves too little room before it overflows, about 2,000 rows. #}
+{# The running sums hold the weight decay^(-k), which overflows after enough rows; a half-life
+   below 2 overflows too soon. #}
 {% if var('spec_vol_half_life') < 2 or var('spec_vol_regime_half_life') < 2 %}
     {{ exceptions.raise_compiler_error(
         'spec_vol_half_life and spec_vol_regime_half_life must be 2 or more.') }}
@@ -78,8 +59,7 @@ with days as (
 
 ), sized as (
 
-    -- The names with no own_vol form their own group, so they do not move the deciles of
-    -- the other names.
+    -- Names with no own_vol form their own group so they do not move the other names' deciles.
     select
         *,
         ntile(10) over (partition by date, own_vol is null
@@ -127,9 +107,8 @@ with days as (
 
 ), regime as (
 
-    -- Two running sums, as for own_vol, but over sessions. The factor decay^(t - 1) cancels
-    -- in the ratio. A session with no z has no weight. When no session before has a z,
-    -- the regime is 1.
+    -- Two running sums, as for own_vol, over sessions; the factor decay^(t - 1) cancels in the
+    -- ratio. A session with no z has no weight. With no earlier z the regime is 1.
     select
         s.date,
         coalesce(sqrt(sum(z.mean_z2 * power({{ regime_decay }}, -s.t)) over prev

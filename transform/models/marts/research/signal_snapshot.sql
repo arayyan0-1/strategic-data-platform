@@ -1,8 +1,5 @@
-{#
-  The latest session. Each signal value, its z-score, decile and rank, for each
-  in_universe name. A description of the present tilt, not a recommendation.
-  The decile comes from the panel avg_rank, so tied values share one decile.
-#}
+{# The latest session: each in-universe name's signal value, z-score, decile (from the panel
+   avg_rank) and rank. #}
 
 with latest as (
 

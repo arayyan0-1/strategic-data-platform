@@ -1,30 +1,13 @@
-{#
-  The return of each fund split into the parts of its exposures (fund_exposures) and a
-  residual. One row for each fund and session that a fit covers. A part is the loading of
-  the fit of fit_date times the factor return of the session. The parts are market, industry
-  (industry_part), the eight styles (style_part) and the macro factors of fund_macro
-  (macro_part). alpha is the intercept of the fit, the daily constant of the fund (the carry
-  of a bill fund). It is not a factor part. So the return is the four parts plus alpha plus
-  resid.
-
-  macro_pending is true when a macro factor of fund_macro has no observation yet on the
-  session (macro_factor_returns). The missing change adds 0 to macro_part. So the residual
-  of that row still holds the move of that factor, and it is not a move that is specific to
-  the fund. The row has no weight in spec_vol of any later row.
-
-  spec_vol is the forecast of the volatility of the residual, and resid_z is the residual in
-  units of it. spec_vol is the root mean square of the residuals of the fund before the row.
-  The weight of a residual halves every fund_spec_vol_half_life rows. spec_vol is null with
-  fewer than fund_spec_vol_min_obs earlier residuals. A row with macro_pending does not
-  count as a residual.
-#}
+{# Return of each fund split into factor parts (fit loadings times the session's factor returns),
+   alpha (the fit intercept) and a residual. macro_pending: a macro factor is unobserved, so the
+   residual holds its move and the row has no weight in later spec_vol. #}
 {% set styles = ['size', 'liquidity', 'beta', 'momentum', 'reversal', 'volatility',
                  'dividend_yield', 'high_52w'] %}
 {% set industries = ['NoDur', 'Durbl', 'Manuf', 'Enrgy', 'Chems', 'BusEq', 'Telcm',
                      'Utils', 'Shops', 'Hlth', 'Money', 'Other', 'Unknown'] %}
 {% set macro = var('fund_macro') %}
-{# The running sums below hold the weight decay^(-k), which grows fast with k. A half-life
-   below 2 leaves too little room before it overflows, about 2,000 rows. #}
+{# The running sums hold the weight decay^(-k), which overflows after enough rows; a half-life
+   below 2 overflows too soon. #}
 {% if var('fund_spec_vol_half_life') < 2 %}
     {{ exceptions.raise_compiler_error('fund_spec_vol_half_life must be 2 or more.') }}
 {% endif %}
@@ -66,10 +49,9 @@ with parts as (
 
 ), own as (
 
-    -- One running sum holds each residual with the weight decay^(-k), where k is the
-    -- position of the residual in the history of the fund. The same sum over the weights
-    -- alone divides it, so the scale decay^(-k) cancels. A row with macro_pending has no
-    -- weight.
+    -- One running sum holds each residual with weight decay^(-k), k its position in the fund's
+    -- history; the same sum over the weights alone divides it, so the scale cancels. A
+    -- macro_pending row has no weight.
     select
         *,
         case when count(*) filter (where not macro_pending) over prev
