@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      MASSIVE_API_KEY: unused
+      MASSIVE_S3_ACCESS_KEY_ID: unused
+      MASSIVE_S3_SECRET_ACCESS_KEY: unused
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --no-default-groups --group dev --group transform
+      - run: uv run --no-sync ruff check src tests
+      - run: uv run --no-sync pytest
+      - name: dbt parse
+        run: DATA_ROOT="$RUNNER_TEMP/data" uv run --no-sync python -m sdp.transform parse
