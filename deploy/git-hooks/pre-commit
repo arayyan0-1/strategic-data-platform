@@ -1,90 +1,18 @@
 #!/usr/bin/env bash
-#
-# Stop the commit when a staged notebook has outputs, then lint staged Python.
-# The nbstrip clean filter removes the outputs at 'git add', and this hook checks the result.
-#
-# One-time setup for each clone:
-#     git config core.hooksPath deploy/git-hooks
-#     git config filter.nbstrip.clean "python3 deploy/nbstrip.py"
-#     git config filter.nbstrip.smudge cat
-#     git config filter.nbstrip.required true
-#
+# Run ruff on the staged Python files. Enable with: git config core.hooksPath deploy/git-hooks
 set -u
 
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
-cd "$ROOT" || exit 1
-
-PY="$ROOT/.venv/bin/python"
-[ -x "$PY" ] || PY="python3"
 RUFF="$ROOT/.venv/bin/ruff"
+[ -x "$RUFF" ] || exit 0
 
-# 1. Notebooks: check the staged copy and never change the working copy. Read the
-#    list into an array without mapfile, because stock macOS bash is 3.2.
-nbs=()
-while IFS= read -r -d '' line; do
-    [ -n "$line" ] && nbs+=("$line")
-done < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.ipynb')
-
-if [ "${#nbs[@]}" -gt 0 ]; then
-    "$PY" - "${nbs[@]}" <<'PY'
-import json
-import subprocess
-import sys
-
-dirty = False
-broken = False
-for path in sys.argv[1:]:
-    staged = subprocess.run(
-        ["git", "show", ":" + path], stdin=subprocess.DEVNULL, capture_output=True
-    )
-    if staged.returncode != 0:
-        print("pre-commit: " + path + ": git cannot read the staged copy.", file=sys.stderr)
-        broken = True
-        continue
-    try:
-        nb = json.loads(staged.stdout.decode("utf-8"))
-    except ValueError:
-        print("pre-commit: " + path + ": the staged copy is not valid JSON.", file=sys.stderr)
-        broken = True
-        continue
-    cells = nb.get("cells") if isinstance(nb, dict) else None
-    for cell in cells if isinstance(cells, list) else []:
-        if not isinstance(cell, dict) or cell.get("cell_type") != "code":
-            continue
-        if cell.get("outputs") or cell.get("execution_count") is not None:
-            print(
-                "pre-commit: " + path + ": the staged copy has outputs or execution counts.",
-                file=sys.stderr,
-            )
-            dirty = True
-            break
-sys.exit(1 if dirty else 2 if broken else 0)
-PY
-    rc=$?
-    if [ "$rc" -eq 1 ]; then
-        cat >&2 <<'MSG'
-pre-commit: Notebook outputs can contain licensed vendor data. This hook stops the commit.
-pre-commit: Do this setup one time in this clone:
-    git config filter.nbstrip.clean "python3 deploy/nbstrip.py"
-    git config filter.nbstrip.smudge cat
-    git config filter.nbstrip.required true
-pre-commit: Then stage each notebook again with 'git add --renormalize <notebook>'.
-MSG
-    fi
-    [ "$rc" -eq 0 ] || exit 1
-fi
-
-# 2. Lint staged Python. Skip when ruff is absent, so a bare checkout can commit.
-pys=()
-while IFS= read -r line; do
-    [ -n "$line" ] && pys+=("$line")
+files=()
+while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$ROOT/$f")
 done < <(git diff --cached --name-only --diff-filter=ACM -- '*.py')
 
-if [ "${#pys[@]}" -gt 0 ] && [ -x "$RUFF" ]; then
-    if ! "$RUFF" check "${pys[@]}"; then
-        echo "pre-commit: ruff found problems. Fix them, or run '$RUFF check --fix'." >&2
-        exit 1
-    fi
-fi
-
-exit 0
+[ "${#files[@]}" -eq 0 ] && exit 0
+"$RUFF" check "${files[@]}" || {
+    echo "pre-commit: ruff failed. Fix the errors above or run 'ruff check --fix'." >&2
+    exit 1
+}

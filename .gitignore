@@ -1,37 +1,19 @@
-# Environment and secrets
 .env
 .venv/
-
-# Python artifacts
 __pycache__/
-
-# macOS artifacts
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 .DS_Store
 
-# data lake — never in git
+# Market data and the warehouse stay local.
 data/
 *.duckdb
 *.duckdb.wal
 *.parquet
 
-# Python scratch files
-scratch.py
-
-# backfill run logs are under data/, which is already ignored
-
-# notes and design docs are not codebase artifacts
-CLAUDE.md
-docs/
-
-# notebook scratch state, not the notebook itself
-.ipynb_checkpoints/
-
-# dbt build artifacts. Generated on every run.
+# dbt
 transform/target/
 transform/logs/
 transform/dbt_packages/
 transform/.user.yml
-
-# Claude Code: agent worktrees and personal settings
-.claude/worktrees/
-.claude/settings.local.json
