@@ -1,7 +1,7 @@
-"""Factor constructions and cross-sectional standardization for panels of returns.
+"""Factor constructions and cross-sectional standardization, called by the dbt Python models.
 
-NumPy only, no I/O. A row of a panel is a session and a column is a name. A return on row d
-is the return from the close of session d - 1 to the close of session d.
+Panels have one row per session and one column per name. The return on row d runs from the
+close of session d - 1 to the close of session d.
 """
 from __future__ import annotations
 

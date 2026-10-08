@@ -1,5 +1,4 @@
-"""Shared ingest helpers: the audit error, the XNYS calendar, publish, refetch and rebuild
-modes, and the download of a public file."""
+"""Helpers shared by the ingest modules."""
 from __future__ import annotations
 
 import argparse

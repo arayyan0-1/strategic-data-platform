@@ -1,11 +1,11 @@
-"""FRED series: rates, credit, money markets, the Fed balance sheet, volatility, currencies.
+"""Download the FRED series in SERIES and fold every kept pull into one table.
 
     python -m sdp.ingest.fred             # pull when the table is from an earlier day
     python -m sdp.ingest.fred --force     # pull now
     python -m sdp.ingest.fred --rebuild   # build again from the vendor pulls
 
-The table is current state and folds every kept pull: each (series, date) takes the value
-of the newest pull that has it, so a date that left FRED's window keeps its last value.
+Each (series, date) takes the value from the newest pull that has it, so a date that has
+dropped out of FRED's window keeps its last value.
 vendor/ keeps each pull gzipped; pulls older than KEEP_DAYS are thinned to one per ISO week.
 """
 from __future__ import annotations

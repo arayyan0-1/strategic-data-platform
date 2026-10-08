@@ -1,4 +1,4 @@
-"""Massive REST client: retrying GET, cursor pagination and NDJSON dumps into vendor/."""
+"""Client for the Massive REST API, with retries and cursor pagination."""
 from __future__ import annotations
 
 import datetime as dt

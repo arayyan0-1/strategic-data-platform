@@ -1,4 +1,4 @@
-"""FINRA short datasets, both event streams keyed on 'date'.
+"""Ingest FINRA short volume and short interest, one partition per date.
 
 massive_short_volume: daily off-exchange short volume.
 massive_short_interest: short interest on a two-week cadence; the 'date' partition is the

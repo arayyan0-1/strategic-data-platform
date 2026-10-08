@@ -1,4 +1,4 @@
-{# Security master: one row per security_key with its latest ticker, name and type, its tickers
+{# One row per security_key with its latest ticker, name and type, its tickers
    in order (e.g. BLL > BALL), and its first and last session. A reused ticker gives one row per
    security. #}
 

@@ -1,4 +1,4 @@
-{# The factor battery: one row per security and session, windows counted in rows. Labels are in
+{# Signal values, one row per security and session. Windows count rows, not days. Labels are in
    forward_returns. #}
 
 with base as (

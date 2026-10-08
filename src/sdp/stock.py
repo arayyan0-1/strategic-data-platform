@@ -1,6 +1,6 @@
-"""Per-security monitor views: search, profile, pair and portfolio.
+"""Stock, pair, search and portfolio views for the monitor, built from the warehouse.
 
-Views are cached per build stamp, except the portfolio, which is computed per request.
+Views are cached until the next build, except portfolios, which are computed per request.
 """
 from __future__ import annotations
 

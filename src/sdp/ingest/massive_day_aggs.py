@@ -1,4 +1,4 @@
-"""Day aggregate bars: S3 flat file in, audited Parquet partition out."""
+"""Ingest the daily bars from the S3 flat files."""
 from __future__ import annotations
 
 import datetime as dt

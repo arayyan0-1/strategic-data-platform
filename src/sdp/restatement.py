@@ -1,6 +1,6 @@
 """Measure what changed between two vendor pulls of a corporate action dataset.
 
-raw/ keeps no history; vendor/ does, and this module reads that archive. It diffs on the
+raw/ only has the latest table, so this reads the dated pulls in vendor/. It diffs on the
 event key, never the vendor id, which is not stable across pulls. A key whose rows
 disagree within a pull is ambiguous: it is reported, not counted as a change.
 """

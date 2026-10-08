@@ -1,4 +1,4 @@
-"""Ticker reference: one audited snapshot of the active US stock tickers per session."""
+"""Ingest the list of active US stock tickers for each session."""
 from __future__ import annotations
 
 import datetime as dt

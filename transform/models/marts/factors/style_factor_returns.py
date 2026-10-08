@@ -1,4 +1,4 @@
-"""Style and industry factor returns: one weighted cross-sectional regression per session."""
+"""Style and industry factor returns from a weighted cross-sectional regression each session."""
 import numpy as np
 
 from sdp.factors import cross_section_returns, filled

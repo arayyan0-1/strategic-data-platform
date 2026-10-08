@@ -1,5 +1,5 @@
-{# The measures of market_rates and market_scores: the column of core.rates, the label,
-   the group, the unit, the maturity in months, and which end is stress. #}
+{# Measure definitions shared by market_rates and market_scores (core.rates column, label,
+   group, unit, maturity in months, stress direction). #}
 {% macro market_rate_measures() %}
     {{ return([
     ('t_1m', 'Treasury 1 month', 'Nominal curve', 'pct', 1, 'high'),

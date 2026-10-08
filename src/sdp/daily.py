@@ -1,4 +1,4 @@
-"""The daily driver: one command for a scheduler.
+"""Pull new data, fill gaps and rebuild the warehouse if anything changed.
 
     python -m sdp.daily
 

@@ -1,4 +1,4 @@
-"""Data diagnostics: each function answers one question with a number.
+"""Measurements on the lake, such as FIGI reuse and null dividend factors.
 
 Run after the backfill. Every read goes through sdp.dal.
 

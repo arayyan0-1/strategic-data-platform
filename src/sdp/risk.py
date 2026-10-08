@@ -1,7 +1,4 @@
-"""Covariance estimators and risk models for a T x N return matrix.
-
-Rows are sessions, columns are names. NumPy only, no I/O.
-"""
+"""Covariance estimators and risk models for a T x N matrix of returns (rows are sessions)."""
 from __future__ import annotations
 
 import numpy as np

@@ -1,4 +1,4 @@
-"""Industry, style z-scores and next return of names outside the universe, on its scale."""
+"""Exposures for stocks outside the estimation universe, standardized like the universe."""
 import json
 
 import numpy as np

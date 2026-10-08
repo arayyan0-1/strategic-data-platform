@@ -1,5 +1,5 @@
-{# Scores of the market monitor: a move in sigma that is as rare as that many sigma of a normal
-   on its family's history. move_z divides a move by trailing volatility, calibrated maps the
+{# Monitor scores. A score of k is as rare, in its family's history, as a k-sigma move of a
+   normal. move_z divides a move by trailing volatility, calibrated maps the
    ratio to its rarity in the pool, two_sided_z is the normal quantile. #}
 
 {# A polynomial in x by Horner's rule. #}

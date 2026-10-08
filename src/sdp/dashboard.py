@@ -2,7 +2,7 @@
 
     python -m sdp.dashboard [--port PORT]
 
-Serves 127.0.0.1 only. A pull started from the page runs in a background thread.
+It only listens on 127.0.0.1. A pull started from the page runs in a background thread.
 """
 from __future__ import annotations
 

@@ -1,5 +1,4 @@
-"""Evaluation protocol for signals: which labels a period may use, and standard errors
-for overlapping labels. NumPy only, no I/O.
+"""Fold assignment, purging and Newey-West standard errors for evaluating signals.
 
 Each session has a fold: 0 before development, 1 to K for the development folds in date
 order, K + 1 for the holdout. The label of a session with horizon h ends h sessions later,

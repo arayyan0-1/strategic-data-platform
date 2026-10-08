@@ -1,4 +1,4 @@
-"""Settings from the environment. The only module that reads it."""
+"""Settings loaded from environment variables and the env file at the repo root."""
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

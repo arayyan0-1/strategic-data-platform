@@ -1,5 +1,5 @@
-{# Adjusted prices: a row takes the factor of the first event strictly after its date (on the
-   date, trading is already adjusted). Rows of an earlier ticker also take the factor the later
+{# Each row takes the adjustment factor of the first event strictly after its date, because
+   trading on the event date is already adjusted. Rows of an earlier ticker also take the factor the later
    ticker starts from. #}
 
 with recursive bars as (

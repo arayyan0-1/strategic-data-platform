@@ -1,4 +1,4 @@
-"""Splits and dividends: one table per dataset, replaced by every pull.
+"""Ingest splits and dividends. Each pull replaces the whole table.
 
 The endpoints give current state, so raw/ has no date in the path. vendor/ keeps each pull
 by date (dividends are thinned to one per ISO week after 30 days) and sdp.restatement reads
