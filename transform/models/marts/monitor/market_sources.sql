@@ -31,6 +31,20 @@ union all
 select 'global-q', max(date), max(vendor_pull_date), 400, 'one vintage a year', null
 from {{ ref('stg_global_q__factors') }}
 union all
+select 'IBKR borrow', max(date), null, 4, 'one snapshot per session, from 08:00 ET', null
+from {{ ref('stg_ibkr__borrow') }}
+union all
+select 'ETF screeners', max(nav_date), max(pull_date), 4,
+       'NAV and assets of every iShares and SSGA ETF', null
+from {{ ref('stg_issuers__etf_funds') }}
+union all
+select 'ETF holdings', max(date), null, 5, 'the newest file of the listed funds', null
+from {{ ref('stg_issuers__etf_holdings') }}
+union all
+select 'SSGA NAV history', max(date), max(vendor_pull_date), 40,
+       'refreshed monthly; fills the days the screener missed', null
+from {{ ref('stg_ssga__nav_history') }}
+union all
 select 'Security links', max(link_date), null, null,
        'FIGI changes that look like one security and need a link decision (seed)',
        count(*)

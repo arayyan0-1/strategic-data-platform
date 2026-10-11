@@ -27,3 +27,19 @@ seeds:
           - accepted_values:
               arguments:
                 values: ['link', 'refuse']
+
+  - name: etf_holdings_funds
+    description: The ETFs whose holdings files are collected, added by python -m sdp.ingest.etf_holdings
+      --select. A fund joins when its holdings overlap every listed fund by less than 0.9 (the sum of the
+      smaller weight per holding); funds are never removed.
+    config:
+      column_types:
+        fund: varchar
+        issuer: varchar
+        name: varchar
+        asset_class: varchar
+        holdings_url: varchar
+        total_net_assets_bn: double
+        max_overlap: double
+        overlaps_with: varchar
+        added_on: date

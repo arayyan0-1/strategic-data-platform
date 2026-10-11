@@ -41,3 +41,15 @@ models:
         data_tests:
           - not_null
           - unique
+
+  - name: stg_ibkr__borrow
+    description: IBKR borrow fee, rebate and shares available per symbol and session.
+
+  - name: stg_issuers__etf_funds
+    description: The iShares and SSGA screener row of each fund on each pull date.
+
+  - name: stg_issuers__etf_holdings
+    description: Issuer holdings per fund, as-of date and line.
+
+  - name: stg_ssga__nav_history
+    description: SSGA daily NAV, shares outstanding and net assets per fund.

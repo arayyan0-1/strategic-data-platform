@@ -26,3 +26,31 @@ models:
         data_tests:
           - not_null
           - unique
+
+  - name: etfs
+    description: The ETF master. One row per iShares or SSGA ETF from its newest screener row, whether its
+      holdings are collected, and the span of its daily series.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+          - unique
+
+  - name: etf_daily
+    description: Daily NAV, shares outstanding, flow (change in shares times NAV) and premium (close over
+      NAV, less one) per ETF and NAV date.
+    columns:
+      - name: nav
+        data_tests:
+          - not_null
+
+  - name: etf_holdings
+    description: Holdings per fund, as-of date and line, with the security_key of a US-listed line. A view.
+
+  - name: borrow
+    description: IBKR borrow per security and session. fee_rate and rebate_rate are annual percentages;
+      available is capped at 10M shares (available_capped).
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null

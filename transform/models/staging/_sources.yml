@@ -71,3 +71,42 @@ sources:
         description: >-
           The daily q5 factors (market, size, investment, profitability, expected
           growth) and the risk-free rate, as fractions. A new vintage about once a year.
+
+  - name: ibkr
+    description: Interactive Brokers' public short-stock file, one snapshot per session.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/date=*/data.parquet', hive_partitioning = true)"
+    tables:
+      - name: borrow
+        identifier: ibkr_borrow
+        description: >-
+          Borrow fee, rebate and shares available per US symbol. Rates are annual
+          percentages; shares available are capped at 10M.
+
+  - name: issuers
+    description: ETF issuer websites (iShares and SSGA), pulled daily.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/date=*/*.parquet', hive_partitioning = true, union_by_name = true)"
+    tables:
+      - name: etf_funds
+        identifier: etf_funds
+        description: >-
+          The screener snapshot of each pull date: NAV, net assets and their as-of dates,
+          asset class and, for SSGA, the benchmark, close and premium of every ETF.
+      - name: etf_holdings
+        identifier: etf_holdings
+        description: >-
+          Holdings files of the funds in the seed etf_holdings_funds, one per fund and
+          as-of date.
+
+  - name: ssga
+    description: SSGA fund data.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: nav_history
+        identifier: etf_nav_history
+        description: Daily NAV, shares outstanding and net assets of each SSGA ETF since inception.

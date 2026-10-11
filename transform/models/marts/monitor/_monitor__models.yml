@@ -132,3 +132,19 @@ models:
   - name: market_short_interest
     description: Short interest of the in-universe names at the last settlement, beside the settlement
       before.
+
+  - name: market_borrow
+    description: Borrow on the newest IBKR session for every keyed security, with the fee and shares
+      available five snapshots earlier, its universe state and cap.
+
+  - name: market_etf_flows
+    description: The newest NAV date of each ETF with net assets, flows over 1, 5 and 21 NAV dates, and the
+      premium with its z-score against the 63 NAV dates before.
+
+  - name: market_index_changes
+    description: Constituent adds and drops of each listed equity ETF between consecutive as-of dates, over
+      the last 45 days.
+
+  - name: market_etf_holders
+    description: For each security, the listed ETFs that hold it in their newest file, with the weight,
+      shares held and share of the class's shares outstanding.

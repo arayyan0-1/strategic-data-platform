@@ -223,3 +223,26 @@ models:
       - name: date
         data_tests:
           - not_null
+
+  - name: int_borrow
+    description: IBKR borrow per symbol and session with the security it maps to. matched_on says whether
+      the composite FIGI or the ticker made the match; an unmatched symbol keeps a null security_key.
+    columns:
+      - name: symbol
+        data_tests:
+          - not_null
+
+  - name: int_etf_daily
+    description: One row per ETF and NAV date, from SSGA's history where it has the day, else the issuer
+      screener. source says which, and where shares outstanding came from.
+    columns:
+      - name: nav
+        data_tests:
+          - not_null
+
+  - name: int_etf_holdings
+    description: Holdings per fund, as-of date and line, with the security_key of a US-listed line.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
