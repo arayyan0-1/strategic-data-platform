@@ -515,6 +515,45 @@ def _attach(wh: duckdb.DuckDBPyConnection, last: str, *lists: list[dict]) -> Non
                       if k != "security_key"})
 
 
+def _lending(wh: duckdb.DuckDBPyConnection, key: str, ticker: str, last: str | None) -> dict:
+    """Return borrow history, the listed ETFs that hold the security and, for an ETF, its
+    daily NAV, flows and premium and its top holdings. A part whose mart is missing is empty."""
+    out: dict[str, Any] = {"borrow": [], "holders": [], "etf": None}
+    since = last or dt.date.today().isoformat()
+    try:
+        out["borrow"] = _rows(wh, """
+            select date, fee_rate, rebate_rate, available, available_capped
+            from core.borrow
+            where security_key = ? and date > ?::date - interval 1 year
+            order by date""", [key, since])
+        out["holders"] = _rows(wh, """
+            select fund, fund_name, date, weight, quantity, share_of_class
+            from monitor.market_etf_holders
+            where security_key = ?
+            order by share_of_class desc nulls last, weight desc
+            limit 25""", [key])
+        info = _one(wh, "select * from core.etfs where fund = ?", [ticker])
+        if info:
+            out["etf"] = {
+                "info": info,
+                "daily": _rows(wh, """
+                    select date, nav, shares_outstanding, total_net_assets, flow, premium
+                    from core.etf_daily
+                    where fund = ? and date > ?::date - interval 2 year
+                    order by date""", [ticker, since]),
+                "top": _rows(wh, """
+                    select date, ticker, name, sector, asset_class, weight, isin, maturity
+                    from core.etf_holdings
+                    where fund = ? and date = (select max(date) from core.etf_holdings
+                                               where fund = ?)
+                    order by weight desc nulls last
+                    limit 15""", [ticker, ticker]),
+            }
+    except duckdb.CatalogException:
+        pass  # Built before the borrow and ETF marts existed.
+    return out
+
+
 def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
     """Return the profile of the security that holds the ticker, shaped by its route."""
     key = resolve(wh, ticker)
@@ -672,6 +711,7 @@ def profile(wh: duckdb.DuckDBPyConnection, ticker: str) -> dict:
         "risk": risk, "attribution": attribution, "cumulative": cumulative,
         "related": related, "peers": peers, "similar_funds": similar,
         "signals": signals, "short_interest": shorts, "actions": actions, "shocks": shocks,
+        "lending": _lending(wh, key, head["ticker"], last),
     }
 
 

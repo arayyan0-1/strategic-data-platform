@@ -239,7 +239,38 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
             from monitor.market_short_interest""")
         return {"days_to_cover": dtc, "increase": up, **(head[0] if head else {})}
 
+    def lending():
+        borrow = """
+            select ticker, name, market_cap, fee_rate, fee_rate_5, available, available_capped
+            from monitor.market_borrow where in_universe"""
+        head = _rows(wh, "select max(date) as date, count(*) as n_keyed from monitor.market_borrow")
+        flows = """
+            select fund as ticker, name, asset_class, total_net_assets, flow_1, flow_21,
+                   flow_21_share, premium, premium_z, date
+            from monitor.market_etf_flows where total_net_assets >= 1e9"""
+        funds = _rows(wh, """
+            select count(*) as n_funds, count(*) filter (where holdings_tracked) as n_tracked,
+                   max(last_nav_date) as nav_date
+            from core.etfs""")
+        return {
+            **(head[0] if head else {}), **(funds[0] if funds else {}),
+            "hardest": _rows(wh, borrow + " order by fee_rate desc nulls last limit 30"),
+            "rising": _rows(wh, borrow + """ and fee_rate_5 is not null
+                order by fee_rate - fee_rate_5 desc limit 30"""),
+            "inflows": _rows(wh, flows + " and flow_21 > 0 order by flow_21 desc limit 30"),
+            "outflows": _rows(wh, flows + " and flow_21 < 0 order by flow_21 limit 30"),
+            "premiums": _rows(wh, flows + """ and premium_z is not null
+                order by abs(premium_z) desc limit 30"""),
+            "changes": _rows(wh, """
+                select date, fund, change, ticker, name, weight
+                from monitor.market_index_changes
+                where date >= (select max(date) - 30 from monitor.market_index_changes)
+                order by date desc, weight desc nulls last
+                limit 200"""),
+        }
+
     payload = {
+        "lending": _section(errors, "lending", lending),
         "exceptions": _section(errors, "exceptions", exceptions),
         "board": _section(errors, "board", board),
         "relations": _section(errors, "relations", relations),

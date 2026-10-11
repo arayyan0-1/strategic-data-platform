@@ -373,6 +373,20 @@
       <div class="panel"><h3>Largest increase since the settlement before</h3><table id="si-up" class="tight"></table></div>
     </div></section>
 
+  <section id="lending" data-nav="borrow and ETFs"><h2>Securities lending and ETFs</h2><div class="note" id="lend-note"></div>
+    <div class="grid2e" style="margin-top:8px">
+      <div class="panel"><h3>Hardest to borrow in the universe</h3><table id="lend-hard" class="tight"></table></div>
+      <div class="panel"><h3>Largest rise in fee over five snapshots</h3><table id="lend-up" class="tight"></table></div>
+    </div>
+    <div class="grid2e" style="margin-top:12px">
+      <div class="panel"><h3>ETF inflows, 21 NAV days</h3><table id="etf-in" class="tight"></table></div>
+      <div class="panel"><h3>ETF outflows, 21 NAV days</h3><table id="etf-out" class="tight"></table></div>
+    </div>
+    <div class="grid2e" style="margin-top:12px">
+      <div class="panel"><h3>Unusual premiums and discounts</h3><table id="etf-prem" class="tight"></table></div>
+      <div class="panel"><h3>Index changes in the tracked ETFs, 30 days</h3><table id="etf-chg" class="tight"></table></div>
+    </div></section>
+
   <section id="calendars" data-nav="seasonality"><h2>Seasonality and event studies</h2>
     <div class="grid2e">
       <div class="panel"><h3>Calendar effects since 1963 (daily French library)</h3>
@@ -1575,6 +1589,44 @@ function shorts() {
     {name: "names ≥ 10 days (÷100)", points: pp(P, "n_days_to_cover_10", 0.01)}], {height: 180, fmt: v => v.toFixed(1)});
 }
 
+// A signed dollar amount, coloured by sign.
+const usd = v => nil(v) ? '<span class="dim">–</span>'
+  : `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${v < 0 ? "−" : "+"}$${big(Math.abs(v))}</span>`;
+const fee = v => nil(v) ? "–" : v.toFixed(2) + "%";
+function lending() {
+  const L = DATA.lending; if (!L) return;
+  $("lend-note").textContent = (L.date
+      ? `IBKR snapshot of ${L.date}, ${L.n_keyed} securities. Fees are annual rates; IBKR caps shares available at 10M. `
+      : "No IBKR snapshot yet. The daily job takes one each session from 08:00 ET. ")
+    + (L.nav_date ? `ETF data to NAV date ${L.nav_date}: ${L.n_funds} iShares and SSGA ETFs, holdings for ${L.n_tracked}. `
+      + "A flow is the change in shares outstanding times NAV." : "");
+  const avail = r => r.available_capped ? ">10M" : big(r.available);
+  const borrowTable = (rows, key) => `<tr><th>Ticker</th><th>Cap</th><th>Fee</th><th>5 snaps ago</th><th>Available</th></tr>` +
+    (foldList(key, rows.map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 24))}</span></td>
+      <td class="dim">${big(r.market_cap)}</td><td>${fee(r.fee_rate)}</td><td class="dim">${fee(r.fee_rate_5)}</td>
+      <td class="dim">${avail(r)}</td></tr>`), 5, 8) || '<tr><td class="dim" colspan="5">No snapshot yet.</td></tr>');
+  $("lend-hard").innerHTML = borrowTable(L.hardest || [], "lend:hard");
+  $("lend-up").innerHTML = borrowTable(L.rising || [], "lend:up");
+  const flowTable = (rows, key) => `<tr><th>Fund</th><th>Assets</th><th>21 days</th><th>% of assets</th><th>1 day</th></tr>` +
+    (foldList(key, rows.map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").replace(/^(iShares|State Street( SPDR)?|SPDR)\s*/, "").slice(0, 26))}</span></td>
+      <td class="dim">${big(r.total_net_assets)}</td><td>${usd(r.flow_21)}</td><td>${pct(r.flow_21_share, 1)}</td>
+      <td class="dim">${usd(r.flow_1)}</td></tr>`), 5, 8) || '<tr><td class="dim" colspan="5">None yet.</td></tr>');
+  $("etf-in").innerHTML = flowTable(L.inflows || [], "etf:in");
+  $("etf-out").innerHTML = flowTable(L.outflows || [], "etf:out");
+  $("etf-prem").innerHTML = `<tr><th>Fund</th><th class="l">Class</th><th>Premium</th><th title="against the 63 NAV days before">σ</th></tr>` +
+    (foldList("etf:prem", (L.premiums || []).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").replace(/^(iShares|State Street( SPDR)?|SPDR)\s*/, "").slice(0, 24))}</span></td>
+      <td class="l dim">${esc(r.asset_class || "")}</td><td>${nil(r.premium) ? "–" : (r.premium * 1e4).toFixed(0) + " bp"}</td>
+      <td style="background:${zbg(r.premium_z)}">${num(r.premium_z, 1)}</td></tr>`), 4, 8)
+      || '<tr><td class="dim" colspan="4">None yet: a z-score needs 63 days of history.</td></tr>');
+  $("etf-chg").innerHTML = `<tr><th>As of</th><th class="l">Fund</th><th class="l">Change</th><th class="l">Line</th><th>Weight</th></tr>` +
+    (foldList("etf:chg", (L.changes || []).map(r => `<tr><td class="l">${r.date}</td><td class="l">${tk(r.fund)}</td>
+      <td class="l"><span class="${r.change === "add" ? "up" : "down"}">${r.change}</span></td>
+      <td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 22))}</span></td>
+      <td>${pct(r.weight, 2, false)}</td></tr>`), 5, 8)
+      || '<tr><td class="dim" colspan="5">No change yet: it needs two files of a fund.</td></tr>');
+  for (const id of ["lend-hard", "lend-up", "etf-in", "etf-out", "etf-prem", "etf-chg"]) foldClicks($(id), lending);
+}
+
 let SEASON = {calendar: "month", period: "since 1963", factor: "market"};
 function seasonality() {
   const R = DATA.research; if (!R) return;
@@ -1815,6 +1867,13 @@ function stockPage(P) {
   html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Largest ${SPEC.toLowerCase()} moves (3 residual volatilities or more)</h3><table id="st-shocks"></table>
       <div class="note">σ here is the move over the model's forecast of the ${SPEC.toLowerCase()} volatility. It is not a score.</div></div>
     <div class="panel"><h3>Corporate actions, three years and ahead</h3><table id="st-actions"></table></div></div>`;
+  const LD = P.lending || {};
+  html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Borrow at IBKR</h3><div class="chart" id="st-borrow"></div>
+      <table id="st-borrow-t"></table></div>
+    <div class="panel"><h3>Held by the tracked ETFs (newest file of each)</h3><table id="st-holders"></table></div></div>`;
+  if (LD.etf) html += `<div class="grid2" style="margin-top:12px"><div class="panel"><h3>Fund: shares outstanding and premium</h3>
+      <div class="chart" id="st-etf-so"></div><div class="chart" id="st-etf-prem"></div><table id="st-etf-t"></table></div>
+    <div class="panel"><h3>Top holdings</h3><table id="st-top"></table></div></div>`;
   $("ov-body").innerHTML = html;
   $("pair-with").onkeydown = ev => { if (ev.key === "Enter" && ev.target.value.trim()) location.hash = `pair/${h.ticker}/${ev.target.value.trim().toUpperCase()}`; };
 
@@ -1915,6 +1974,46 @@ function stockPage(P) {
     `<tr><td class="l">${x.event_date}${x.event_date > (h.last_session || "") ? ' <span class="amber">ahead</span>' : ""}</td><td class="l">${esc(x.ticker)}</td>
      <td class="l">${esc(x.kind)}</td><td class="l">${x.kind === "split" ? (x.ratio < 1 ? `${num(1 / x.ratio, 2)}-for-1` : `1-for-${num(x.ratio, 2)}`)
       : `$${num(x.cash_amount, 4)}`}</td></tr>`).join("") || '<tr><td class="dim">None.</td></tr>');
+  stockLending(LD);
+}
+
+const shortFund = n => (n || "").replace(/^(iShares|State Street( SPDR)?|SPDR)\s*/, "");
+function stockLending(LD) {
+  const BR = LD.borrow || [];
+  if (BR.length > 1) lineChart($("st-borrow"), [{name: "fee, % a year", points: BR.map(x => [x.date, x.fee_rate])}],
+    {height: 150, fmt: v => v.toFixed(2)});
+  const b = BR[BR.length - 1];
+  $("st-borrow-t").innerHTML = b ? `<tr><th>Snapshot</th><th>Fee</th><th>Rebate</th><th>Available</th></tr>
+    <tr><td class="l">${b.date}</td><td>${fee(b.fee_rate)}</td><td class="dim">${fee(b.rebate_rate)}</td>
+    <td class="dim">${b.available_capped ? ">10M" : big(b.available)}</td></tr>`
+    : '<tr><td class="dim">No IBKR snapshot for this security yet.</td></tr>';
+  const HD = LD.holders || [];
+  const held = HD.reduce((s, x) => s + (x.share_of_class || 0), 0);
+  const rows = HD.map(x => `<tr><td class="l">${tk(x.fund)} <span class="name">${esc(shortFund(x.fund_name).slice(0, 24))}</span></td>
+    <td>${pct(x.weight, 2, false)}</td><td class="dim">${big(x.quantity)}</td><td>${pct(x.share_of_class, 2, false)}</td></tr>`).join("");
+  $("st-holders").innerHTML = `<tr><th>Fund</th><th>Weight</th><th>Shares</th><th>% of class</th></tr>` + (rows
+    ? rows + `<tr class="grp"><td class="l">All listed funds</td><td></td><td></td><td>${pct(held, 2, false)}</td></tr>`
+    : '<tr><td class="dim" colspan="4">No listed ETF holds it.</td></tr>');
+  if (!LD.etf) return;
+  const I = LD.etf.info, D = LD.etf.daily || [];
+  if (D.length > 1) {
+    lineChart($("st-etf-so"), [{name: "shares outstanding, millions", points: D.map(x => [x.date, nil(x.shares_outstanding) ? null : x.shares_outstanding / 1e6])}],
+      {height: 140, fmt: v => v.toFixed(1)});
+    lineChart($("st-etf-prem"), [{name: "premium, bp", points: D.map(x => [x.date, nil(x.premium) ? null : x.premium * 1e4])}],
+      {height: 120, fmt: v => v.toFixed(0), hlines: [0]});
+  } else $("st-etf-so").innerHTML = '<div class="note">The daily series starts with the first screener pull.</div>';
+  const last = D[D.length - 1] || {};
+  const flow21 = D.slice(-21).reduce((s, x) => s + (x.flow || 0), 0);
+  $("st-etf-t").innerHTML = `<tr><th class="l">Issuer</th><th class="l">Benchmark</th><th>Fee</th><th>Assets</th><th>21-day flow</th><th>Premium</th></tr>
+    <tr><td class="l">${esc(I.issuer || "")}</td><td class="l dim">${esc(I.benchmark || I.sub_asset_class || "")}</td>
+    <td class="dim">${nil(I.expense_ratio) ? "–" : I.expense_ratio.toFixed(2) + "%"}</td><td>${big(last.total_net_assets)}</td>
+    <td>${usd(D.length > 1 ? flow21 : null)}</td><td>${nil(last.premium) ? "–" : (last.premium * 1e4).toFixed(0) + " bp"}</td></tr>`;
+  const T = LD.etf.top || [];
+  $("st-top").innerHTML = `<tr><th class="l">Line</th><th class="l">Sector</th><th>Weight</th></tr>` + (T.map(x =>
+    `<tr><td class="l">${x.ticker ? tk(x.ticker) + " " : ""}<span class="name">${esc((x.name || "").slice(0, 30))}</span></td>
+     <td class="l dim">${esc(x.sector || x.asset_class || "")}</td><td>${pct(x.weight, 2, false)}</td></tr>`).join("")
+    || `<tr><td class="dim" colspan="3">${I.holdings_tracked ? "No holdings file yet." : "Not collected: a listed fund holds 90% or more of the same weights."}</td></tr>`)
+    + (T.length ? `<tr class="grp"><td colspan="3" class="dim">as of ${T[0].date}</td></tr>` : "");
 }
 
 // ---------------------------------------------------------------- the portfolio page
@@ -2119,7 +2218,7 @@ async function load() {
   $("meta").title = `Built ${built} UTC`;
   $("errors").innerHTML = (DATA.errors || []).map(esc).join("<br>");
   for (const f of [sources, exceptions, largestMoves, overview, attribution, heatmap, board, mainChart, relations, rates, regime,
-    breadthCharts, factorModel, signalsView, movers, calendar, shorts, seasonality, events, research]) safe(f);
+    breadthCharts, factorModel, signalsView, movers, calendar, shorts, lending, seasonality, events, research]) safe(f);
 }
 layoutControls(); applyLayout(); setupCommand(); watchCsvButtons();
 load().then(route);

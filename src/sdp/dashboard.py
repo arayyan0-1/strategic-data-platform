@@ -412,14 +412,17 @@ function render(s) {
   document.getElementById("banner").innerHTML = banners.join("");
 
   const ds = s.datasets || [];
-  const events = ds.filter(d => d.kind === "event" || d.kind === "sparse");
-  const current = ds.filter(d => d.kind === "current");
+  const groups = [];
+  for (const d of ds) {
+    const g = d.group || "Other";
+    if (!groups.includes(g)) groups.push(g);
+  }
   const dbt = s.dbt || {};
   const sec = (t, inner) => `<div class="sec">${t}</div><table><tbody>${inner}</tbody></table>`;
   const dbtInfo = {name:"dbt build", level:dbt.level||"bad", detail:dbt.detail||"", behind:null};
   document.getElementById("body").innerHTML =
-    sec("Market data", events.map(row).join(""))
-    + sec("Corporate actions", current.map(row).join(""))
+    groups.map(g => sec(g, ds.filter(d => (d.group || "Other") === g).map(row).join("")))
+      .join("")
     + sec("Derived tables (dbt)", row(dbtInfo));
 
   const btn = document.getElementById("pull");
