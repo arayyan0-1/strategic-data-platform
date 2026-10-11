@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sdp data status</title>
+<style>
+  :root { --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --bg:#f6f8fa; --card:#fff;
+          --line:#d0d7de; --ink:#1f2328; --dim:#656d76; --soft:#eaeef2; --accent:#1f6feb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .wrap { max-width:1240px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; margin:0; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  h1 a { font-size:14px; font-weight:500; }
+  .sub { color:var(--dim); font-size:13px; margin:2px 0 16px; }
+  .bar { display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+  button { font:600 14px inherit; color:#fff; background:var(--accent); border:0;
+           border-radius:8px; padding:9px 18px; cursor:pointer; }
+  button:disabled { background:#8c959f; cursor:default; }
+  .phase { color:var(--dim); font-size:13px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px;
+           margin-bottom:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .card .k { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+  .card .v { font-size:18px; font-weight:600; margin:2px 0; }
+  .card .d { font-size:12.5px; color:var(--dim); }
+  .runs { display:flex; gap:3px; align-items:flex-end; height:28px; margin:2px 0 4px; }
+  .runs i { display:block; width:8px; border-radius:2px; background:var(--ok); }
+  .runs i.bad { background:var(--bad); } .runs i.off { background:#afb8c1; }
+  .sec { margin:22px 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.05em;
+         color:var(--ink); font-weight:600; }
+  .secd { color:var(--dim); font-size:12.5px; margin-bottom:8px; }
+  .tablewrap { overflow-x:auto; background:var(--card); border:1px solid var(--line);
+               border-radius:10px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+           vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim);
+       background:#f0f3f6; white-space:nowrap; }
+  tr:last-child td { border-bottom:0; }
+  tr.ds { cursor:pointer; }
+  tr.ds:hover td { background:#f8fafc; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .t { font-weight:600; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--dim); }
+  .dim { color:var(--dim); } .small { font-size:12.5px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px;
+         vertical-align:middle; background:var(--dim); }
+  .ok .dot, .dot.ok { background:var(--ok); } .warn .dot, .dot.warn { background:var(--warn); }
+  .bad .dot, .dot.bad { background:var(--bad); }
+  .lv-ok { color:var(--ok); } .lv-warn { color:var(--warn); } .lv-bad { color:var(--bad); }
+  .gap { color:var(--bad); }
+  svg.spark { display:block; margin-top:3px; }
+  tr.detail td { background:#fbfcfd; padding:10px 14px 14px; }
+  .kv { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:6px; }
+  .kv span b { font-weight:600; }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .chip { background:var(--soft); border-radius:6px; padding:1px 7px; font-size:12px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px; }
+  #progress { margin:-6px 0 16px; }
+  .pbar { height:8px; background:#e6e9ec; border-radius:6px; overflow:hidden; }
+  .pbar > i { display:block; height:100%; width:0; background:var(--accent); transition:width .3s; }
+  .pmeta { display:flex; justify-content:space-between; gap:12px; color:var(--dim);
+           font-size:13px; margin-top:6px; }
+  .banner { border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:14px; }
+  .banner.bad { background:#ffebe9; color:var(--bad); }
+  .banner.ok { background:#dafbe1; color:var(--ok); }
+  .banner.note { background:var(--soft); color:var(--dim); }
+  .banner ul { margin:6px 0 0; padding-left:20px; }
+  pre { background:#0d1117; color:#c9d1d9; border-radius:8px; padding:12px 14px;
+        font-size:12px; overflow:auto; max-height:160px; margin:10px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>sdp data status <a href="/market">market monitor</a></h1>
+  <div class="sub" id="generated">reading…</div>
+  <div class="bar">
+    <button id="pull" onclick="pull()">Update everything</button>
+    <span class="phase" id="phase"></span>
+  </div>
+  <div id="progress" hidden>
+    <div class="pbar"><i id="pfill"></i></div>
+    <div class="pmeta"><span id="pmsg"></span><span id="peta"></span></div>
+  </div>
+  <div id="banner"></div>
+  <div class="cards" id="cards"></div>
+  <div id="body"></div>
+  <pre id="logbox" hidden></pre>
+</div>
+<script>
+const OPEN = new Set();
+const $ = id => document.getElementById(id);
+function esc(t) {
+  const map = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+  return String(t ?? "").replace(/[&<>"']/g, c => map[c]);
+}
+function rel(iso) {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  const s = (Date.now() - t) / 1000, a = Math.abs(s), ago = s >= 0;
+  const v = a < 90 ? "now" : a < 3600 ? Math.round(a / 60) + "m" : a < 86400 ? Math.round(a / 3600) + "h"
+    : Math.round(a / 86400) + "d";
+  return v === "now" ? "just now" : ago ? v + " ago" : "in " + v;
+}
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  return s < 60 ? s + "s" : s < 3600 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
+}
+function eta(j) {
+  if (j.done >= j.total) return "finishing…";
+  if (!j.started || !j.done) return "estimating…";
+  const elapsed = (Date.now() - Date.parse(j.started)) / 1000;
+  return "~" + fmtDur(elapsed * (j.total - j.done) / j.done) + " left";
+}
+const bytes = n => n == null ? "–" : n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : n >= 1e6
+  ? (n / 1e6).toFixed(0) + " MB" : n >= 1e3 ? (n / 1e3).toFixed(0) + " KB" : n + " B";
+const count = n => n == null ? "–" : Number(n).toLocaleString();
+const pct = x => x == null ? "" : (x > 0 ? "+" : "") + (x * 100).toFixed(1) + "%";
+function banner(cls, text, items) {
+  let h = `<div class="banner ${cls}">${esc(text)}`;
+  if (items && items.length) h += "<ul>" + items.map(i => `<li>${esc(i)}</li>`).join("") + "</ul>";
+  return h + "</div>";
+}
+// A bar per recent partition; a missing value draws nothing.
+function spark(hist) {
+  const v = (hist || []).map(h => h[1]).filter(x => x != null);
+  if (v.length < 2) return "";
+  const max = Math.max(...v), min = Math.min(...v, max * 0.6), W = 120, H = 18;
+  const w = W / hist.length;
+  return `<svg class="spark" width="${W}" height="${H}">` + hist.map((h, i) => {
+    if (h[1] == null) return "";
+    const y = max > min ? (h[1] - min) / (max - min) : 1, bh = Math.max(2, 2 + y * (H - 2));
+    return `<rect x="${(i * w).toFixed(1)}" y="${(H - bh).toFixed(1)}" width="${Math.max(1, w - 1).toFixed(1)}"
+      height="${bh.toFixed(1)}" fill="#8c959f"><title>${esc(h[0])}: ${count(h[1])}</title></rect>`;
+  }).join("") + "</svg>";
+}
+function cards(s) {
+  const ds = s.datasets || [], p = s.pipeline || {}, w = s.warehouse || {}, st = s.storage || {};
+  const n = lv => ds.filter(d => d.level === lv).length;
+  const lp = p.last_pull || s.last_pull || {};
+  const runs = p.runs || [];
+  const lastRun = runs[runs.length - 1];
+  const result = !lp.time ? "never ran" : lp.offline ? "offline" : lp.exit_code === 0 && lp.dbt !== "failed"
+    ? "clean" : "failed";
+  const c = w.last_run ? w.last_run.counts || {} : {};
+  const nodes = Object.values(c).reduce((a, b) => a + b, 0);
+  const problems = ["warn", "error", "fail", "skipped"].filter(k => c[k]).map(k => `${c[k]} ${k}`);
+  const card = (k, v, d) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+  const runStrip = runs.length ? `<div class="runs">` + runs.slice(-48).map(r => {
+    const cls = r.offline ? "off" : (r.exit_code === 0 && r.dbt !== "failed" ? "" : "bad");
+    const h = Math.max(4, Math.min(28, 4 + (r.seconds || 0) / 15));
+    return `<i class="${cls}" style="height:${h}px" title="${esc(new Date(r.time).toLocaleString())}: ${r.offline ? "offline"
+      : r.exit_code === 0 ? "clean" : "exit " + r.exit_code}, dbt ${esc(r.dbt)}, ${fmtDur(r.seconds || 0)}${r.first_problem
+      ? " · " + esc(r.first_problem) : ""}"></i>`;
+  }).join("") + "</div>" : "";
+  $("cards").innerHTML =
+    card("Datasets", `<span class="lv-ok">${n("ok")}</span> · <span class="lv-warn">${n("warn")}</span> · <span class="lv-bad">${n("bad")}</span>`,
+      `ok · warn · bad, across ${ds.length} sources`)
+    + card("Last run", lp.time ? `<span class="lv-${result === "clean" ? "ok" : result === "offline" ? "warn" : "bad"}">${result}</span> ${rel(lp.time)}` : "–",
+      (lp.time ? `dbt ${esc(lp.dbt)}${lastRun ? ", " + fmtDur(lastRun.seconds || 0) : ""}${lp.failures_in_a_row ? `, ${lp.failures_in_a_row} failed in a row` : ""}` : "")
+      + runStrip + (runs.length ? `<span class="small">${runs.length} recent runs; height is duration</span>` : ""))
+    + card("Next run", p.running ? '<span class="lv-warn">running</span>' : (p.next_run ? rel(p.next_run) : "–"),
+      p.running ? esc(p.running) : esc(p.schedule || ""))
+    + card("Warehouse", w.built ? `${w.stale ? '<span class="lv-bad">stale</span>' : '<span class="lv-ok">built</span>'} ${rel(w.built)}` : '<span class="lv-bad">never built</span>',
+      `${bytes(w.bytes)}` + (w.last_run ? ` · last dbt ${esc(w.last_run.which)}: ${nodes} nodes${problems.length ? ", " + problems.join(", ") : ", all pass"}` : "")
+      + (w.links_to_review ? ` · <span class="lv-warn">${w.links_to_review} security links to review</span>` : ""))
+    + card("Storage", bytes(st.total), `raw ${bytes(st.raw)} · vendor ${bytes(st.vendor)} · warehouse ${bytes(st.warehouse)}`);
+}
+function datasetRow(d) {
+  const cov = d.kind === "current" ? `<span class="dim">one table</span>`
+    : d.first ? `${esc(d.first)} → ${esc(d.last)}<div class="small dim">${count(d.partitions)} partition${d.partitions === 1 ? "" : "s"}`
+      + (d.gaps && d.gaps.length ? ` · <span class="gap">${d.gaps.length} missing</span>` : "") + "</div>" : '<span class="dim">none yet</span>';
+  const latest = d.latest_rows == null ? '<span class="dim">–</span>'
+    : `${count(d.latest_rows)} <span class="small dim">${esc(d.unit)}</span>`
+      + (d.latest_change != null ? ` <span class="small dim">${pct(d.latest_change)}</span>` : "") + spark(d.history);
+  const open = OPEN.has(d.name);
+  let h = `<tr class="ds ${esc(d.level)}" data-name="${esc(d.name)}">
+    <td><span class="dot"></span><span class="t">${esc(d.title)}</span><div class="mono">${esc(d.name)} ${open ? "▾" : "▸"}</div></td>
+    <td class="small">${esc(d.provider)}<div class="dim">${esc(d.cadence)}</div></td>
+    <td class="small">${cov}</td>
+    <td class="num small">${latest}</td>
+    <td class="small"><span class="lv-${esc(d.level)}">${esc(d.reason)}</span><div class="dim">${d.updated ? "written " + rel(d.updated) : ""}</div></td>
+    <td class="small dim">${esc(d.next || "")}</td>
+    <td class="num small">${bytes(d.raw_bytes)}<div class="dim">vendor ${bytes(d.vendor_bytes)}</div></td></tr>`;
+  if (open) {
+    const ex = (d.extras || []).map(([k, v]) => `<span>${esc(k)} <b>${esc(v)}</b></span>`).join("");
+    const gaps = (d.gaps || []).map(g => `<span class="chip">${esc(g)}</span>`).join("");
+    h += `<tr class="detail"><td colspan="7"><div>${esc(d.what)}</div>
+      <div class="kv"><span>read by <b class="mono">${esc(d.model)}</b></span><span>vendor files <b>${count(d.vendor_files)}</b></span>${ex}</div>
+      ${gaps ? `<div class="chips"><span class="small gap">missing sessions:</span>${gaps}</div>` : ""}</td></tr>`;
+  }
+  return h;
+}
+function warehouse(w) {
+  if (!w) return "";
+  const lr = w.last_run || {};
+  const sch = (w.schemas || []).map(x => `<tr><td class="mono">${esc(x.schema)}</td><td class="num">${x.tables}</td><td class="num">${x.views}</td></tr>`).join("");
+  const counts = Object.entries(lr.counts || {}).map(([k, v]) => `<span>${esc(k)} <b>${v}</b></span>`).join("");
+  const issues = (lr.issues || []).map(x => `<tr class="${x.status === "warn" ? "warn" : "bad"}"><td style="white-space:nowrap"><span class="dot"></span>${esc(x.status)}</td>
+    <td class="mono">${esc(x.node)}</td><td class="small">${esc(x.message || "")}</td></tr>`).join("");
+  return `<div class="sec">Warehouse (dbt)</div>
+    <div class="secd">${w.built ? `Published ${esc(new Date(w.built).toLocaleString())}${w.argv ? " by <span class='mono'>" + esc(w.argv.join(" ")) + "</span>" : ""}.` : "Never built."}
+      ${w.stale ? " A raw file is newer than the last full build, so the next run builds." : ""}
+      ${w.links_to_review ? ` ${w.links_to_review} FIGI changes need a link decision in transform/seeds/security_link_decisions.csv.` : ""}</div>
+    <div class="grid2">
+      <div class="tablewrap"><table><tr><th>Schema</th><th class="num">Tables</th><th class="num">Views</th></tr>${sch}</table></div>
+      <div class="tablewrap"><table><tr><th colspan="3">Last dbt command: ${esc(lr.which || "–")}${(lr.select || []).length ? " --select " + esc(lr.select.join(" ")) : ""}
+        ${lr.elapsed ? " · " + fmtDur(lr.elapsed) : ""}${lr.at ? " · " + rel(lr.at) : ""}</th></tr>
+        <tr><td colspan="3"><div class="kv">${counts}</div></td></tr>${issues}</table></div>
+    </div>`;
+}
+function render(s) {
+  const gen = s.generated ? new Date(s.generated).toLocaleString() : "";
+  $("generated").textContent = `checked ${gen}` + (s.expected_last_session ? ` · newest complete session ${s.expected_last_session}` : "")
+    + " · click a row for its details";
+  const banners = [], j = s.job || {}, lp = s.last_pull || null;
+  if (s.error) banners.push(banner("bad", "Read error: " + s.error));
+  if (lp && lp.failures_in_a_row >= 2) {
+    const probs = Array.isArray(lp.problems) ? lp.problems : [];
+    banners.push(banner("bad", "The last " + lp.failures_in_a_row + " runs failed.", probs.map(p => typeof p === "string" ? p : JSON.stringify(p))));
+  } else if (lp && lp.problems && lp.problems.length) {
+    banners.push(banner("note", "The last run reported problems.", lp.problems));
+  }
+  if (lp && lp.offline) {
+    const at = lp.time ? new Date(lp.time).toLocaleString() : "the last run";
+    banners.push(banner("note", "Offline at " + at + ". The next run tries again."));
+  }
+  if (j.result && !j.running) {
+    const dbt = j.result.dbt;
+    if (j.result.ok) {
+      banners.push(banner("ok", "Update finished. " + (dbt === "built" ? "dbt models rebuilt." : dbt === "skipped" ? "dbt already current." : "")));
+    } else if (j.result.offline) {
+      banners.push(banner("note", "The vendor hosts did not resolve, so nothing was pulled. Check the network and try again."));
+    } else if (dbt === "failed") {
+      banners.push(banner("bad", "The dbt build failed. See dashboard.out.log and dashboard.err.log in data/_logs."
+        + (j.result.exit_code ? " The pull also failed, exit code " + j.result.exit_code + "." : "")));
+    } else {
+      banners.push(banner("bad", "Update problem: " + (j.result.error || ("exit code " + j.result.exit_code))));
+    }
+  }
+  $("banner").innerHTML = banners.join("");
+  cards(s);
+
+  const ds = s.datasets || [], groups = s.groups || {};
+  const order = [];
+  for (const d of ds) if (!order.includes(d.group)) order.push(d.group);
+  const head = `<tr><th>Dataset</th><th>Source and cadence</th><th>Coverage</th><th class="num">Latest partition</th>
+    <th>Freshness</th><th>Next</th><th class="num">Size</th></tr>`;
+  $("body").innerHTML = order.map(g => `<div class="sec">${esc(g)}</div><div class="secd">${esc(groups[g] || "")}</div>
+    <div class="tablewrap"><table>${head}${ds.filter(d => d.group === g).map(datasetRow).join("")}</table></div>`).join("")
+    + warehouse(s.warehouse);
+  document.querySelectorAll("tr.ds").forEach(tr => tr.onclick = () => {
+    const n = tr.dataset.name;
+    OPEN.has(n) ? OPEN.delete(n) : OPEN.add(n);
+    render(s);
+  });
+
+  $("pull").disabled = !!j.running;
+  const prog = $("progress");
+  if (j.running && j.total > 0) {
+    prog.hidden = false;
+    $("pfill").style.width = Math.min(100, Math.round(j.done / j.total * 100)) + "%";
+    $("pmsg").textContent = (j.phase || "") + " · " + j.done + "/" + j.total;
+    $("peta").textContent = eta(j);
+  } else prog.hidden = true;
+  $("phase").textContent = (j.running && j.total === 0) ? (j.phase || "starting…") : "";
+  const logbox = $("logbox");
+  if (j.running && j.log && j.log.length) { logbox.hidden = false; logbox.textContent = j.log.join("\n"); }
+  else logbox.hidden = true;
+}
+let timer = null;
+async function poll() {
+  let running = false;
+  try {
+    const s = await (await fetch("/state")).json();
+    render(s);
+    running = !!(s.job && s.job.running);
+  } catch (e) {}
+  clearTimeout(timer);
+  timer = setTimeout(poll, running ? 500 : 5000);  // Poll fast while a job runs.
+}
+async function pull() {
+  $("pull").disabled = true;
+  try {
+    const r = await fetch("/pull", {method: "POST"});
+    if (r.status === 409) alert("An update is already running.");
+    if (r.status === 403) alert("The server refused the request.");
+  } catch (e) { alert("Could not start the update: " + e); }
+  clearTimeout(timer);
+  timer = setTimeout(poll, 150);  // Start polling at once, so the bar appears.
+}
+poll();
+</script>
+</body>
+</html>

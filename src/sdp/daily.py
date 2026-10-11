@@ -425,9 +425,6 @@ def _build_dbt() -> int:
 
 # ---------- the status snapshot ----------
 
-def _iso(d: dt.date | None) -> str | None:
-    return d.isoformat() if d else None
-
 
 def _expected_last_session(now_utc: dt.datetime) -> dt.date | None:
     """Return the newest XNYS session whose S3 flat file should exist now.
@@ -462,157 +459,29 @@ def _read_last_pull() -> dict | None:
         return None
 
 
-def _mtime_iso(path: Path) -> str | None:
-    """Return when a file last changed, as an ISO timestamp (the last write of a dataset)."""
-    try:
-        return dt.datetime.fromtimestamp(path.stat().st_mtime, dt.UTC).isoformat()
-    except OSError:
-        return None
-
-
-def _current_entry(name: str, f: Path, max_age: int, group: str,
-                   now_utc: dt.datetime) -> dict:
-    """Describe a current-state table by the age of its file."""
-    if not f.exists():
-        return {"name": name, "kind": "current", "group": group, "behind": None,
-                "level": "warn", "updated": None, "detail": "not pulled"}
-    when = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.UTC).date()
-    age = (now_utc.date() - when).days
-    return {"name": name, "kind": "current", "group": group, "behind": None,
-            "level": "ok" if age <= max_age else "warn", "updated": _mtime_iso(f),
-            "detail": f"refreshed {when}"}
-
-
-def _fund_data_entries(now_utc: dt.datetime) -> list[dict]:
-    """Describe the borrow file, the screeners, the NAV histories and the holdings."""
-    from sdp.ingest.common import eastern, is_session, previous_session
-
-    group = "Funding and ETFs"
-    et = eastern(now_utc)
-    out = []
-
-    # One borrow snapshot per session, due from PULL_HOUR_ET.
-    due = et.date() if is_session(et.date()) and et.hour >= ibkr_borrow.PULL_HOUR_ET \
-        else previous_session(et.date())
-    cov = dal.coverage(dal.IBKR_BORROW)
-    last = cov[1] if cov else None
-    behind = _sessions_behind(last, due)
-    out.append({"name": "ibkr_borrow", "kind": "event", "group": group, "last": _iso(last),
-                "behind": behind, "level": "bad" if behind is None else
-                ("ok" if behind == 0 else "warn"),
-                "updated": _mtime_iso(dal.IBKR_BORROW.partition_file(last)) if last else None,
-                "detail": f"snapshot of {last}" if last else "no snapshots"})
-
-    # One screener snapshot per Eastern date.
-    cov = dal.coverage(dal.ETF_FUNDS)
-    last = cov[1] if cov else None
-    out.append({"name": "etf_funds", "kind": "event", "group": group, "last": _iso(last),
-                "behind": (et.date() - last).days if last else None,
-                "level": "ok" if last == et.date() else ("warn" if last else "bad"),
-                "updated": _mtime_iso(dal.ETF_FUNDS.partition_file(last)) if last else None,
-                "detail": f"snapshot of {last}" if last else "no snapshots"})
-
-    out.append(_current_entry("etf_nav_history", dal.ETF_NAV_HISTORY.table_file,
-                              etf_nav_history.MAX_AGE_DAYS, group, now_utc))
-
-    # Holdings: a fund is current when its file is within a session of the last one.
-    funds = etf_holdings.read_funds()
-    newest = etf_holdings.newest_dates()
-    floor = previous_session(previous_session(et.date()))
-    current = sum(1 for f in funds if newest.get(f["fund"], dt.date.min) >= floor)
-    last = max(newest.values()) if newest else None
-    out.append({"name": "etf_holdings", "kind": "event", "group": group, "last": _iso(last),
-                "behind": None,
-                "level": "ok" if funds and current >= 0.9 * len(funds) else "warn",
-                "updated": None,
-                "detail": f"{current} of {len(funds)} funds current" if funds
-                else "no funds listed"})
-    return out
-
 
 def status_snapshot(now_utc: dt.datetime | None = None,
                     last_pull: dict | None = None) -> dict:
-    """Describe what each dataset holds and what is missing; the dashboard reads this.
+    """Describe every dataset, the pipeline, the warehouse and storage (see sdp.status)."""
+    from sdp import status
+    return status.snapshot(now_utc, last_pull)
 
-    Each dataset kind has its own idea of "behind", so a sparse dataset doesn't raise a
-    false alarm. last_pull defaults to the one in status.json.
-    """
-    now_utc = now_utc or dt.datetime.now(dt.UTC)
-    expected = _expected_last_session(now_utc)
-    last_pull = _read_last_pull() if last_pull is None else last_pull
-    datasets = []
 
-    # Daily event streams. "Behind" is the count of sessions not yet published.
-    for name, ds in (("day_aggs", dal.DAY_AGGS),
-                     ("tickers", dal.TICKERS),
-                     ("short_volume", dal.SHORT_VOLUME)):
-        cov = dal.coverage(ds)
-        last = cov[1] if cov else None
-        behind = _sessions_behind(last, expected)
-        level = "bad" if behind is None else ("ok" if behind == 0 else "warn")
-        updated = _mtime_iso(ds.partition_file(last)) if last else None
-        datasets.append({"name": name, "kind": "event", "group": "Market data",
-                         "last": _iso(last), "behind": behind, "level": level,
-                         "updated": updated,
-                         "detail": f"through {last}" if last else "no partitions"})
+RUNS_KEEP = 500
+"""Lines kept in data/_logs/runs.jsonl, one per update."""
 
-    # Short interest is sparse and lagged, so it never reports "behind". It is healthy
-    # when a clean, online pull checked it today.
-    cov = dal.coverage(dal.SHORT_INTEREST)
-    last = cov[1] if cov else None
-    checked_today = bool(
-        last_pull
-        and str(last_pull.get("time") or "")[:10] == now_utc.date().isoformat()
-        and last_pull.get("exit_code") == 0
-        and not last_pull.get("offline")
-    )
-    updated = _mtime_iso(dal.SHORT_INTEREST.partition_file(last)) if last else None
-    datasets.append({"name": "short_interest", "kind": "sparse", "group": "Market data",
-                     "last": _iso(last),
-                     "behind": None, "level": "ok" if checked_today else "warn",
-                     "updated": updated,
-                     "detail": f"last settlement {last}" if last else "no settlements"})
 
-    # Ticker details are monthly: current when the last month-end session before the
-    # expected session is published.
-    cov = dal.coverage(dal.TICKER_DETAILS)
-    last = cov[1] if cov else None
-    due = details.month_end_sessions(expected - dt.timedelta(days=40), expected) \
-        if expected else []
-    ok = bool(last and due and last >= due[-1])
-    datasets.append({"name": "ticker_details", "kind": "monthly", "group": "Market data",
-                     "last": _iso(last),
-                     "behind": None, "level": "ok" if ok else "warn",
-                     "updated": _mtime_iso(dal.TICKER_DETAILS.partition_file(last))
-                     if last else None,
-                     "detail": f"month-end {last}" if last else "no partitions"})
-
-    # Current state: a missed day costs nothing, so never "bad". Each public source has
-    # its own cadence.
-    for name, ds, max_age in (("splits", dal.SPLITS, 0), ("dividends", dal.DIVIDENDS, 0),
-                              *((m.DATASET.name, m.DATASET, m.MAX_AGE_DAYS)
-                                for m in PUBLIC.values())):
-        f = ds.table_file
-        group = "Corporate actions" if name in ("splits", "dividends") else "Public data"
-        datasets.append(_current_entry(name, f, max_age, group, now_utc))
-
-    datasets += _fund_data_entries(now_utc)
-
-    # The dbt build. The stamp of the last publish dates it.
-    from sdp import transform
-    stamp = transform.last_build()
-    if settings.warehouse_path.exists() and stamp:
-        built = dt.datetime.fromisoformat(stamp["published_utc"]).date()
-        stale = dbt_stale()
-        dbt = {"built": _iso(built), "stale": stale,
-               "level": "bad" if stale else "ok",
-               "detail": f"built {built}"}
-    else:
-        dbt = {"built": None, "stale": True, "level": "bad", "detail": "never built"}
-
-    return {"generated": now_utc.isoformat(),
-            "expected_last_session": _iso(expected),
-            "datasets": datasets, "dbt": dbt, "last_pull": last_pull}
+def _append_run(record: dict) -> None:
+    """Append one run to runs.jsonl and keep the last RUNS_KEEP. An error only logs."""
+    p = _logs_dir() / "runs.jsonl"
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+        lines = (lines + [json.dumps(record)])[-RUNS_KEEP:]
+        tmp = p.with_suffix(".jsonl.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, p)
+    except OSError as exc:
+        log.warning("The run history was not written. %s", exc)
 
 
 def _write_status(snap: dict) -> None:
@@ -808,6 +677,7 @@ def update(
             done += 1
             emit(f"{ev['dataset']} {ev['date']} {ev['status']}", dataset=ev["dataset"])
 
+    started = time.monotonic()
     with _update_lock():
         wants_pull = not (skip_current_state and skip_event_streams and skip_fund_data)
         offline = wants_pull and not _online()
@@ -869,6 +739,9 @@ def update(
                     "error": f"{type(exc).__name__}: {exc}"}
         snap["last_pull"] = last_pull
         _write_status(snap)
+        _append_run({"time": now.isoformat(), "exit_code": code, "dbt": dbt,
+                     "offline": offline, "seconds": round(time.monotonic() - started),
+                     "problems": len(problems), "first_problem": problems[0] if problems else None})
         _prune_logs()
         emit("The dbt build failed. See data/_logs/daily.out.log or "
              "transform/logs/dbt.log." if dbt == "failed" else "Done")
