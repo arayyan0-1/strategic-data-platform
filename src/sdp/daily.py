@@ -30,7 +30,7 @@ from urllib.parse import urlsplit
 
 from sdp import backfill, dal
 from sdp.config import settings
-from sdp.ingest import fred, french, qfactors
+from sdp.ingest import etf_funds, etf_holdings, etf_nav_history, fred, french, ibkr_borrow, qfactors
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_ticker_details as details
 
@@ -52,6 +52,13 @@ EVENT_STREAMS = {
 
 # Event streams with one partition per month, filled after the daily streams.
 MONTHLY_STREAMS = {"ticker_details": dal.TICKER_DETAILS}
+
+# Funding and ETF data, pulled after the event streams. The borrow file and the screeners
+# keep no history, so each run takes today's snapshot when it is due.
+FUND_DATA = ("ibkr_borrow", "etf_funds", "etf_nav_history", "etf_holdings")
+
+HOLDINGS_FAILURES_TO_REPORT = 5
+"""Fewer failed holdings files than this only log: a closed fund must not fail every run."""
 
 DEFAULT_MAX_SESSIONS = 30
 """The most sessions that one daily run fills for each event stream."""
@@ -213,12 +220,45 @@ def _fill_event_stream(
     return backfill.backfill(name, start, today, limit=max_sessions, on_session=_sess)
 
 
+def _pull_fund_data(now: dt.datetime,
+                    on_event: Callable[[dict], None] | None = None) -> list[str]:
+    """Take the borrow, screener, NAV-history and holdings pulls that are due. Return the
+    problems."""
+    found = []
+    steps = {
+        "ibkr_borrow": lambda: ibkr_borrow.ingest(now),
+        "etf_funds": lambda: etf_funds.ingest(now),
+        "etf_nav_history": lambda: etf_nav_history.ingest(now.date()),
+        "etf_holdings": lambda: etf_holdings.ingest(now),
+    }
+    for name in FUND_DATA:
+        if on_event:
+            on_event({"kind": "pull_start", "dataset": name})
+        ok = True
+        try:
+            result = steps[name]()
+            if name == "etf_holdings":
+                for p in result:
+                    log.warning(p)
+                if len(result) >= HOLDINGS_FAILURES_TO_REPORT:
+                    found.append(f"etf_holdings: {len(result)} funds failed")
+                    ok = False
+        except Exception as exc:  # noqa: BLE001 -- one source must not stop the others
+            found.append(f"{name} pull failed: {type(exc).__name__}: {exc}")
+            log.error("%s FAILED %s: %s", name, type(exc).__name__, exc)
+            ok = False
+        if on_event:
+            on_event({"kind": "pull_done", "dataset": name, "ok": ok})
+    return found
+
+
 def run(
     today: dt.date | None = None,
     *,
     max_sessions: int = DEFAULT_MAX_SESSIONS,
     skip_current_state: bool = False,
     skip_event_streams: bool = False,
+    skip_fund_data: bool = False,
     force: bool = False,
     on_event: Callable[[dict], None] | None = None,
     problems: list[str] | None = None,
@@ -244,6 +284,9 @@ def run(
             found += [f"{name} {d}: {msg}" for d, msg in failures]
         # Monthly, after the tickers and bars of the month-end are published.
         found += _fill_ticker_details(today, on_event)
+
+    if not skip_fund_data:
+        found += _pull_fund_data(dt.datetime.now(dt.UTC), on_event)
 
     if problems is not None:
         problems.extend(found)
@@ -427,6 +470,66 @@ def _mtime_iso(path: Path) -> str | None:
         return None
 
 
+def _current_entry(name: str, f: Path, max_age: int, group: str,
+                   now_utc: dt.datetime) -> dict:
+    """Describe a current-state table by the age of its file."""
+    if not f.exists():
+        return {"name": name, "kind": "current", "group": group, "behind": None,
+                "level": "warn", "updated": None, "detail": "not pulled"}
+    when = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.UTC).date()
+    age = (now_utc.date() - when).days
+    return {"name": name, "kind": "current", "group": group, "behind": None,
+            "level": "ok" if age <= max_age else "warn", "updated": _mtime_iso(f),
+            "detail": f"refreshed {when}"}
+
+
+def _fund_data_entries(now_utc: dt.datetime) -> list[dict]:
+    """Describe the borrow file, the screeners, the NAV histories and the holdings."""
+    from sdp.ingest.common import eastern, is_session, previous_session
+
+    group = "Funding and ETFs"
+    et = eastern(now_utc)
+    out = []
+
+    # One borrow snapshot per session, due from PULL_HOUR_ET.
+    due = et.date() if is_session(et.date()) and et.hour >= ibkr_borrow.PULL_HOUR_ET \
+        else previous_session(et.date())
+    cov = dal.coverage(dal.IBKR_BORROW)
+    last = cov[1] if cov else None
+    behind = _sessions_behind(last, due)
+    out.append({"name": "ibkr_borrow", "kind": "event", "group": group, "last": _iso(last),
+                "behind": behind, "level": "bad" if behind is None else
+                ("ok" if behind == 0 else "warn"),
+                "updated": _mtime_iso(dal.IBKR_BORROW.partition_file(last)) if last else None,
+                "detail": f"snapshot of {last}" if last else "no snapshots"})
+
+    # One screener snapshot per Eastern date.
+    cov = dal.coverage(dal.ETF_FUNDS)
+    last = cov[1] if cov else None
+    out.append({"name": "etf_funds", "kind": "event", "group": group, "last": _iso(last),
+                "behind": (et.date() - last).days if last else None,
+                "level": "ok" if last == et.date() else ("warn" if last else "bad"),
+                "updated": _mtime_iso(dal.ETF_FUNDS.partition_file(last)) if last else None,
+                "detail": f"snapshot of {last}" if last else "no snapshots"})
+
+    out.append(_current_entry("etf_nav_history", dal.ETF_NAV_HISTORY.table_file,
+                              etf_nav_history.MAX_AGE_DAYS, group, now_utc))
+
+    # Holdings: a fund is current when its file is within a session of the last one.
+    funds = etf_holdings.read_funds()
+    newest = etf_holdings.newest_dates()
+    floor = previous_session(previous_session(et.date()))
+    current = sum(1 for f in funds if newest.get(f["fund"], dt.date.min) >= floor)
+    last = max(newest.values()) if newest else None
+    out.append({"name": "etf_holdings", "kind": "event", "group": group, "last": _iso(last),
+                "behind": None,
+                "level": "ok" if funds and current >= 0.9 * len(funds) else "warn",
+                "updated": None,
+                "detail": f"{current} of {len(funds)} funds current" if funds
+                else "no funds listed"})
+    return out
+
+
 def status_snapshot(now_utc: dt.datetime | None = None,
                     last_pull: dict | None = None) -> dict:
     """Describe what each dataset holds and what is missing; the dashboard reads this.
@@ -448,8 +551,9 @@ def status_snapshot(now_utc: dt.datetime | None = None,
         behind = _sessions_behind(last, expected)
         level = "bad" if behind is None else ("ok" if behind == 0 else "warn")
         updated = _mtime_iso(ds.partition_file(last)) if last else None
-        datasets.append({"name": name, "kind": "event", "last": _iso(last),
-                         "behind": behind, "level": level, "updated": updated,
+        datasets.append({"name": name, "kind": "event", "group": "Market data",
+                         "last": _iso(last), "behind": behind, "level": level,
+                         "updated": updated,
                          "detail": f"through {last}" if last else "no partitions"})
 
     # Short interest is sparse and lagged, so it never reports "behind". It is healthy
@@ -463,7 +567,8 @@ def status_snapshot(now_utc: dt.datetime | None = None,
         and not last_pull.get("offline")
     )
     updated = _mtime_iso(dal.SHORT_INTEREST.partition_file(last)) if last else None
-    datasets.append({"name": "short_interest", "kind": "sparse", "last": _iso(last),
+    datasets.append({"name": "short_interest", "kind": "sparse", "group": "Market data",
+                     "last": _iso(last),
                      "behind": None, "level": "ok" if checked_today else "warn",
                      "updated": updated,
                      "detail": f"last settlement {last}" if last else "no settlements"})
@@ -475,7 +580,8 @@ def status_snapshot(now_utc: dt.datetime | None = None,
     due = details.month_end_sessions(expected - dt.timedelta(days=40), expected) \
         if expected else []
     ok = bool(last and due and last >= due[-1])
-    datasets.append({"name": "ticker_details", "kind": "monthly", "last": _iso(last),
+    datasets.append({"name": "ticker_details", "kind": "monthly", "group": "Market data",
+                     "last": _iso(last),
                      "behind": None, "level": "ok" if ok else "warn",
                      "updated": _mtime_iso(dal.TICKER_DETAILS.partition_file(last))
                      if last else None,
@@ -487,17 +593,10 @@ def status_snapshot(now_utc: dt.datetime | None = None,
                               *((m.DATASET.name, m.DATASET, m.MAX_AGE_DAYS)
                                 for m in PUBLIC.values())):
         f = ds.table_file
-        if f.exists():
-            when = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.UTC).date()
-            age = (now_utc.date() - when).days
-            datasets.append({"name": name, "kind": "current", "behind": None,
-                             "level": "ok" if age <= max_age else "warn",
-                             "updated": _mtime_iso(f),
-                             "detail": f"refreshed {when}"})
-        else:
-            datasets.append({"name": name, "kind": "current", "behind": None,
-                             "level": "warn", "updated": None,
-                             "detail": "not pulled"})
+        group = "Corporate actions" if name in ("splits", "dividends") else "Public data"
+        datasets.append(_current_entry(name, f, max_age, group, now_utc))
+
+    datasets += _fund_data_entries(now_utc)
 
     # The dbt build. The stamp of the last publish dates it.
     from sdp import transform
@@ -645,7 +744,8 @@ def _prune_logs() -> None:
 # ---------- the shared update job ----------
 
 def _plan_total(today: dt.date, max_sessions: int, *,
-                skip_current_state: bool, skip_event_streams: bool) -> int:
+                skip_current_state: bool, skip_event_streams: bool,
+                skip_fund_data: bool = False) -> int:
     """Count the units of work, so the dashboard can draw a progress bar.
 
     One unit is a current-state pull or one session, plus one for the dbt step.
@@ -655,6 +755,8 @@ def _plan_total(today: dt.date, max_sessions: int, *,
         for name, ds in EVENT_STREAMS.items():
             total += _pending_count(ds, _fill_end(name, today), max_sessions)
         total += len(_pending_month_ends(today))
+    if not skip_fund_data:
+        total += len(FUND_DATA)
     return total + 1  # The dbt step is always one unit, built or skipped.
 
 
@@ -666,6 +768,7 @@ def update(
     force_dbt: bool = False,
     skip_current_state: bool = False,
     skip_event_streams: bool = False,
+    skip_fund_data: bool = False,
     progress: Callable[[dict], None] | None = None,
 ) -> dict:
     """Pull the datasets, build the dbt models when a new session landed, and write the
@@ -706,7 +809,7 @@ def update(
             emit(f"{ev['dataset']} {ev['date']} {ev['status']}", dataset=ev["dataset"])
 
     with _update_lock():
-        wants_pull = not (skip_current_state and skip_event_streams)
+        wants_pull = not (skip_current_state and skip_event_streams and skip_fund_data)
         offline = wants_pull and not _online()
         problems: list[str] = []
         if offline:
@@ -717,10 +820,12 @@ def update(
             try:
                 total = _plan_total(today, max_sessions,
                                     skip_current_state=skip_current_state,
-                                    skip_event_streams=skip_event_streams)
+                                    skip_event_streams=skip_event_streams,
+                                    skip_fund_data=skip_fund_data)
                 code = run(today, max_sessions=max_sessions,
                            skip_current_state=skip_current_state,
-                           skip_event_streams=skip_event_streams, force=force,
+                           skip_event_streams=skip_event_streams,
+                           skip_fund_data=skip_fund_data, force=force,
                            on_event=on_event, problems=problems)
             except Exception as exc:  # noqa: BLE001 -- a crash must count as a failure
                 log.exception("The daily run stopped with an error.")
@@ -785,6 +890,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip-event-streams", action="store_true",
                    help="Do not fill the four event streams: day_aggs, tickers, "
                         "short_volume and short_interest.")
+    p.add_argument("--skip-fund-data", action="store_true",
+                   help="Do not pull the borrow file, the ETF screeners, NAV histories "
+                        "or holdings.")
     p.add_argument("--force", action="store_true",
                    help="Pull the current-state datasets again for today.")
     p.add_argument("--force-dbt", action="store_true",
@@ -807,6 +915,7 @@ def main(argv: list[str] | None = None) -> int:
             force_dbt=args.force_dbt,
             skip_current_state=args.skip_current_state,
             skip_event_streams=args.skip_event_streams,
+            skip_fund_data=args.skip_fund_data,
         )
     except UpdateInProgress as exc:
         log.warning("%s", exc)

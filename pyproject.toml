@@ -13,6 +13,7 @@ dependencies = [
   "exchange-calendars>=4.13.2",
   "httpx>=0.28.1",
   "numpy",
+  "openpyxl",
   # DuckDB needs pytz to return TIMESTAMPTZ values as Python datetimes.
   "pytz",
 ]

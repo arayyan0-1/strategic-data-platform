@@ -28,7 +28,24 @@ class Settings(BaseSettings):
     # The page links the file of the latest q-factors vintage.
     qfactors_page_url: str = "https://global-q.org/factors.html"
 
+    # IBKR's public short-stock file. ftp3 accepts the connection but never greets.
+    ibkr_ftp_host: str = "ftp2.interactivebrokers.com"
+
+    # Issuer fund data. Public, no key.
+    ishares_base_url: str = "https://www.ishares.com"
+    ishares_screener_url: str = (
+        "https://www.ishares.com/us/product-screener/product-screener-v3.1.jsn"
+        "?dcrPath=/templatedata/config/product-screener-v3/data/en/us-ishares/"
+        "ishares-product-screener-backend-config&siteEntryPassthrough=true"
+    )
+    ssga_fundfinder_url: str = (
+        "https://www.ssga.com/bin/v1/ssmp/fund/fundfinder"
+        "?country=us&language=en&role=intermediary&product=etfs&ui=fund-finder"
+    )
+    ssga_fund_data_url: str = "https://www.ssga.com/library-content/products/fund-data/etfs/us"
+
     data_root: Path = _REPO_ROOT / "data"
+    seeds_dir: Path = _REPO_ROOT / "transform" / "seeds"
 
     # Above this DuckDB spills to disk; higher lets macOS swap the build.
     dbt_memory_limit: str = "4GB"

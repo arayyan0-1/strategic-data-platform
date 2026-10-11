@@ -30,6 +30,9 @@ class Dataset:
     union_by_name: bool = False
     """True for a multi-file REST event stream, so a field the vendor added mid
     backfill does not fail the read."""
+    per_member: bool = False
+    """True when a partition holds one file per member (an ETF), each written once.
+    Members publish on their own schedule, so one shared file could not stay immutable."""
 
     @property
     def root(self):
@@ -45,6 +48,16 @@ class Dataset:
 
     def partition_file(self, d: dt.date):
         return self.partition_dir(d) / "data.parquet"
+
+    def member_file(self, d: dt.date, member: str):
+        return self.partition_dir(d) / f"{member}.parquet"
+
+    def files(self, d: dt.date) -> list:
+        """Return the published files of one partition, or [] if it has none."""
+        if self.per_member:
+            return sorted(self.partition_dir(d).glob("*.parquet"))
+        f = self.partition_file(d)
+        return [f] if f.exists() else []
 
 
 DAY_AGGS = Dataset("us_stocks_day_aggs", "date")
@@ -68,8 +81,21 @@ FRED = Dataset("fred_series", None)
 
 QFACTORS = Dataset("q_factors", None)
 
+# One IBKR short-stock snapshot per session, keyed on the file's own (US Eastern) date.
+IBKR_BORROW = Dataset("ibkr_borrow", "date")
+
+# Issuer screeners: NAV and assets of every iShares and SSGA ETF, keyed on the pull date.
+ETF_FUNDS = Dataset("etf_funds", "date", union_by_name=True)
+
+# SSGA's daily NAV and shares outstanding since inception, one table per pull.
+ETF_NAV_HISTORY = Dataset("etf_nav_history", None)
+
+# Issuer holdings files, keyed on the as-of date the file states, one file per fund.
+ETF_HOLDINGS = Dataset("etf_holdings", "date", union_by_name=True, per_member=True)
+
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
-                                SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRED, QFACTORS)}
+                                SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRED, QFACTORS,
+                                IBKR_BORROW, ETF_FUNDS, ETF_NAV_HISTORY, ETF_HOLDINGS)}
 
 _con: duckdb.DuckDBPyConnection | None = None
 
@@ -113,7 +139,7 @@ def partitions(ds: Dataset) -> list[dt.date]:
             d = dt.date.fromisoformat(p.name[len(prefix):])
         except ValueError:
             continue  # Not a partition directory.
-        if ds.partition_file(d).exists():
+        if ds.files(d):
             found.append(d)
     return sorted(found)
 
@@ -133,7 +159,7 @@ def _describe_coverage(ds: Dataset) -> str:
 
 
 def _read(ds: Dataset, dates: list[dt.date]) -> duckdb.DuckDBPyRelation:
-    files = [str(ds.partition_file(d)) for d in dates]
+    files = [str(f) for d in dates for f in ds.files(d)]
     return con().read_parquet(files, union_by_name=ds.union_by_name)
 
 
@@ -176,7 +202,7 @@ def on_date(ds: Dataset, d: dt.date) -> duckdb.DuckDBPyRelation:
             f"{ds.name} holds current state and has no date partition. "
             f"Use current(ds)."
         )
-    if not ds.partition_file(d).exists():
+    if not ds.files(d):
         raise MissingPartition(
             f"{ds.name} has no partition for {d}. {_describe_coverage(ds)}."
         )
@@ -287,6 +313,36 @@ def short_interest(start: dt.date | None = None, end: dt.date | None = None):
     a number before the market had it.
     """
     return series(SHORT_INTEREST, start, end)
+
+
+def borrow(start: dt.date | None = None, end: dt.date | None = None):
+    """Return IBKR borrow fee and shares available per symbol, one snapshot per session.
+
+    fee_rate and rebate_rate are annual percentages. available is capped at 10M shares
+    (available_capped marks it). snapshot_at says when on the date it was taken.
+    """
+    return series(IBKR_BORROW, start, end)
+
+
+def etf_funds(start: dt.date | None = None, end: dt.date | None = None):
+    """Return the issuer screener snapshot of each pull date: NAV and assets per ETF.
+
+    A fund's nav_date can trail the pull date; dedupe on (fund, nav_date) for a series.
+    """
+    return series(ETF_FUNDS, start, end)
+
+
+def etf_nav_history():
+    """Return SSGA's daily NAV, shares outstanding and net assets per fund since inception."""
+    return current(ETF_NAV_HISTORY)
+
+
+def etf_holdings(start: dt.date | None = None, end: dt.date | None = None):
+    """Return issuer holdings files, one per fund and as-of date.
+
+    weight is a fraction of net assets. quantity is shares for equity and par for bonds.
+    """
+    return series(ETF_HOLDINGS, start, end)
 
 
 def warehouse() -> duckdb.DuckDBPyConnection:

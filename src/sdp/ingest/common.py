@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
+import gzip
 import logging
 import os
 import shutil
 import time
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import duckdb
 import exchange_calendars as xcals
@@ -21,6 +24,7 @@ from sdp.ingest.rest import _temp_beside
 log = logging.getLogger(__name__)
 
 XNYS = xcals.get_calendar("XNYS")
+EASTERN = ZoneInfo("America/New_York")
 
 
 class AuditFailure(RuntimeError):
@@ -66,6 +70,51 @@ def one(sql: str) -> tuple:
 def is_session(d: dt.date) -> bool:
     """Return True when the date is an XNYS session."""
     return XNYS.is_session(d.isoformat())
+
+
+def eastern(now: dt.datetime | None = None) -> dt.datetime:
+    """Return now (or the given aware time) in US Eastern time."""
+    return (now or dt.datetime.now(dt.UTC)).astimezone(EASTERN)
+
+
+def previous_session(d: dt.date) -> dt.date:
+    """Return the last XNYS session strictly before d."""
+    return XNYS.date_to_session(
+        (d - dt.timedelta(days=1)).isoformat(), direction="previous").date()
+
+
+def write_gzip(data: bytes, dest: Path) -> Path:
+    """Write bytes to dest gzipped, through a temporary file so a reader never sees half."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _temp_beside(dest)
+    tmp.write_bytes(gzip.compress(data))
+    os.replace(tmp, dest)
+    return dest
+
+
+def rows_to_parquet(rows: Iterable[tuple], columns: dict[str, str], dest: Path) -> int:
+    """Write Python rows to a typed Parquet file and return the row count.
+
+    The rows go through a temporary CSV, which DuckDB reads far faster than inserts.
+    None becomes NULL. Each value must already be a string, number, date or None.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _temp_beside(dest.with_suffix(".csv"))
+    n = 0
+    try:
+        with tmp.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)  # Minimal quoting, so None is a bare empty field.
+            for r in rows:
+                w.writerow(["" if v is None else v for v in r])
+                n += 1
+        cols = ", ".join(f"'{k}': '{v}'" for k, v in columns.items())
+        duckdb.execute(f"""
+            copy (select * from read_csv('{tmp}', header = false, columns = {{{cols}}},
+                                         nullstr = '', quote = '"', escape = '"'))
+            to '{dest}' (format parquet, compression zstd)""")
+    finally:
+        tmp.unlink(missing_ok=True)
+    return n
 
 
 def check_mode(refetch: bool, rebuild: bool) -> None:

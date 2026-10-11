@@ -72,6 +72,15 @@ def no_public_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_fund_data_download(monkeypatch):
+    """No test pulls the borrow file, a screener, a NAV history or a holdings file."""
+    monkeypatch.setattr(daily.ibkr_borrow, "ingest", lambda now=None, **kw: None)
+    monkeypatch.setattr(daily.etf_funds, "ingest", lambda now=None: None)
+    monkeypatch.setattr(daily.etf_nav_history, "ingest", lambda d=None, **kw: None)
+    monkeypatch.setattr(daily.etf_holdings, "ingest", lambda now=None: [])
+
+
+@pytest.fixture(autouse=True)
 def notifications(monkeypatch):
     """Stub the DNS probe and record desktop notifications: no lookup, no alert."""
     monkeypatch.setattr(daily, "_online", lambda: True)
@@ -377,9 +386,10 @@ class TestOffline:
         assert daily.update()["last_pull"]["offline"] is False
         assert runs == [1]
 
-    def test_no_probe_when_both_pulls_are_skipped(self, tmp_data_root, runs, monkeypatch):
+    def test_no_probe_when_every_pull_is_skipped(self, tmp_data_root, runs, monkeypatch):
         monkeypatch.setattr(daily, "_online", lambda: pytest.fail("the probe ran"))
-        snap = daily.update(skip_current_state=True, skip_event_streams=True)
+        snap = daily.update(skip_current_state=True, skip_event_streams=True,
+                            skip_fund_data=True)
         assert snap["last_pull"]["offline"] is False
 
 
@@ -527,7 +537,8 @@ class TestFailureSignal:
         codes += [1, 1, 0]
         daily.update()
         daily.update()
-        snap = daily.update(skip_current_state=True, skip_event_streams=True)
+        snap = daily.update(skip_current_state=True, skip_event_streams=True,
+                            skip_fund_data=True)
         assert snap["last_pull"]["failures_in_a_row"] == 2
 
     def test_an_offline_run_sends_no_failure_alert(self, tmp_data_root, codes,
