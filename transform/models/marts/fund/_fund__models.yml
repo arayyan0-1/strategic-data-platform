@@ -107,3 +107,118 @@ models:
       series (its own return where it has a full month, else the return of the index it maps to in
       fund_index_map). mom, val and trend are defined as in fund_signal_history, and a window counts
       only when its months are consecutive.
+
+  - name: fund_index_features
+    description: The panel of the machine-learning study of index returns, one row per index and
+      month of the regions, countries and US segments (not us:market). The features are known at the
+      end of month t. r3 and r6 are the returns of the last 3 and 6 months, mom, val and trend are
+      those of fund_signal_history, vol12 is the standard deviation of the last 12 monthly returns,
+      and dd12 is the largest fall from a peak of the wealth path of those 12 months (0 or below;
+      the wealth starts at 1 before the first month). val is null for the first 48 rows of an
+      index; the others are never null. target is the return of month t+1 less the mean return of
+      that month over the names of the universe, null for the last month of an index.
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: universe
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - regions
+                  - countries
+                  - us_segments
+      - name: month
+        data_tests:
+          - not_null
+
+  - name: fund_features
+    description: The features of fund_index_features for each candidate fund and month, from the
+      spliced monthly series of int_fund_monthly_returns, and so for the months before the fund
+      listed too (its index's). mom, val and trend are those of fund_signals. The universe is the one
+      of the index the fund maps to in fund_index_map, and a fund of us:market is in us_segments;
+      a fund with no equity index (a cash fund) has no row. A row needs mom and trend. There is no
+      target. val is null for a fund whose series is shorter than 60 months.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: universe
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - regions
+                  - countries
+                  - us_segments
+      - name: month
+        data_tests:
+          - not_null
+
+  - name: fund_ml_ic
+    description: Walk-forward forecasts of the relative return of an index, judged on development.
+      A ridge model (penalty from 0.1 to 1000, chosen on the last fifth of each training set) and
+      a gradient-boosted tree model (fixed settings), each pooled over the three universes with
+      the features of fund_index_features, their cross-sectional ranks and a universe indicator.
+      The models are refitted at the start of each year from 1996 on every row whose target month
+      is before January of that year, and predict the months of the year. The baselines combo
+      (the mean of the z-scores of mom and val) and mom are scored on the same months and names,
+      the rows with a target, mom and val in the scored months, so a model is judged only where
+      the baselines exist. mean_ic is the mean of the monthly Spearman correlations of the
+      prediction with the target, t_nw its Newey-West t with a lag of 5, n_months the months with
+      at least five names, spread_ann the mean top third less the bottom third of the target by
+      prediction times 12 and spread_t_nw its t. beats_baselines is true for a model whose mean_ic
+      is above that of combo and of mom in the universe. clears_gate adds t_nw of 2 or more. The
+      scored months end at fund_signal_dev_end.
+    config:
+      fund_signal_dev_end: "{{ var('fund_signal_dev_end') }}"
+    columns:
+      - name: universe
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - regions
+                  - countries
+                  - us_segments
+      - name: model
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - ridge
+                  - gbt
+                  - combo
+                  - mom
+
+  - name: fund_ml_scores
+    description: The score of each model for each fund and month after development, from models
+      fitted once on every development row (target month up to fund_signal_dev_end) of
+      fund_index_features and applied to fund_features, with no refit on later data. The score is a
+      forecast of the return of the next month relative to the other names of the universe. A
+      fund's rank features are taken among the funds of its universe in the month.
+    config:
+      fund_signal_dev_end: "{{ var('fund_signal_dev_end') }}"
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: month
+        data_tests:
+          - not_null
+      - name: model
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - ridge
+                  - gbt
+      - name: score
+        data_tests:
+          - not_null
