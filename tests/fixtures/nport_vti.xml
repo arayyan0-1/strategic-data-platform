@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/nport" xmlns:com="http://www.sec.gov/edgar/common" xmlns:ncom="http://www.sec.gov/edgar/nportcommon" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sec.gov/edgar/nport eis_NPORT_Filer.xsd">
+  <headerData>
+    <submissionType>NPORT-P</submissionType>
+    <isConfidential>false</isConfidential>
+    <filerInfo>
+
+      <filer>
+        <issuerCredentials>
+          <cik>0000036405</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+
+
+      <seriesClassInfo>
+        <seriesId>S000002848</seriesId>
+        <classId>C000007805</classId>
+        <classId>C000007807</classId>
+        <classId>C000155407</classId>
+        <classId>C000007808</classId>
+        <classId>C000170276</classId>
+        <classId>C000007806</classId>
+      </seriesClassInfo>
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <genInfo>
+      <regName>VANGUARD INDEX FUNDS</regName>
+      <regFileNumber>811-02652</regFileNumber>
+      <regCik>0000036405</regCik>
+      <regLei>549300G6KNDK44WUN559</regLei>
+      <regStreet1>100 Vanguard Boulevard</regStreet1>
+      <regCity>Malvern</regCity>
+      <regStateConditional regCountry="US" regState="US-PA"/>
+      <regZipOrPostalCode>19355</regZipOrPostalCode>
+      <regPhone>610-669-1000</regPhone>
+      <seriesName>VANGUARD TOTAL STOCK MARKET INDEX FUND</seriesName>
+      <seriesId>S000002848</seriesId>
+      <seriesLei>HJ2RZRUQEVF2A5SPRB21</seriesLei>
+      <repPdEnd>2026-12-31</repPdEnd>
+      <repPdDate>2026-06-30</repPdDate>
+      <isFinalFiling>N</isFinalFiling>
+    </genInfo>
+    <fundInfo>
+      <totAssets>2299997814240.02</totAssets>
+      <totLiabs>2158657692.13</totLiabs>
+      <netAssets>2297839156547.89</netAssets>
+      <assetsAttrMiscSec>0.00000000</assetsAttrMiscSec>
+      <assetsInvested>0.00000000</assetsInvested>
+      <amtPayOneYrBanksBorr>0.00000000</amtPayOneYrBanksBorr>
+      <amtPayOneYrCtrldComp>0.00000000</amtPayOneYrCtrldComp>
+      <amtPayOneYrOthAffil>0.00000000</amtPayOneYrOthAffil>
+      <amtPayOneYrOther>0.00000000</amtPayOneYrOther>
+      <amtPayAftOneYrBanksBorr>0.00000000</amtPayAftOneYrBanksBorr>
+      <amtPayAftOneYrCtrldComp>0.00000000</amtPayAftOneYrCtrldComp>
+      <amtPayAftOneYrOthAffil>0.00000000</amtPayAftOneYrOthAffil>
+      <amtPayAftOneYrOther>0.00000000</amtPayAftOneYrOther>
+      <delayDeliv>0.00000000</delayDeliv>
+      <standByCommit>0.00000000</standByCommit>
+      <liquidPref>0.00000000</liquidPref>
+      <cshNotRptdInCorD>0.00000000</cshNotRptdInCorD>
+      <borrowers/>
+      <isNonCashCollateral>N</isNonCashCollateral>
+      <returnInfo>
+        <monthlyTotReturns>
+          <monthlyTotReturn classId="C000007805" rtn1="10.34571063" rtn2="5.15780924" rtn3="-0.33413080"/>
+          <monthlyTotReturn classId="C000007807" rtn1="10.34813772" rtn2="5.15571536" rtn3="-0.33192758"/>
+          <monthlyTotReturn classId="C000155407" rtn1="10.35106274" rtn2="5.15999382" rtn3="-0.32917309"/>
+          <monthlyTotReturn classId="C000007808" rtn1="10.35084439" rtn2="5.15868534" rtn3="-0.33183643"/>
+          <monthlyTotReturn classId="C000170276" rtn1="10.35267349" rtn2="5.16053019" rtn3="-0.33108744"/>
+          <monthlyTotReturn classId="C000007806" rtn1="10.35012482" rtn2="5.15661253" rtn3="-0.32898064"/>
+        </monthlyTotReturns>
+        <monthlyReturnCats>
+          <commodityContracts>
+            <mon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </commodityContracts>
+          <creditContracts>
+            <mon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </creditContracts>
+          <equityContracts>
+            <mon1 netRealizedGain="283752200.58000000" netUnrealizedAppr="390114229.18000000"/>
+            <mon2 netRealizedGain="330371987.08000000" netUnrealizedAppr="-299701464.41000000"/>
+            <mon3 netRealizedGain="77013658.54000000" netUnrealizedAppr="-154193352.58000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="283752200.58000000" netUnrealizedAppr="364568447.60000000"/>
+              <instrMon2 netRealizedGain="330371987.08000000" netUnrealizedAppr="-246451228.95000000"/>
+              <instrMon3 netRealizedGain="77013658.54000000" netUnrealizedAppr="-85880460.63000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="25545781.58000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="-53250235.46000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="-68312891.95000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </equityContracts>
+          <foreignExchgContracts>
+            <mon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </foreignExchgContracts>
+          <interestRtContracts>
+            <mon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </interestRtContracts>
+          <otherContracts>
+            <mon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <mon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            <forwardCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </forwardCategory>
+            <futureCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </futureCategory>
+            <optionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </optionCategory>
+            <swaptionCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swaptionCategory>
+            <swapCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </swapCategory>
+            <warrantCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </warrantCategory>
+            <otherCategory>
+              <instrMon1 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon2 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+              <instrMon3 netRealizedGain="0.00000000" netUnrealizedAppr="0.00000000"/>
+            </otherCategory>
+          </otherContracts>
+        </monthlyReturnCats>
+        <othMon1 netRealizedGain="1171214350.44000000" netUnrealizedAppr="203543768714.01000000"/>
+        <othMon2 netRealizedGain="-21631883.32000000" netUnrealizedAppr="110977618158.39000000"/>
+        <othMon3 netRealizedGain="2509402570.23000000" netUnrealizedAppr="-13036057700.98000000"/>
+      </returnInfo>
+      <mon1Flow redemption="10678410744.14000000" reinvestment="55647.73000000" sales="15164358272.02000000"/>
+      <mon2Flow redemption="21077911128.43000000" reinvestment="67.49000000" sales="13345954302.46000000"/>
+      <mon3Flow redemption="21666695416.99000000" reinvestment="4280680709.27000000" sales="21069259276.81010000"/>
+
+
+    </fundInfo>
+    <invstOrSecs>
+      <invstOrSec>
+        <name>Surgery Partners Inc</name>
+        <lei>549300LC82HG33S19I03</lei>
+        <title>SURGERY PARTNERS</title>
+        <cusip>86881A100</cusip>
+        <identifiers>
+          <isin value="US86881A1007"/>
+        </identifiers>
+        <balance>2481034.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>41681371.20000000</valUSD>
+        <pctVal>0.001813937719</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EC</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <loanByFundCondition isLoanByFund="Y" loanVal="1965600.00000000"/>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>ExlService Holdings Inc</name>
+        <lei>81E3DTNF6OSH489ZOV15</lei>
+        <title>EXLSERVICE HOLDI</title>
+        <cusip>302081104</cusip>
+        <identifiers>
+          <isin value="US3020811044"/>
+        </identifiers>
+        <balance>4609400.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>119199084.00000000</valUSD>
+        <pctVal>0.005187442456</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EC</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <isLoanByFund>N</isLoanByFund>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>Six Flags Entertainment Corp</name>
+        <lei>529900AS2CYWYFHRS781</lei>
+        <title>SIX FLAGS ENTERT</title>
+        <cusip>83001C108</cusip>
+        <identifiers>
+          <isin value="US83001C1080"/>
+        </identifiers>
+        <balance>2920643.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>62209695.90000000</valUSD>
+        <pctVal>0.002707312899</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EC</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <loanByFundCondition isLoanByFund="Y" loanVal="1060740.00000000"/>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>Cingulate Inc</name>
+        <lei>N/A</lei>
+        <title>CINGULATE INC</title>
+        <cusip>17248W303</cusip>
+        <identifiers>
+          <isin value="US17248W3034"/>
+        </identifiers>
+        <balance>394555.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>2158215.85000000</valUSD>
+        <pctVal>0.000093923712</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EC</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <loanByFundCondition isLoanByFund="Y" loanVal="1450047.77000000"/>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>Smith-Midland Corp</name>
+        <lei>N/A</lei>
+        <title>SMITH-MIDLAND CP</title>
+        <cusip>832156103</cusip>
+        <identifiers>
+          <isin value="US8321561032"/>
+        </identifiers>
+        <balance>84226.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>2442554.00000000</valUSD>
+        <pctVal>0.000106297866</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EC</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <isLoanByFund>N</isLoanByFund>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>ClearOne Inc</name>
+        <lei>N/A</lei>
+        <title>CLEARONE INC-PFD CL A</title>
+        <cusip>185CNT011</cusip>
+        <identifiers>
+          <isin value="US18506U3023"/>
+        </identifiers>
+        <balance>12200.00000000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>2684.00000000</valUSD>
+        <pctVal>0.000000116805</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>EP</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>3</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <loanByFundCondition isLoanByFund="Y" loanVal="1760.00000000"/>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>N/A</name>
+        <lei>N/A</lei>
+        <title>TRS:VISA INC-CLASS A SHARES USD 2026-Aug-31</title>
+        <cusip>N/A</cusip>
+        <identifiers>
+          <other otherDesc="CONTRACT_VANGUARD_ID" value="V1048202001"/>
+        </identifiers>
+        <balance>1025000.00000000</balance>
+        <units>NC</units>
+        <curCd>USD</curCd>
+        <valUSD>12884250.00000000</valUSD>
+        <pctVal>0.000560711569</pctVal>
+        <payoffProfile>N/A</payoffProfile>
+        <assetCat>DE</assetCat>
+        <issuerConditional desc="N/A" issuerCat="OTHER"/>
+        <invCountry>N/A</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>2</fairValLevel>
+        <derivativeInfo>
+          <swapDeriv derivCat="SWP">
+            <counterparties>
+              <counterpartyName>BANK OF AMERICA, N.A.</counterpartyName>
+              <counterpartyLei>B4TYDEB6GKMZO031MB27</counterpartyLei>
+            </counterparties>
+            <descRefInstrmnt>
+              <otherRefInst>
+                <issuerName>N/A</issuerName>
+                <issueTitle>VISA INC-CLASS A</issueTitle>
+                <identifiers>
+                  <cusip value="92826C839"/>
+                </identifiers>
+              </otherRefInst>
+            </descRefInstrmnt>
+            <swapFlag>Y</swapFlag>
+            <otherRecDesc fixedOrFloating="Other">Receive positive return on reference instrument</otherRecDesc>
+            <floatingPmntDesc curCd="USD" fixedOrFloating="Floating" floatingRtIndex="OBFR01" floatingRtSpread="0.00000000" pmntAmt="0.00000000">
+              <rtResetTenors>
+                <rtResetTenor rateTenor="Day" rateTenorUnit="62" resetDt="Month" resetDtUnit="1"/>
+              </rtResetTenors>
+            </floatingPmntDesc>
+            <terminationDt>2026-08-31</terminationDt>
+            <upfrontPmnt>0.00000000</upfrontPmnt>
+            <pmntCurCd>USD</pmntCurCd>
+            <upfrontRcpt>0.00000000</upfrontRcpt>
+            <rcptCurCd>USD</rcptCurCd>
+            <notionalAmt>338783000.00000000</notionalAmt>
+            <curCd>USD</curCd>
+            <unrealizedAppr>12884250.00000000</unrealizedAppr>
+          </swapDeriv>
+        </derivativeInfo>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <isLoanByFund>N</isLoanByFund>
+        </securityLending>
+      </invstOrSec>
+      <invstOrSec>
+        <name>Vanguard Cmt Funds-Vanguard Market Liquidity Fund</name>
+        <lei>1I6HV0TLSTR3A4XQ6L78</lei>
+        <title>Vanguard Market Liquidity Fund</title>
+        <cusip>N/A</cusip>
+        <identifiers>
+          <other otherDesc="FAID" value="CMT001142"/>
+        </identifiers>
+        <balance>61033263.11800000</balance>
+        <units>NS</units>
+        <curCd>USD</curCd>
+        <valUSD>6102715979.17000000</valUSD>
+        <pctVal>0.265584993700</pctVal>
+        <payoffProfile>Long</payoffProfile>
+        <assetCat>STIV</assetCat>
+        <issuerCat>CORP</issuerCat>
+        <invCountry>US</invCountry>
+
+        <isRestrictedSec>N</isRestrictedSec>
+
+        <fairValLevel>1</fairValLevel>
+        <securityLending>
+          <isCashCollateral>N</isCashCollateral>
+          <isNonCashCollateral>N</isNonCashCollateral>
+          <isLoanByFund>N</isLoanByFund>
+        </securityLending>
+      </invstOrSec>
+    </invstOrSecs>
+    <explntrNotes>
+      <explntrNote note="Effective July 2026, Vanguard Total Stock Market Index Fund changed its name to Vanguard Morningstar Total Stock Market Index Fund." noteItem="A.2.a"/>
+    </explntrNotes>
+    <signature>
+      <ncom:dateSigned>2026-08-27</ncom:dateSigned>
+      <ncom:nameOfApplicant>VANGUARD INDEX FUNDS</ncom:nameOfApplicant>
+      <ncom:signature>My Trieu-Gatt</ncom:signature>
+      <ncom:signerName>My Trieu-Gatt</ncom:signerName>
+      <ncom:title>Treasurer</ncom:title>
+    </signature>
+  </formData>
+</edgarSubmission>

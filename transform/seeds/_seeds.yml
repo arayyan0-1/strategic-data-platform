@@ -87,3 +87,21 @@ seeds:
       - name: fund
         data_tests:
           - not_null
+
+  - name: nport_funds
+    description: The US-equity ETFs whose Form N-PORT holdings are collected. The fund is the ticker,
+      cik the registrant's CIK and series_id the EDGAR series, both from SEC's fund ticker file. A fund
+      that file does not list is not here (SPY, MDY and DIA).
+    config:
+      column_types:
+        fund: varchar
+        cik: varchar
+        series_id: varchar
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+          - unique
+      - name: series_id
+        data_tests:
+          - not_null

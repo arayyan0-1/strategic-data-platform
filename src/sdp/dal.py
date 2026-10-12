@@ -96,10 +96,17 @@ ETF_NAV_HISTORY = Dataset("etf_nav_history", None)
 # Issuer holdings files, keyed on the as-of date the file states, one file per fund.
 ETF_HOLDINGS = Dataset("etf_holdings", "date", union_by_name=True, per_member=True)
 
+# SEC Form N-PORT holdings, keyed on the report date, one file per fund.
+SEC_NPORT = Dataset("sec_nport", "date", union_by_name=True, per_member=True)
+
+# OpenFIGI's answer for each CUSIP the N-PORT filings state, one table per run.
+OPENFIGI_CUSIPS = Dataset("openfigi_cusips", None)
+
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
                                 SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRENCH_INTERNATIONAL, FRED,
                                 QFACTORS,
-                                IBKR_BORROW, ETF_FUNDS, ETF_NAV_HISTORY, ETF_HOLDINGS)}
+                                IBKR_BORROW, ETF_FUNDS, ETF_NAV_HISTORY, ETF_HOLDINGS,
+                                SEC_NPORT, OPENFIGI_CUSIPS)}
 
 _con: duckdb.DuckDBPyConnection | None = None
 
@@ -355,6 +362,20 @@ def etf_holdings(start: dt.date | None = None, end: dt.date | None = None):
     weight is a fraction of net assets. quantity is shares for equity and par for bonds.
     """
     return series(ETF_HOLDINGS, start, end)
+
+
+def sec_nport(start: dt.date | None = None, end: dt.date | None = None):
+    """Return N-PORT holdings, one row per line, from the report dates start to end.
+
+    filed is the date the public could first see the line. pct_val is a fraction of net
+    assets. Aggregate only the lines with asset_cat 'EC' and payoff 'Long' for a stock book.
+    """
+    return series(SEC_NPORT, start, end)
+
+
+def openfigi_cusips():
+    """Return the FIGIs OpenFIGI gave each CUSIP, as of mapped_on. Null FIGIs mean no match."""
+    return current(OPENFIGI_CUSIPS)
 
 
 def warehouse() -> duckdb.DuckDBPyConnection:
