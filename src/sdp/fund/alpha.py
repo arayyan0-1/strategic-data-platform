@@ -2,9 +2,10 @@
 cash.
 
 For an equity fund i with score z_i (the mean of the cross-sectional z-scores of momentum and
-value, standardized again), the forecast over the benchmark is shrink * IC * omega_i * z_i, with
-omega_i the fund's active volatility a year and IC the long-history information coefficient of
-the score. A cash fund's active return is the benchmark's excess return with the sign reversed,
+value, standardized again), Grinold's rule gives a one-month forecast IC * (omega_i / sqrt(12)) *
+z_i, with IC the monthly long-history information coefficient of the score and omega_i the fund's
+active volatility a year. Rebalanced monthly, that is 12 times a year: shrink * IC * sqrt(12) *
+omega_i * z_i. A cash fund's active return is the benchmark's excess return with the sign reversed,
 so its forecast is -shrink times the mean excess return of the benchmark's long-history proxy
 in the current trend state.
 """
@@ -69,7 +70,8 @@ def source(f: Forecast):
         eq = ~cash
         if f.cross and eq.sum() >= 3:
             omega = np.sqrt(np.clip(np.diag(S_active), 0.0, None) * SESSIONS_A_YEAR)
-            a[eq] = f.shrink * f.ic * omega[eq] * score(sig[eq, 0], sig[eq, 1])
+            a[eq] = (f.shrink * f.ic * np.sqrt(12) * omega[eq]
+                     * score(sig[eq, 0], sig[eq, 1]))
         bench = f.signals.get((p.benchmark, month), (None, None, None))[2]
         if f.trend and cash.any() and bench is not None and np.isfinite(bench):
             a[cash] = -f.shrink * (f.excess_up if bench > 0 else f.excess_down)

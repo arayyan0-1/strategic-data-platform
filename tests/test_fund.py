@@ -245,4 +245,7 @@ class TestAlpha:
         S = np.diag([1e-6, 1e-4, 1e-4, 1e-4])
         a = source(f)(p, t, [0, 1, 2, 3], S)
         assert a[1] > 0 > a[2]
+        omega = np.sqrt(1e-4 * 252)
+        # Three funds at (0, 1, -1) in both signals: the top score is sqrt(3/2).
+        assert a[1] == pytest.approx(0.5 * 0.05 * np.sqrt(12) * omega * np.sqrt(1.5))
         assert a[3] == pytest.approx(0.01)  # -0.5 * -0.02, the trend is negative
