@@ -178,11 +178,13 @@ def list_filings(sec: Sec, series_id: str, since: dt.date) -> list[Filing]:
         page = parse_atom(sec.get(f"{settings.sec_www_url}/cgi-bin/browse-edgar", {
             "action": "getcompany", "CIK": series_id, "type": FORM, "dateb": "",
             "owner": "include", "count": ATOM_COUNT, "start": start, "output": "atom"}))
-        for f in page:
-            found.setdefault(f.accession, f)
-        if len(page) < ATOM_COUNT or min(f.filed for f in page) < since:
+        new = [f for f in page if f.accession not in found]
+        for f in new:
+            found[f.accession] = f
+        # The server may cap a page below ATOM_COUNT, so only an empty page ends the list.
+        if not new or min(f.filed for f in page) < since:
             break
-        start += ATOM_COUNT
+        start += len(page)
     else:
         raise RuntimeError(f"{series_id}: the filing list ran past {MAX_PAGES} pages.")
     return sorted((f for f in found.values() if f.form == FORM and f.filed >= since),

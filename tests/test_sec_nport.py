@@ -70,6 +70,7 @@ class Edgar:
 
     def __init__(self, filings):
         self.filings = filings
+        self.cap = 100
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -79,7 +80,7 @@ class Edgar:
             newest = sorted(((a, f.isoformat() if hasattr(f, "isoformat") else f, form)
                              for a, (f, form, _) in self.filings.items()),
                             key=lambda e: e[1], reverse=True)
-            start, count = int(q["start"]), int(q["count"])
+            start, count = int(q["start"]), min(int(q["count"]), self.cap)
             return httpx.Response(200, content=_atom(newest[start:start + count]))
         m = re.search(r"/data/(\d+)/(\d{10})(\d\d)(\d{6})/primary_doc\.xml$", request.url.path)
         if not m:
@@ -171,16 +172,24 @@ class TestParseAtom:
         assert filings[0].url == (f"{settings.sec_www_url}/Archives/edgar/data/1100663/"
                                   "000207169126019760/primary_doc.xml")
 
-    def test_paging_follows_start_until_a_short_page(self, monkeypatch, sleeps):
+    def test_paging_follows_start_until_an_empty_page(self, monkeypatch, sleeps):
         monkeypatch.setattr(settings, "sec_user_agent", CONTACT)
         monkeypatch.setattr(sec_nport, "ATOM_COUNT", 2)
         edgar = Edgar({f"0000000001-26-00000{i}": (dt.date(2026, i, 1), "NPORT-P", b"")
                        for i in range(1, 6)})
         found = sec_nport.list_filings(_client(edgar), "S000000001", dt.date(2021, 1, 1))
-        assert [r.url.params["start"] for r in edgar.lists] == ["0", "2", "4"]
+        assert [r.url.params["start"] for r in edgar.lists] == ["0", "2", "4", "5"]
         assert edgar.lists[0].url.params["CIK"] == "S000000001"
         assert edgar.lists[0].url.params["type"] == "NPORT-P"
         assert [f.accession[-1] for f in found] == ["1", "2", "3", "4", "5"]
+
+    def test_a_server_that_caps_the_page_is_still_read_in_full(self, monkeypatch, sleeps):
+        monkeypatch.setattr(settings, "sec_user_agent", CONTACT)
+        edgar = Edgar({f"0000000001-26-00000{i}": (dt.date(2026, i, 1), "NPORT-P", b"")
+                       for i in range(1, 6)})
+        edgar.cap = 2  # It answers 2 entries to a request for 100.
+        found = sec_nport.list_filings(_client(edgar), "S000000001", dt.date(2021, 1, 1))
+        assert len(found) == 5
 
     def test_paging_stops_at_a_page_older_than_since_and_drops_amendments(self, monkeypatch,
                                                                          sleeps):
@@ -308,7 +317,7 @@ class TestIngest:
         before = path.stat().st_mtime_ns
         edgar.requests.clear()
         assert sec_nport.ingest(sec=_client(edgar)) == []
-        assert edgar.documents == [] and len(edgar.lists) == 1
+        assert edgar.documents == [] and len(edgar.lists) == 2  # A page, then the empty one.
         assert path.stat().st_mtime_ns == before
 
     def test_two_filings_for_one_date_keep_the_earlier_one(self, seed):
@@ -400,7 +409,7 @@ class TestIngest:
         sec_nport.ingest(sec=_client(edgar), min_age_hours=20, now=later)
         assert len(edgar.requests) == n
         sec_nport.ingest(sec=_client(edgar), min_age_hours=20, now=now + dt.timedelta(hours=21))
-        assert len(edgar.requests) == n + 1
+        assert len(edgar.requests) == n + 2
 
     def test_two_funds_of_one_series_share_the_vendor_files(self, seed):
         seed.write_text("fund,cik,series_id\nTST,1100663,S000000001\nTS2,1100663,S000000001\n",
