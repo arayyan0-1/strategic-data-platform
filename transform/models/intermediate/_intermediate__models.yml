@@ -268,3 +268,17 @@ models:
         description: The one-month US T-bill return of the month, from the research factors.
         data_tests:
           - not_null
+
+  - name: int_fund_monthly_returns
+    description: The monthly return of each candidate fund, spliced. A month takes the fund's own
+      return where it has a full month (a close the month before, at least 15 sessions), else the
+      return of the long-history index the fund maps to in fund_index_map. rf is the US T-bill
+      return of the month, from the research factors, else the monthly compound of core.rates.rf.
+      ret is null in a month where the fund's close is unknown and the index has no return.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: month
+        data_tests:
+          - not_null
