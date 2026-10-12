@@ -19,3 +19,85 @@ models:
     description: One row per candidate fund and session, with its role (equity or cash) and what is known
       at the close (returns, trailing dollar volume, volatility, the modelled half spread, the expense
       ratio) and whether the fund is eligible that day.
+
+  - name: fund_signal_history
+    description: The signals of the long index history at the end of each month, with the return that
+      follows, one row per index and month. mom is the return of months t-11 to t-1, val is minus
+      the return of months t-59 to t-12 (the five-year reversal, a value proxy), and trend is the
+      return of months t-11 to t less the T-bill return of the same months. A signal is null unless
+      every month of its window has a return, so val is null for the first four years of an index.
+      fwd_ret and fwd_excess are the return and the excess return of month t+1. The universe is
+      regions, countries or us_segments; us_market holds us:market for the timing study.
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: universe
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - regions
+                  - countries
+                  - us_segments
+                  - us_market
+      - name: month
+        data_tests:
+          - not_null
+      - name: mom
+        data_tests:
+          - not_null
+      - name: trend
+        data_tests:
+          - not_null
+
+  - name: fund_signal_ic
+    description: The cross-sectional information coefficient of mom, val and their combination
+      against the return of the next month, for each universe and period. combo is the mean of the
+      z-scores of mom and val over the names that have both. A month counts for a signal when at
+      least five names have it and a next-month return, so mom, which needs 12 months of history,
+      has a longer sample than val and combo, which need 60. mean_ic is the mean of the monthly
+      Spearman correlations and t_nw its Newey-West t with a lag of 5. spread_ann
+      is the mean monthly return of the top third of names by signal less the bottom third, equal
+      weight, times 12, and spread_t_nw its Newey-West t. development is every formation month up
+      to fund_signal_dev_end; all is every month.
+    config:
+      fund_signal_dev_end: "{{ var('fund_signal_dev_end') }}"
+    columns:
+      - name: universe
+        data_tests:
+          - not_null
+      - name: signal
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - mom
+                  - val
+                  - combo
+      - name: period
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - development
+                  - all
+
+  - name: fund_trend_summary
+    description: A timing rule against buy and hold on each region and on the US market. At the end of
+      month t the timed book holds the index in month t+1 when trend is above 0, and the T-bill
+      otherwise. Returns are annualized geometrically, ann_vol is the monthly standard deviation times
+      the root of 12, sharpe is on the return over the T-bill return, and max_drawdown is the largest
+      fall from a peak of wealth (negative). The bh_ columns are the same measures for buy and hold.
+      share_invested is the share of months the timed book holds the index. development is every
+      formation month up to fund_signal_dev_end; all is every month.
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: period
+        data_tests:
+          - not_null

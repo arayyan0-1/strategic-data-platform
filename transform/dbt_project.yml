@@ -142,6 +142,10 @@ vars:
   fund_universe_min_returns: 240
   fund_universe_min_adv: 5000000
 
+  # Signals on the long index history (fund_signal_*): development is every formation month up to
+  # this date. The signals are judged on development and shown on all months.
+  fund_signal_dev_end: "2021-12-31"
+
 seeds:
   sdp:
     +schema: reference
