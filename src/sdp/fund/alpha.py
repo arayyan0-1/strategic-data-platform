@@ -7,7 +7,8 @@ z_i, with IC the monthly long-history information coefficient of the score and o
 active volatility a year. Rebalanced monthly, that is 12 times a year: shrink * IC * sqrt(12) *
 omega_i * z_i. A cash fund's active return is the benchmark's excess return with the sign reversed,
 so its forecast is -shrink times the mean excess return of the benchmark's long-history proxy
-in the current trend state.
+in the current trend state. A US-equity fund may also carry the forecast of the stocks it holds
+(fund_holdings_alpha), added to its own.
 """
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ class Forecast:
     shrink: float = SHRINK
     cross: bool = True
     trend: bool = True
+    hold: dict[tuple[str, dt.date], float] | None = None
 
 
 def month_end(d: dt.date) -> dt.date:
@@ -72,12 +74,21 @@ def source(f: Forecast):
             omega = np.sqrt(np.clip(np.diag(S_active), 0.0, None) * SESSIONS_A_YEAR)
             a[eq] = (f.shrink * f.ic * np.sqrt(12) * omega[eq]
                      * score(sig[eq, 0], sig[eq, 1]))
+        if f.hold:
+            a[eq] += np.array([f.hold.get((p.funds[c], month), 0.0) or 0.0
+                               for c in np.asarray(cols)[eq]])
         bench = f.signals.get((p.benchmark, month), (None, None, None))[2]
         if f.trend and cash.any() and bench is not None and np.isfinite(bench):
             a[cash] = -f.shrink * (f.excess_up if bench > 0 else f.excess_down)
         return a
 
     return alpha
+
+
+def load_hold(wh: duckdb.DuckDBPyConnection) -> dict[tuple[str, dt.date], float]:
+    """Read the holdings forecast per (fund, month end)."""
+    return {(f, m): a for f, m, a in wh.execute(
+        "select fund, month, alpha_hold from fund.fund_holdings_alpha").fetchall()}
 
 
 def load(wh: duckdb.DuckDBPyConnection, dev_end: dt.date, **kw) -> Forecast:

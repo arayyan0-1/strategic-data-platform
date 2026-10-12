@@ -249,3 +249,15 @@ class TestAlpha:
         # Three funds at (0, 1, -1) in both signals: the top score is sqrt(3/2).
         assert a[1] == pytest.approx(0.5 * 0.05 * np.sqrt(12) * omega * np.sqrt(1.5))
         assert a[3] == pytest.approx(0.01)  # -0.5 * -0.02, the trend is negative
+
+    def test_the_holdings_forecast_adds_to_equity_funds_only(self):
+        from sdp.fund.alpha import Forecast, month_end, source
+
+        p = _panel()
+        p.role = ["equity", "equity", "equity", "cash"]
+        t = 300
+        m = month_end(p.dates[t])
+        f = Forecast(signals={}, ic=0.05, excess_up=0.0, excess_down=0.0, cross=False,
+                     trend=False, hold={("B", m): 0.004, ("D", m): 0.5})
+        a = source(f)(p, t, [0, 1, 2, 3], np.eye(4) * 1e-4)
+        assert a.tolist() == pytest.approx([0.0, 0.004, 0.0, 0.0])
