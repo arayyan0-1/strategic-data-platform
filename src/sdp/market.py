@@ -252,8 +252,25 @@ def build(wh: duckdb.DuckDBPyConnection) -> dict:
             select count(*) as n_funds, count(*) filter (where holdings_tracked) as n_tracked,
                    max(last_nav_date) as nav_date
             from core.etfs""")
+        tracked = _rows(wh, """
+            with h as (select fund, max(date) as holdings_date
+                       from core.etf_holdings group by fund),
+                 s as (select distinct fund from core.etf_daily where source = 'ssga_history')
+            select e.fund as ticker, e.issuer, e.name, e.asset_class, e.total_net_assets,
+                   e.expense_ratio, h.holdings_date, s.fund is not null as nav_history, e.n_days
+            from core.etfs e left join h using (fund) left join s using (fund)
+            order by e.total_net_assets desc nulls last""")
+        try:
+            paper = dict(wh.execute(
+                "select fund, coalesce(excluded_by, 'candidate') from fund.fund_candidates"
+            ).fetchall())
+        except duckdb.Error:
+            paper = {}
+        for r in tracked:
+            r["paper_fund"] = paper.get(r["ticker"])
         return {
             **(head[0] if head else {}), **(funds[0] if funds else {}),
+            "funds": tracked,
             "hardest": _rows(wh, borrow + " order by fee_rate desc nulls last limit 30"),
             "rising": _rows(wh, borrow + """ and fee_rate_5 is not null
                 order by fee_rate - fee_rate_5 desc limit 30"""),

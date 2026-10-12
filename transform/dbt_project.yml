@@ -135,6 +135,13 @@ vars:
   fund_spec_vol_half_life: 21
   fund_spec_vol_min_obs: 21
 
+  # Paper fund (fund_candidates, fund_universe). The screener asset classes the fund may hold. A
+  # candidate is eligible on a session with fund_universe_min_returns returns in the last
+  # fund_min_returns rows and fund_universe_min_adv of trailing dollar volume.
+  fund_asset_classes: ["Equity"]
+  fund_universe_min_returns: 240
+  fund_universe_min_adv: 5000000
+
 seeds:
   sdp:
     +schema: reference
@@ -159,3 +166,5 @@ models:
         +schema: factors
       monitor:
         +schema: monitor
+      fund:
+        +schema: fund

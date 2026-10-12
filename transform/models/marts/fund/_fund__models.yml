@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: fund_candidates
+    description: Every ETF of the two screeners, with the rule that keeps it out of the paper fund
+      (excluded_by), or is_candidate when it is a broad fund of an allowed asset class.
+      expense_ratio is a fraction a year.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+          - unique
+
+  - name: fund_universe
+    description: One row per candidate fund and session, with what is known at the close (returns,
+      trailing dollar volume, volatility, the modelled half spread, the expense ratio) and
+      whether the fund is eligible that day.

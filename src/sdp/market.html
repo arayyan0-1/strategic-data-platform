@@ -385,7 +385,9 @@
     <div class="grid2e" style="margin-top:12px">
       <div class="panel"><h3>Unusual premiums and discounts</h3><table id="etf-prem" class="tight"></table></div>
       <div class="panel"><h3>Index changes in the tracked ETFs, 30 days</h3><table id="etf-chg" class="tight"></table></div>
-    </div></section>
+    </div>
+    <div class="panel" style="margin-top:12px"><h3>Funds tracked</h3><div class="tabs" id="etf-tabs"></div>
+      <table id="etf-all" class="tight"></table></div></section>
 
   <section id="calendars" data-nav="seasonality"><h2>Seasonality and event studies</h2>
     <div class="grid2e">
@@ -1593,6 +1595,7 @@ function shorts() {
 const usd = v => nil(v) ? '<span class="dim">–</span>'
   : `<span class="${v > 0 ? "up" : v < 0 ? "down" : "dim"}">${v < 0 ? "−" : "+"}$${big(Math.abs(v))}</span>`;
 const fee = v => nil(v) ? "–" : v.toFixed(2) + "%";
+let FUNDS_VIEW = "all";
 function lending() {
   const L = DATA.lending; if (!L) return;
   $("lend-note").textContent = (L.date
@@ -1624,7 +1627,28 @@ function lending() {
       <td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").slice(0, 22))}</span></td>
       <td>${pct(r.weight, 2, false)}</td></tr>`), 5, 8)
       || '<tr><td class="dim" colspan="5">No change yet: it needs two files of a fund.</td></tr>');
-  for (const id of ["lend-hard", "lend-up", "etf-in", "etf-out", "etf-prem", "etf-chg"]) foldClicks($(id), lending);
+  const all = L.funds || [];
+  const views = [["all", "all", () => true],
+    ["holdings", "holdings collected", r => r.holdings_date],
+    ["history", "NAV history", r => r.nav_history],
+    ["paper", "paper fund candidates", r => r.paper_fund === "candidate"]];
+  if (!views.some(([k]) => k === FUNDS_VIEW)) FUNDS_VIEW = "all";
+  tabs($("etf-tabs"), views.map(([k, t, f]) => [k, `${t} (${all.filter(f).length})`]), FUNDS_VIEW,
+    k => { FUNDS_VIEW = k; lending(); });
+  const keepRow = views.find(([k]) => k === FUNDS_VIEW)[2];
+  const why = {asset_class: "not equity", single_country: "one country", overlay: "overlay", active: "active",
+    screened: "screened", sector_or_theme: "sector or theme", no_prices: "no prices"};
+  $("etf-all").innerHTML = `<tr><th>Fund</th><th class="l">Issuer</th><th class="l">Class</th><th>Assets</th><th>Fee</th>
+      <th title="as-of date of the newest holdings file">Holdings</th><th title="SSGA NAV and shares since inception">NAV history</th>
+      <th title="days of NAV, shares and flow">Days</th><th class="l" title="the paper fund's universe rule">Paper fund</th></tr>` +
+    (foldList("etf:all", all.filter(keepRow).map(r => `<tr><td class="l">${tk(r.ticker)} <span class="name">${esc((r.name || "").replace(/^(iShares|State Street( SPDR)?|SPDR)\s*/, "").slice(0, 34))}</span></td>
+      <td class="l dim">${esc(r.issuer || "")}</td><td class="l dim">${esc(r.asset_class || "")}</td>
+      <td class="dim">${big(r.total_net_assets)}</td><td class="dim">${nil(r.expense_ratio) ? "–" : r.expense_ratio.toFixed(2) + "%"}</td>
+      <td>${r.holdings_date || '<span class="dim">–</span>'}</td><td>${r.nav_history ? "yes" : '<span class="dim">–</span>'}</td>
+      <td class="dim">${r.n_days ?? "–"}</td>
+      <td class="l">${r.paper_fund === "candidate" ? "candidate" : `<span class="dim">${esc(why[r.paper_fund] || "–")}</span>`}</td></tr>`), 9, 10)
+      || '<tr><td class="dim" colspan="9">No screener pull yet.</td></tr>');
+  for (const id of ["lend-hard", "lend-up", "etf-in", "etf-out", "etf-prem", "etf-chg", "etf-all"]) foldClicks($(id), lending);
 }
 
 let SEASON = {calendar: "month", period: "since 1963", factor: "market"};
