@@ -6,6 +6,7 @@ the book bounds every target from below.
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -130,6 +131,10 @@ def problem(p: Panel, t: int, cols: list[int], w0: np.ndarray, lower: np.ndarray
     cost = np.array([trade_cost(size, p.half_spread[t, c], p.sigma[t, c], p.adv[t, c]) / size
                      for c in cols])
     S_active = covariance.active(Sall, b)[:n, :n] + ACTIVE_VAR_FLOOR * np.eye(n)
+    budget = cfg.budget
+    floor = getattr(alpha, "cash_floor", None)
+    if floor is not None and p.is_cash(cols).any():
+        budget = dataclasses.replace(budget, cash_min=floor(p, t))
     return Problem(
         names=[p.funds[c] for c in cols], X=X, y=y, S=Sall[:n, :n], S_active=S_active,
         fee=np.nan_to_num(p.fee[cols]),
@@ -137,7 +142,7 @@ def problem(p: Panel, t: int, cols: list[int], w0: np.ndarray, lower: np.ndarray
         else np.asarray(alpha(p, t, cols, S_active), dtype=float),
         cost=cost, w0=w0, lower=lower, upper=upper,
         benchmark=p.benchmark, risk_aversion=cfg.risk_aversion, amortize=cfg.amortize,
-        cash=p.is_cash(cols), budget=cfg.budget)
+        cash=p.is_cash(cols), budget=budget)
 
 
 def _decide(p: Panel, book: Book, t: int, px: np.ndarray, cfg: Config,

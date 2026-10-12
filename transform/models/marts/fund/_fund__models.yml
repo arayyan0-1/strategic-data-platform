@@ -101,3 +101,9 @@ models:
       - name: period
         data_tests:
           - not_null
+
+  - name: fund_signals
+    description: The signals of each candidate fund at the end of each month, from its spliced monthly
+      series (its own return where it has a full month, else the return of the index it maps to in
+      fund_index_map). mom, val and trend are defined as in fund_signal_history, and a window counts
+      only when its months are consecutive.

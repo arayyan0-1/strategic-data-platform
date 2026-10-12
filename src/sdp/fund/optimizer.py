@@ -27,6 +27,7 @@ class Budget:
     risk_aversion: float = 5.0
     cash_max: float = 0.30
     horizon: int = 63
+    cash_min: float = 0.0
 
 
 @dataclass
@@ -62,8 +63,10 @@ def solve(p: Problem, alpha: np.ndarray, cash: np.ndarray, budget: Budget,
                             - trade @ cp.abs(w - p.w0))
     base = [cp.sum(w) == 1, w >= p.lower, w <= p.upper]
     if cash.any():
-        base.append(cp.sum(w[np.flatnonzero(cash)]) <= max(budget.cash_max,
-                                                            float(p.lower[cash].sum())))
+        held = cp.sum(w[np.flatnonzero(cash)])
+        base.append(held <= max(budget.cash_max, budget.cash_min, float(p.lower[cash].sum())))
+        if budget.cash_min > 0:
+            base.append(held >= budget.cash_min)
     capped = base + [np.sqrt(SESSIONS_A_YEAR) * cp.norm(L.T @ w, 2) <= budget.te_max]
     prob = cp.Problem(objective, capped)
     prob.solve(solver=cp.CLARABEL)

@@ -11,7 +11,7 @@ import numpy as np
 
 from sdp import dal
 from sdp.config import settings
-from sdp.fund import backtest
+from sdp.fund import alpha, backtest
 from sdp.fund.book import RULES
 from sdp.fund.covariance import METHODS
 from sdp.fund.data import BENCHMARK, load, load_factors
@@ -27,6 +27,30 @@ COLUMNS = (("strategy", "strategy", "<20", ""), ("return", "ret", ">7", ".1%"),
            ("fee_bp", "fee", ">5", ".1f"), ("names", "names", ">5", ".1f"),
            ("locked", "lock", ">5", ".1f"), ("te_bias", "bias", ">5", ".2f"),
            ("cash", "cash", ">5", ".0%"), ("failed", "fail", ">4", ""))
+
+
+# Which parts of the forecast each --alpha choice turns on: (cross, trend, holdings, signal).
+ALPHAS = {
+    "none": (False, False, False, "combo"),
+    "cross": (True, False, False, "combo"),
+    "trend": (False, True, False, "combo"),
+    "both": (True, True, False, "combo"),
+    "hold": (False, False, True, "combo"),
+    "all": (True, True, True, "combo"),
+    "mom": (True, False, False, "mom"),
+}
+DEV_END = dt.date(2021, 12, 31)
+
+
+def _forecast(wh, args):
+    cross, trend, hold, signal = ALPHAS[args.alpha]
+    if args.alpha == "none" and not args.trend_rule:
+        return None
+    f = alpha.load(wh, DEV_END, signal=signal, cross=cross, trend=trend,
+                   trend_rule=args.trend_rule)
+    if hold:
+        f.hold = alpha.load_hold(wh)
+    return alpha.source(f)
 
 
 def _json(x):
@@ -71,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
     bt.add_argument("--cash-max", type=float, default=0.30)
     bt.add_argument("--band", type=float, default=0.005,
                     help="no-trade band: a trade under this share of NAV is skipped")
+    bt.add_argument("--alpha", default="none", choices=tuple(ALPHAS),
+                    help="the forecast: none (fees only), cross, trend, both, hold, all, or "
+                         "mom (momentum alone, chosen after the long-history results)")
+    bt.add_argument("--trend-rule", type=float, default=0.0,
+                    help="hold this much cash while ACWI's 12-month trend is negative")
     args = ap.parse_args(argv)
 
     names = list(STRATEGIES) if args.strategies == "all" else args.strategies.split(",")
@@ -79,13 +108,15 @@ def main(argv: list[str] | None = None) -> int:
         p = load(wh, args.benchmark)
         start, end = _period(p, wh, args)
         fd = load_factors(wh, p.keys) if args.covariance == "factor" else None
+        source = _forecast(wh, args)
     finally:
         wh.close()
     rows = backtest.decision_rows(p, start, end)
     print(f"{args.period}: {len(rows)} decisions from {p.dates[rows[0]]} to "
           f"{p.dates[rows[-1]]}, returns to {end}, benchmark {args.benchmark}, "
           f"covariance {args.covariance}, rule {args.rule}, cap {args.cap:.0%}, "
-          f"risk aversion {args.risk_aversion:g}")
+          f"risk aversion {args.risk_aversion:g}, alpha {args.alpha}, "
+          f"trend rule {args.trend_rule:.0%}")
     print(" ".join(f"{h:{w}}" for _, h, w, _ in COLUMNS))
     out = []
     for name in names:
@@ -94,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
                               capital=args.capital, min_trade=args.band,
                               budget=Budget(te_max=args.te_max, risk_aversion=args.te_aversion,
                                             cash_max=args.cash_max))
-        r = backtest.run(p, cfg, start, end, fd)
+        r = backtest.run(p, cfg, start, end, fd, source)
         s = backtest.summary(r)
         print(" ".join(f"{s[k]:{w}{f}}" for k, _, w, f in COLUMNS), flush=True)
         out.append({"summary": s, "config": dataclasses.asdict(cfg),
@@ -103,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     folder = settings.data_root / "fund" / "backtests"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
-    path = folder / f"{args.period}-{args.covariance}-{stamp}.json"
+    path = folder / f"{args.period}-{args.covariance}-{args.alpha}-{stamp}.json"
     path.write_text(json.dumps(out, default=_json))
     if args.period == "holdout":
         with (settings.data_root / "fund" / "holdout_reads.jsonl").open("a") as fh:
