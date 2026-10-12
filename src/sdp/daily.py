@@ -30,7 +30,16 @@ from urllib.parse import urlsplit
 
 from sdp import backfill, dal
 from sdp.config import settings
-from sdp.ingest import etf_funds, etf_holdings, etf_nav_history, fred, french, ibkr_borrow, qfactors
+from sdp.ingest import (
+    etf_funds,
+    etf_holdings,
+    etf_nav_history,
+    fred,
+    french,
+    french_international,
+    ibkr_borrow,
+    qfactors,
+)
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_ticker_details as details
 
@@ -38,7 +47,7 @@ log = logging.getLogger("sdp.daily")
 
 # Public current-state sources. Each pulls when its table is older than the MAX_AGE_DAYS
 # of its module.
-PUBLIC = {m.DATASET.name: m for m in (french, fred, qfactors)}
+PUBLIC = {m.DATASET.name: m for m in (french, french_international, fred, qfactors)}
 CURRENT_STATE = ["massive_splits", "massive_dividends", *PUBLIC]
 
 EVENT_STREAMS = {

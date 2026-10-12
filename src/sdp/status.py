@@ -78,6 +78,11 @@ CATALOG = [
            "Weekly; the library lags about two months",
            "Five factors, momentum, reversal and 12 industries, daily since 1963.",
            "stg_french__factors", "days", dal.FRENCH),
+    Source("french_international", "Public data", "French international and US history",
+           "Kenneth French Data Library", "Weekly; the library lags about two months",
+           "Monthly returns of seven regions and 21 countries in dollars, and US size, value, "
+           "momentum, profitability and variance portfolios since 1926.",
+           "stg_french__international", "monthly returns", dal.FRENCH_INTERNATIONAL),
     Source("q_factors", "Public data", "q-factors", "global-q.org",
            "Monthly; a new vintage about once a year", "The q5 factors, daily since 1967.",
            "stg_global_q__factors", "days", dal.QFACTORS),

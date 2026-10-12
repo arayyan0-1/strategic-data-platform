@@ -75,6 +75,9 @@ TICKER_DETAILS = Dataset("massive_ticker_details", "date", union_by_name=True)
 # The library restates the whole history in each file.
 FRENCH = Dataset("french_factors", None)
 
+# Monthly returns of regions, countries and long US portfolios from the same library.
+FRENCH_INTERNATIONAL = Dataset("french_international", None)
+
 # FRED revises values and serves a rolling window of some series, so the table folds
 # the kept pulls.
 FRED = Dataset("fred_series", None)
@@ -94,7 +97,8 @@ ETF_NAV_HISTORY = Dataset("etf_nav_history", None)
 ETF_HOLDINGS = Dataset("etf_holdings", "date", union_by_name=True, per_member=True)
 
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
-                                SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRED, QFACTORS,
+                                SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRENCH_INTERNATIONAL, FRED,
+                                QFACTORS,
                                 IBKR_BORROW, ETF_FUNDS, ETF_NAV_HISTORY, ETF_HOLDINGS)}
 
 _con: duckdb.DuckDBPyConnection | None = None
@@ -282,6 +286,14 @@ def ticker_details(start: dt.date | None = None, end: dt.date | None = None):
 def french_factors():
     """Return the Fama-French daily factors as fractions. crsp_month names the library version."""
     return current(FRENCH)
+
+
+def french_international():
+    """Return the French library's monthly returns in long form, as fractions.
+
+    One row per file, series, column_name and month (the last day of the month).
+    """
+    return current(FRENCH_INTERNATIONAL)
 
 
 def fred_series():
