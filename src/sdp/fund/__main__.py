@@ -16,6 +16,7 @@ from sdp.fund.book import RULES
 from sdp.fund.covariance import METHODS
 from sdp.fund.data import BENCHMARK, load, load_factors
 from sdp.fund.objectives import STRATEGIES
+from sdp.fund.optimizer import Budget
 
 # (summary key, header, width, format) of each printed column.
 COLUMNS = (("strategy", "strategy", "<20", ""), ("return", "ret", ">7", ".1%"),
@@ -25,7 +26,7 @@ COLUMNS = (("strategy", "strategy", "<20", ""), ("return", "ret", ">7", ".1%"),
            ("turnover", "turn", ">5", ".2f"), ("cost_bp", "cost", ">5", ".1f"),
            ("fee_bp", "fee", ">5", ".1f"), ("names", "names", ">5", ".1f"),
            ("locked", "lock", ">5", ".1f"), ("te_bias", "bias", ">5", ".2f"),
-           ("failed", "fail", ">4", ""))
+           ("cash", "cash", ">5", ".0%"), ("failed", "fail", ">4", ""))
 
 
 def _json(x):
@@ -64,6 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     bt.add_argument("--rule", default="last_buy", choices=RULES)
     bt.add_argument("--risk-aversion", type=float, default=100.0)
     bt.add_argument("--capital", type=float, default=100_000.0)
+    bt.add_argument("--te-max", type=float, default=0.03, help="te_budget: tracking-error cap")
+    bt.add_argument("--te-aversion", type=float, default=5.0,
+                    help="te_budget: risk aversion on annual tracking variance")
+    bt.add_argument("--cash-max", type=float, default=0.30)
+    bt.add_argument("--band", type=float, default=0.005,
+                    help="no-trade band: a trade under this share of NAV is skipped")
     args = ap.parse_args(argv)
 
     names = list(STRATEGIES) if args.strategies == "all" else args.strategies.split(",")
@@ -84,7 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     for name in names:
         cfg = backtest.Config(strategy=name, covariance=args.covariance, cap=args.cap,
                               rule=args.rule, risk_aversion=args.risk_aversion,
-                              capital=args.capital)
+                              capital=args.capital, min_trade=args.band,
+                              budget=Budget(te_max=args.te_max, risk_aversion=args.te_aversion,
+                                            cash_max=args.cash_max))
         r = backtest.run(p, cfg, start, end, fd)
         s = backtest.summary(r)
         print(" ".join(f"{s[k]:{w}{f}}" for k, _, w, f in COLUMNS), flush=True)

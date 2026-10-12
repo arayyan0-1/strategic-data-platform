@@ -60,6 +60,8 @@ class Problem:
     benchmark: str
     risk_aversion: float = 100.0
     amortize: int = 63
+    cash: np.ndarray | None = None
+    budget: object | None = None
 
     @property
     def mu_active(self) -> np.ndarray:
@@ -219,12 +221,32 @@ def robust_cvar(p: Problem) -> np.ndarray:
     return m.fit(p.X).weights_
 
 
+def _cash(p: Problem) -> np.ndarray:
+    return np.zeros(len(p.names), dtype=bool) if p.cash is None else p.cash
+
+
+def te_budget(p: Problem) -> np.ndarray:
+    """Active mean-variance on alpha less fees under a tracking-error budget (optimizer.py)."""
+    from sdp.fund import optimizer
+
+    return optimizer.solve(p, p.alpha, _cash(p), p.budget or optimizer.Budget()).weights
+
+
+def te_budget_resampled(p: Problem) -> np.ndarray:
+    """te_budget averaged over bootstrap draws of the covariance (optimizer.py)."""
+    from sdp.fund import optimizer
+
+    return optimizer.solve_resampled(p, p.alpha, _cash(p), p.budget or optimizer.Budget()).weights
+
+
 STRATEGIES: dict[str, tuple[str, Callable[[Problem], np.ndarray]]] = {
     "benchmark": ("relative", benchmark),
     "min_te": ("relative", min_te),
     "mvo_te": ("relative", mvo_te),
     "robust_te": ("relative", robust_te),
     "resampled_te": ("relative", resampled_te),
+    "te_budget": ("budget", te_budget),
+    "te_budget_resampled": ("budget", te_budget_resampled),
     "equal_weight": ("absolute", equal_weight),
     "inverse_vol": ("absolute", inverse_vol),
     "min_variance": ("absolute", min_variance),

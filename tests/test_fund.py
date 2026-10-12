@@ -159,3 +159,90 @@ def test_holding_the_benchmark_tracks_it():
     cfg = backtest.Config(strategy="benchmark", window=126, covariance="sample")
     s = backtest.summary(backtest.run(p, cfg, p.dates[130], p.dates[-1]))
     assert s["tracking_error"] < 0.002
+
+
+class TestOptimizer:
+    def test_with_no_cap_it_matches_the_skfolio_utility(self):
+        from sdp.fund import optimizer
+
+        p = _problem()
+        p.risk_aversion = 5.0
+        ours = optimizer.solve(p, p.alpha, np.zeros(6, dtype=bool),
+                               optimizer.Budget(te_max=10.0, risk_aversion=5.0)).weights
+        ref = STRATEGIES["mvo_te"][1](p)
+        assert ours == pytest.approx(ref, abs=1e-4)
+
+    def test_a_strong_forecast_spends_the_whole_budget(self):
+        from sdp.fund import optimizer
+
+        p = _problem()
+        alpha = np.array([0.0, 0.2, 0.0, 0.0, 0.0, 0.0])
+        s = optimizer.solve(p, alpha, np.zeros(6, dtype=bool),
+                            optimizer.Budget(te_max=0.002, risk_aversion=1.0))
+        assert s.te_capped and s.te == pytest.approx(0.002, rel=1e-3)
+        assert s.weights.sum() == pytest.approx(1.0)
+
+    def test_cash_stays_under_its_cap(self):
+        from sdp.fund import optimizer
+
+        p = _problem()
+        cash = np.array([False, False, False, False, False, True])
+        alpha = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        s = optimizer.solve(p, alpha, cash, optimizer.Budget(te_max=10.0, risk_aversion=0.1,
+                                                             cash_max=0.3))
+        assert s.weights[5] <= 0.3 + 1e-6
+
+    def test_a_lock_that_breaks_the_cap_drops_the_cap(self):
+        from sdp.fund import optimizer
+
+        lower = np.array([0.0, 0.9, 0.0, 0.0, 0.0, 0.0])
+        p = _problem(lower=lower)
+        s = optimizer.solve(p, p.alpha, np.zeros(6, dtype=bool),
+                            optimizer.Budget(te_max=1e-5, risk_aversion=5.0))
+        assert not s.te_capped
+        assert s.weights[1] >= 0.9 - 1e-6 and s.weights.sum() == pytest.approx(1.0)
+
+    def test_the_resampled_mean_is_feasible(self):
+        from sdp.fund import optimizer
+
+        lower = np.array([0.0, 0.0, 0.2, 0.0, 0.0, 0.0])
+        p = _problem(lower=lower)
+        s = optimizer.solve_resampled(p, p.alpha, np.zeros(6, dtype=bool), optimizer.Budget())
+        assert s.weights.sum() == pytest.approx(1.0, abs=1e-6)
+        assert np.all(s.weights >= lower - 1e-6)
+
+
+def test_weekly_covariance_cancels_noise_that_reverses():
+    rng = np.random.default_rng(5)
+    common = rng.normal(0, 0.01, size=(2000, 1))
+    noise = rng.normal(0, 0.005, size=(2001, 2))
+    X = common + np.diff(noise, axis=0)  # a price error that reverses the next day
+    A = X[:, 0] - X[:, 1]
+    daily = covariance.estimate(X, "qis")
+    weekly = covariance.estimate(X, "weekly")
+    act = lambda S: S[0, 0] + S[1, 1] - 2 * S[0, 1]  # noqa: E731
+    assert act(daily) == pytest.approx(A.var(), rel=0.1)
+    assert act(weekly) < 0.4 * act(daily)
+
+
+class TestAlpha:
+    def test_zscore_ignores_missing_and_clips(self):
+        from sdp.fund.alpha import zscore
+
+        z = zscore(np.array([1.0, 2.0, np.nan, 3.0, 100.0]))
+        assert z[2] == 0.0 and z.max() <= 3.0 and abs(z[[0, 1, 3, 4]].mean()) < 1e-12
+
+    def test_equity_alpha_follows_the_score_and_cash_follows_the_trend(self):
+        from sdp.fund.alpha import Forecast, month_end, source
+
+        p = _panel()
+        p.role = ["equity", "equity", "equity", "cash"]
+        t = 300
+        m = month_end(p.dates[t])
+        sig = {("ACWI", m): (0.0, 0.0, -0.1), ("B", m): (0.2, 0.1, 0.0),
+               ("C", m): (-0.2, -0.1, 0.0), ("D", m): (None, None, None)}
+        f = Forecast(signals=sig, ic=0.05, excess_up=0.08, excess_down=-0.02)
+        S = np.diag([1e-6, 1e-4, 1e-4, 1e-4])
+        a = source(f)(p, t, [0, 1, 2, 3], S)
+        assert a[1] > 0 > a[2]
+        assert a[3] == pytest.approx(0.01)  # -0.5 * -0.02, the trend is negative

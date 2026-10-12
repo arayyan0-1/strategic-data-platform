@@ -7,6 +7,7 @@ the book bounds every target from below.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -21,6 +22,7 @@ from sdp.fund.objectives import (
     Problem,
     project,
 )
+from sdp.fund.optimizer import Budget
 
 IMPACT = 0.60
 # The trade size, as a share of NAV, at which a fund's cost per unit traded is quoted to the
@@ -43,6 +45,17 @@ class Config:
     risk_aversion: float = 100.0
     amortize: int = 63
     dedup_corr: float = 0.995
+    budget: Budget = field(default_factory=Budget)
+
+
+# An alpha source maps (panel, decision row, columns, active covariance) to a forecast a year per
+# column, before fees. None means no forecast.
+AlphaSource = Callable[[Panel, int, list[int], np.ndarray], np.ndarray]
+
+
+def holds_cash(cfg: Config) -> bool:
+    """Only the tracking-error-budget objectives may hold the cash funds."""
+    return STRATEGIES[cfg.strategy][0] == "budget"
 
 
 @dataclass
@@ -78,6 +91,9 @@ def universe(p: Panel, t: int, held: set[int], cfg: Config) -> list[int]:
     correlate at dedup_corr or more (the cheapest, then the most traded), plus every fund held
     and the benchmark fund."""
     cols = np.flatnonzero(p.eligible[t])
+    cash = p.is_cash(cols)
+    if not holds_cash(cfg):
+        cols = cols[~cash]
     X = np.nan_to_num(p.ret[t - cfg.window + 1:t + 1][:, cols])
     vol = X.std(axis=0)
     cols, X = cols[vol > 0], X[:, vol > 0]
@@ -94,7 +110,8 @@ def universe(p: Panel, t: int, held: set[int], cfg: Config) -> list[int]:
 
 
 def problem(p: Panel, t: int, cols: list[int], w0: np.ndarray, lower: np.ndarray,
-            upper: np.ndarray, nav: float, cfg: Config, fd: FactorData | None) -> Problem:
+            upper: np.ndarray, nav: float, cfg: Config, fd: FactorData | None,
+            alpha: AlphaSource | None = None) -> Problem:
     rows = slice(t - cfg.window + 1, t + 1)
     X = np.nan_to_num(p.ret[rows][:, cols])
     y = np.nan_to_num(p.bench_ret[rows])
@@ -112,16 +129,19 @@ def problem(p: Panel, t: int, cols: list[int], w0: np.ndarray, lower: np.ndarray
     size = QUOTE_SIZE * nav
     cost = np.array([trade_cost(size, p.half_spread[t, c], p.sigma[t, c], p.adv[t, c]) / size
                      for c in cols])
+    S_active = covariance.active(Sall, b)[:n, :n] + ACTIVE_VAR_FLOOR * np.eye(n)
     return Problem(
-        names=[p.funds[c] for c in cols], X=X, y=y, S=Sall[:n, :n],
-        S_active=covariance.active(Sall, b)[:n, :n] + ACTIVE_VAR_FLOOR * np.eye(n),
+        names=[p.funds[c] for c in cols], X=X, y=y, S=Sall[:n, :n], S_active=S_active,
         fee=np.nan_to_num(p.fee[cols]),
-        alpha=np.zeros(n), cost=cost, w0=w0, lower=lower, upper=upper,
-        benchmark=p.benchmark, risk_aversion=cfg.risk_aversion, amortize=cfg.amortize)
+        alpha=np.zeros(n) if alpha is None
+        else np.asarray(alpha(p, t, cols, S_active), dtype=float),
+        cost=cost, w0=w0, lower=lower, upper=upper,
+        benchmark=p.benchmark, risk_aversion=cfg.risk_aversion, amortize=cfg.amortize,
+        cash=p.is_cash(cols), budget=cfg.budget)
 
 
 def _decide(p: Panel, book: Book, t: int, px: np.ndarray, cfg: Config,
-            fd: FactorData | None) -> tuple[dict[int, float], dict]:
+            fd: FactorData | None, alpha: AlphaSource | None) -> tuple[dict[int, float], dict]:
     nav = book.value({f: px[p.col(f)] for f in book.funds()})
     held = {p.col(f) for f in book.funds()}
     cols = universe(p, t, held, cfg)
@@ -134,7 +154,7 @@ def _decide(p: Panel, book: Book, t: int, px: np.ndarray, cfg: Config,
     lower = np.maximum(locked * prices / nav, 0.0)
     upper = np.where(p.eligible[t, cols], cfg.cap, np.minimum(cfg.cap, w0))
     upper = np.maximum(upper, lower)
-    prob = problem(p, t, cols, w0, lower, upper, nav, cfg, fd)
+    prob = problem(p, t, cols, w0, lower, upper, nav, cfg, fd, alpha)
     failed = False
     try:
         raw = np.asarray(STRATEGIES[cfg.strategy][1](prob), dtype=float)
@@ -147,6 +167,8 @@ def _decide(p: Panel, book: Book, t: int, px: np.ndarray, cfg: Config,
         "te_ex_ante": float(np.sqrt(max(w @ prob.S_active @ w, 0.0) * SESSIONS_A_YEAR)),
         "vol_ex_ante": float(np.sqrt(max(w @ prob.S @ w, 0.0) * SESSIONS_A_YEAR)),
         "fee": float(w @ prob.fee),
+        "cash": float(w[prob.cash].sum()),
+        "alpha": float(w @ prob.alpha),
     }
     return dict(zip(cols, w, strict=True)), info
 
@@ -188,7 +210,7 @@ def _execute(p: Panel, book: Book, t: int, target: dict[int, float], px_open: np
 
 
 def run(p: Panel, cfg: Config, start: dt.date, end: dt.date,
-        fd: FactorData | None = None) -> Result:
+        fd: FactorData | None = None, alpha: AlphaSource | None = None) -> Result:
     """Run one strategy from the first decision date on or after start to end."""
     if cfg.strategy not in STRATEGIES:
         raise ValueError(f"Unknown strategy {cfg.strategy!r}. Known: {sorted(STRATEGIES)}.")
@@ -221,7 +243,7 @@ def run(p: Panel, cfg: Config, start: dt.date, end: dt.date,
         bench.append(np.nan_to_num(p.bench_ret[t]) if t > rows[0] else 0.0)
         rf.append(p.rf[t] if t > rows[0] else 0.0)
         if t in decisions and t < last:
-            pending = _decide(p, book, t, px, cfg, fd)
+            pending = _decide(p, book, t, px, cfg, fd, alpha)
     result.nav = np.array(nav)
     result.bench = cfg.capital * np.cumprod(1 + np.array(bench))
     result.rf = np.array(rf)
@@ -264,6 +286,7 @@ def summary(r: Result) -> dict:
         "fee_bp": float(np.mean([i["fee"] for i in reb])) * 1e4,
         "names": float(np.mean([sum(w >= MIN_NAME_WEIGHT for w in i["weights"].values())
                                 for i in reb])),
+        "cash": float(np.mean([i["cash"] for i in reb])),
         "locked": float(np.mean([i["n_locked"] for i in reb])),
         "te_bias": float(np.std(z, ddof=1)) if len(z) > 2 else np.nan,
         "failed": sum(i["failed"] for i in reb),

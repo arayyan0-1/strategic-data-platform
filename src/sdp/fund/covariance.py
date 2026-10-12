@@ -5,8 +5,11 @@ import numpy as np
 
 from sdp.risk import ew_cov, qis, sample_cov
 
-METHODS = ("sample", "ewma", "qis", "factor")
+METHODS = ("sample", "ewma", "qis", "weekly", "factor")
 EWMA_HALF_LIFE = 63
+# "weekly" estimates from overlapping sums of this many daily returns, then divides by it. Noise
+# in a closing price that reverses the next day cancels in the sum.
+WEEK = 5
 
 
 def estimate(X: np.ndarray, method: str) -> np.ndarray:
@@ -17,6 +20,9 @@ def estimate(X: np.ndarray, method: str) -> np.ndarray:
         return ew_cov(X, EWMA_HALF_LIFE)
     if method == "qis":
         return qis(X)
+    if method == "weekly":
+        c = np.cumsum(np.vstack([np.zeros(X.shape[1]), X]), axis=0)
+        return qis(c[WEEK:] - c[:-WEEK]) / WEEK
     raise ValueError(f"method must be one of {METHODS[:-1]} here, not {method!r}.")
 
 

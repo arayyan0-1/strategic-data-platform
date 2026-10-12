@@ -44,6 +44,12 @@ class Panel:
     benchmark: str
     bench_ret: np.ndarray
     holdout_start: dt.date
+    role: list[str] | None = None
+
+    def is_cash(self, cols) -> np.ndarray:
+        if self.role is None:
+            return np.zeros(len(cols), dtype=bool)
+        return np.array([self.role[c] == "cash" for c in cols])
 
     def col(self, fund: str) -> int:
         return self.funds.index(fund)
@@ -76,11 +82,13 @@ def load(wh: duckdb.DuckDBPyConnection, benchmark: str = BENCHMARK) -> Panel:
     cal = wh.execute("select date, coalesce(rf, 0) from core.rates order by date").fetchall()
     dates = [d for d, _ in cal]
     rf = np.array([x for _, x in cal], dtype=float)
-    meta = wh.execute("""
-        select security_key, fund, expense_ratio from fund.fund_candidates
+    cols = {r[0] for r in wh.execute("describe fund.fund_candidates").fetchall()}
+    role = "role" if "role" in cols else "'equity'"
+    meta = wh.execute(f"""
+        select security_key, fund, expense_ratio, {role} from fund.fund_candidates
         where is_candidate and security_key in (select security_key from fund.fund_universe)
         order by fund""").fetchall()
-    keys = [k for k, _, _ in meta]
+    keys = [m[0] for m in meta]
     rows = wh.execute("""
         select security_key, date, ret, adj_open, adj_close, eligible::double, half_spread,
                sigma, adv
@@ -94,12 +102,13 @@ def load(wh: duckdb.DuckDBPyConnection, benchmark: str = BENCHMARK) -> Panel:
     holdout = wh.execute(
         "select min(date) from research.eval_sessions where period = 'holdout'").fetchone()[0]
     return Panel(
-        dates=dates, funds=[f for _, f, _ in meta], keys=keys,
+        dates=dates, funds=[m[1] for m in meta], keys=keys,
         ret=arrays[0], adj_open=arrays[1], adj_close=arrays[2],
         eligible=np.nan_to_num(arrays[3]).astype(bool), half_spread=arrays[4],
         sigma=arrays[5], adv=arrays[6],
-        fee=np.array([f if f is not None else np.nan for _, _, f in meta], dtype=float),
+        fee=np.array([m[2] if m[2] is not None else np.nan for m in meta], dtype=float),
         rf=rf, benchmark=benchmark, bench_ret=bench_ret, holdout_start=holdout,
+        role=[m[3] for m in meta],
     )
 
 
