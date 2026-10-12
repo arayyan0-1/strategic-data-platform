@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     )
     ssga_fund_data_url: str = "https://www.ssga.com/library-content/products/fund-data/etfs/us"
 
+    # SEC EDGAR. www.sec.gov refuses a request without a contact in the User-Agent, which .env
+    # holds as SEC_USER_AGENT ("Name email").
+    sec_user_agent: str | None = None
+    sec_www_url: str = "https://www.sec.gov"
+    sec_data_url: str = "https://data.sec.gov"
+
     data_root: Path = _REPO_ROOT / "data"
     seeds_dir: Path = _REPO_ROOT / "transform" / "seeds"
 
