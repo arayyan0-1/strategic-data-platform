@@ -2,16 +2,20 @@ version: 2
 
 models:
   - name: fund_candidates
-    description: Every ETF of the two screeners, with the rule that keeps it out of the paper fund
-      (excluded_by), or is_candidate when it is a broad fund of an allowed asset class.
-      expense_ratio is a fraction a year.
+    description: Every ETF of the two screeners and of the seed fund_extra_etfs, with the rule that keeps
+      it out of the paper fund (excluded_by), or is_candidate when it passes. role is cash for a T-bill
+      fund (found by name) and equity for every other fund; only an equity fund must be of an allowed
+      asset class. A fund holding one country is allowed. source says where the row comes from
+      (screener or seed; a fund in both keeps its screener row). expense_ratio is a fraction a year.
     columns:
       - name: fund
         data_tests:
           - not_null
           - unique
+      - name: role
+        description: cash for a T-bill fund, else equity.
 
   - name: fund_universe
-    description: One row per candidate fund and session, with what is known at the close (returns,
-      trailing dollar volume, volatility, the modelled half spread, the expense ratio) and
-      whether the fund is eligible that day.
+    description: One row per candidate fund and session, with its role (equity or cash) and what is known
+      at the close (returns, trailing dollar volume, volatility, the modelled half spread, the expense
+      ratio) and whether the fund is eligible that day.

@@ -1,0 +1,44 @@
+fund,issuer,name,asset_class,sub_asset_class,region,country,expense_ratio,checked_on,source_url
+VTI,Vanguard,Vanguard Morningstar Total Stock Market ETF,Equity,All Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vti
+VOO,Vanguard,Vanguard S&P 500 ETF,Equity,Large Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/voo
+VV,Vanguard,Vanguard Morningstar Large-Cap ETF,Equity,Large Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vv
+VO,Vanguard,Vanguard Morningstar Mid-Cap ETF,Equity,Mid Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vo
+VB,Vanguard,Vanguard Morningstar Small-Cap ETF,Equity,Small Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vb
+VTV,Vanguard,Vanguard Morningstar Value ETF,Equity,Large Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vtv
+VUG,Vanguard,Vanguard Morningstar Growth ETF,Equity,Large Cap,North America,United States,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vug
+VOE,Vanguard,Vanguard Morningstar Mid-Cap Value ETF,Equity,Mid Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/voe
+VOT,Vanguard,Vanguard Morningstar Mid-Cap Growth ETF,Equity,Mid Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vot
+VBR,Vanguard,Vanguard Morningstar Small-Cap Value ETF,Equity,Small Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vbr
+VBK,Vanguard,Vanguard Morningstar Small-Cap Growth ETF,Equity,Small Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vbk
+VXF,Vanguard,Vanguard Extended Market ETF,Equity,Mid/Small Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vxf
+MGC,Vanguard,Vanguard Morningstar Mega Cap ETF,Equity,Large Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/mgc
+MGK,Vanguard,Vanguard Morningstar Mega Cap Growth ETF,Equity,Large Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/mgk
+MGV,Vanguard,Vanguard Morningstar Mega Cap Value ETF,Equity,Large Cap,North America,United States,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/mgv
+VONE,Vanguard,Vanguard Russell 1000 ETF,Equity,Large/Mid Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vone
+VONV,Vanguard,Vanguard Russell 1000 Value ETF,Equity,Large/Mid Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vonv
+VONG,Vanguard,Vanguard Russell 1000 Growth ETF,Equity,Large/Mid Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vong
+VTHR,Vanguard,Vanguard Russell 3000 ETF,Equity,All Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vthr
+VTWO,Vanguard,Vanguard Russell 2000 ETF,Equity,Small Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vtwo
+VTWV,Vanguard,Vanguard Russell 2000 Value ETF,Equity,Small Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vtwv
+VTWG,Vanguard,Vanguard Russell 2000 Growth ETF,Equity,Small Cap,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vtwg
+VOOG,Vanguard,Vanguard S&P 500 Growth ETF,Equity,Large Cap,North America,United States,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/voog
+VOOV,Vanguard,Vanguard S&P 500 Value ETF,Equity,Large Cap,North America,United States,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/voov
+IVOO,Vanguard,Vanguard S&P Mid-Cap 400 ETF,Equity,Mid Cap,North America,United States,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/ivoo
+IVOG,Vanguard,Vanguard S&P Mid-Cap 400 Growth ETF,Equity,Mid Cap,North America,United States,0.1,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/ivog
+IVOV,Vanguard,Vanguard S&P Mid-Cap 400 Value ETF,Equity,Mid Cap,North America,United States,0.1,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/ivov
+VIOO,Vanguard,Vanguard S&P Small-Cap 600 ETF,Equity,Small Cap,North America,United States,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vioo
+VIOG,Vanguard,Vanguard S&P Small-Cap 600 Growth ETF,Equity,Small Cap,North America,United States,0.1,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/viog
+VIOV,Vanguard,Vanguard S&P Small-Cap 600 Value ETF,Equity,Small Cap,North America,United States,0.1,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/viov
+VIG,Vanguard,Vanguard Dividend Appreciation ETF,Equity,Large Cap,North America,United States,0.04,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vig
+VYM,Vanguard,Vanguard High Dividend Yield ETF,Equity,Large Cap,North America,United States,0.04,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vym
+VT,Vanguard,Vanguard Total World Stock ETF,Equity,All Cap,Global,Broad,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vt
+VXUS,Vanguard,Vanguard Total International Stock ETF,Equity,All Cap,Global,Broad,0.05,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vxus
+VEA,Vanguard,Vanguard FTSE Developed Markets ETF,Equity,All Cap,Global,Broad,0.03,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vea
+VWO,Vanguard,Vanguard FTSE Emerging Markets ETF,Equity,All Cap,Global,Broad,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vwo
+VEU,Vanguard,Vanguard FTSE All-World ex-US ETF,Equity,Large/Mid Cap,Global,Broad,0.04,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/veu
+VSS,Vanguard,Vanguard FTSE All-World ex-US Small-Cap ETF,Equity,Small Cap,Global,Broad,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vss
+VIGI,Vanguard,Vanguard International Dividend Appreciation ETF,Equity,Large Cap,Global,Broad,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vigi
+VYMI,Vanguard,Vanguard International High Dividend Yield ETF,Equity,Large/Mid Cap,Global,Broad,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vymi
+VGK,Vanguard,Vanguard FTSE Europe ETF,Equity,All Cap,Europe,Broad,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vgk
+VPL,Vanguard,Vanguard FTSE Pacific ETF,Equity,All Cap,Asia Pacific,Broad,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vpl
+VBIL,Vanguard,Vanguard 0-3 Month Treasury Bill ETF,Fixed Income,Government,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vbil

@@ -43,3 +43,28 @@ seeds:
         max_overlap: double
         overlaps_with: varchar
         added_on: date
+
+  - name: fund_extra_etfs
+    description: ETFs that no screener lists and the paper fund may hold (the Vanguard funds), one row per
+      fund, each fee read on the fund's own page on checked_on. expense_ratio is a percent a year, as in
+      core.etfs. A fund the screeners also list keeps its screener row in fund_candidates. A fund whose
+      fee was not read does not belong here.
+    config:
+      column_types:
+        fund: varchar
+        issuer: varchar
+        name: varchar
+        asset_class: varchar
+        sub_asset_class: varchar
+        region: varchar
+        country: varchar
+        expense_ratio: double
+        checked_on: date
+        source_url: varchar
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: expense_ratio
+        data_tests:
+          - not_null
