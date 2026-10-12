@@ -246,3 +246,25 @@ models:
       - name: fund
         data_tests:
           - not_null
+
+  - name: int_index_returns
+    description: The monthly total return in dollars of each index of the long history, on the last
+      day of the month, with the US T-bill return of the month. The keys are region:<name> (market
+      less the risk-free rate plus the risk-free rate of the regional file), country:<name> (the
+      market portfolio of the country), us:market, us:small and us:big (the mean of three
+      portfolios), us:value, us:growth, us:momentum, us:quality, us:low_vol, and cash:tbill. A
+      month with an input missing has no row.
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: month
+        data_tests:
+          - not_null
+      - name: ret
+        data_tests:
+          - not_null
+      - name: rf
+        description: The one-month US T-bill return of the month, from the research factors.
+        data_tests:
+          - not_null

@@ -46,6 +46,13 @@ sources:
         description: >-
           The daily five factors, momentum, the short- and long-term reversal factors and
           the value-weighted returns of the 12 industry portfolios. Current state.
+      - name: international
+        identifier: french_international
+        description: >-
+          Monthly returns from the same library in long form (file, series, column, month,
+          value): regional five factors and momentum, the dollar market return of 21
+          countries, and US size, value, momentum, profitability and variance portfolios
+          since 1926. Fractions, on the last day of the month. Current state.
 
   - name: fred
     description: FRED of the St. Louis Fed, pulled daily.

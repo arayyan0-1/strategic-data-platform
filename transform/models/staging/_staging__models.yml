@@ -22,6 +22,11 @@ models:
   - name: stg_french__factors
     description: The Fama-French daily factors as fractions, with crsp_month, the version of the files.
 
+  - name: stg_french__international
+    description: Monthly returns of regions, countries and long US portfolios from the French
+      library, one row per file, series, column and month, as fractions on the last day of the
+      month. A missing value has no row.
+
   - name: stg_fred__series
     description: The FRED series, one row per series and date, in the units of FRED. A null
       value is a day with no observation.
