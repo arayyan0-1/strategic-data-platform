@@ -68,3 +68,22 @@ seeds:
       - name: expense_ratio
         data_tests:
           - not_null
+
+  - name: fund_index_map
+    description: The long-history index that stands in for each paper-fund candidate when a return signal
+      is computed, one row per candidate (equity and cash). index_key is a region (region:developed,
+      region:developed_ex_us, region:north_america, region:europe, region:japan,
+      region:asia_pacific_ex_japan, region:emerging), a developed country of the Fama-French international
+      countries file (country:<name> in lower case with underscores), a US series (us:market, us:small,
+      us:big, us:value, us:growth, us:momentum, us:quality, us:low_vol) or cash:tbill. It is empty when no
+      key fits. basis says why, and what the proxy leaves out. The map reads each fund's stated mandate,
+      never its returns. A candidate without a row is listed by a warning test.
+    config:
+      column_types:
+        fund: varchar
+        index_key: varchar
+        basis: varchar
+    columns:
+      - name: fund
+        data_tests:
+          - not_null

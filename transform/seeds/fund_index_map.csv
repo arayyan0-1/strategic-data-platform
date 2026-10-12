@@ -1,0 +1,243 @@
+fund,index_key,basis
+AAXJ,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, India); the French Asia Pacific ex Japan series is developed only"
+ACWI,region:developed,all-country world equity; emerging markets are missing from the proxy
+ACWV,region:developed,MSCI ACWI min vol; emerging markets and the low-volatility tilt are missing
+ACWX,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+AIA,region:emerging,"Asia 50: Taiwan, Korea and China are about 90% of holdings, though the issuer labels it developed"
+AQLT,region:developed,MSCI ACWI quality; emerging markets and the quality tilt are missing
+BIL,cash:tbill,"US T-bill ETF, cash"
+BILS,cash:tbill,"US T-bill ETF, cash"
+BKF,region:emerging,"Brazil, India and China; not in the French countries file"
+CNYA,region:emerging,China; not in the French countries file
+CWI,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+DGRO,us:value,US dividend payers; the dividend tilt is mapped to value
+DGT,region:developed,"Global Dow, 150 global blue chips; emerging markets are missing"
+DIA,us:big,"Dow Jones Industrial Average, 30 mega caps"
+DIVB,us:value,US dividend payers; the dividend tilt is mapped to value
+DVY,us:value,US dividend payers; the dividend tilt is mapped to value
+DVYA,region:asia_pacific_ex_japan,"Asia/Pacific dividend payers, developed markets; the Japan share is not checked and the dividend tilt is missing"
+DVYE,region:emerging,emerging markets dividend payers; the tilt is missing
+DWX,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+ECH,region:emerging,single emerging country; not in the French countries file
+ECNS,region:emerging,China; not in the French countries file
+EDEN,country:denmark,MSCI Denmark
+EDIV,region:emerging,emerging markets dividend payers; the tilt is missing
+EEM,region:emerging,"MSCI and FTSE Emerging Markets, broad"
+EEMA,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, India); the French Asia Pacific ex Japan series is developed only"
+EEMS,region:emerging,emerging markets small caps; the size tilt is missing
+EEMV,region:emerging,emerging markets min vol; the tilt is missing from the proxy
+EFA,region:developed_ex_us,"MSCI EAFE and EAFE IMI, developed ex US"
+EFAV,region:developed_ex_us,MSCI EAFE min vol; the low-volatility tilt is missing from the proxy
+EFG,region:developed_ex_us,MSCI EAFE growth tilt; the tilt is missing from the proxy
+EFNL,country:finland,MSCI Finland
+EFV,region:developed_ex_us,MSCI EAFE value tilt; the tilt is missing from the proxy
+EIDO,region:emerging,single emerging country; not in the French countries file
+EIRL,country:ireland,MSCI Ireland
+EIS,region:developed_ex_us,Israel is developed but not in the French countries file
+EMGF,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+EMXC,region:emerging,emerging markets ex China; China is still in the proxy
+ENOR,country:norway,MSCI Norway
+ENZL,country:new_zealand,MSCI New Zealand
+EPHE,region:emerging,single emerging country; not in the French countries file
+EPOL,region:emerging,single emerging country; not in the French countries file
+EPP,region:asia_pacific_ex_japan,"MSCI Pacific ex Japan: Australia, Hong Kong, Singapore, New Zealand"
+EPU,region:emerging,Peru and global exposure; Peru is not in the French countries file
+EQLT,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+EUSA,us:market,MSCI USA equal weighted; the equal-weight tilt is missing
+EVLU,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+EWA,country:australia,MSCI Australia
+EWC,country:canada,MSCI Canada
+EWD,country:sweden,MSCI Sweden
+EWG,country:germany,MSCI Germany
+EWH,country:hong_kong,MSCI Hong Kong
+EWI,country:italy,MSCI Italy
+EWJ,country:japan,MSCI Japan
+EWJV,country:japan,MSCI Japan value; the tilt is missing from the proxy
+EWK,country:belgium,MSCI Belgium
+EWL,country:switzerland,MSCI Switzerland
+EWM,region:emerging,Malaysia; the French file has Malaysia only to 2001
+EWN,country:netherlands,MSCI Netherlands
+EWO,country:austria,MSCI Austria
+EWP,country:spain,MSCI Spain
+EWQ,country:france,MSCI France
+EWS,country:singapore,MSCI Singapore
+EWT,region:emerging,single emerging country; not in the French countries file
+EWU,country:united_kingdom,MSCI United Kingdom
+EWUS,country:united_kingdom,MSCI United Kingdom small cap; the size tilt is missing
+EWW,region:emerging,single emerging country; not in the French countries file
+EWX,region:emerging,emerging markets small caps; the size tilt is missing
+EWY,region:emerging,single emerging country; not in the French countries file
+EWZ,region:emerging,single emerging country; not in the French countries file
+EWZS,region:emerging,single emerging country; not in the French countries file
+EZA,region:emerging,single emerging country; not in the French countries file
+EZU,region:europe,"Eurozone; no Eurozone series, Europe is the nearest"
+FEZ,region:europe,"Eurozone; no Eurozone series, Europe is the nearest"
+FXI,region:emerging,China; not in the French countries file
+GARP,us:quality,MSCI USA quality GARP
+GLOF,region:developed,global multi-factor equity; emerging markets and the factor tilts are missing
+GMF,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, India); the French Asia Pacific ex Japan series is developed only"
+GWX,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
+GXC,region:emerging,China; not in the French countries file
+HDV,us:value,US dividend payers; the dividend tilt is mapped to value
+IDEV,region:developed_ex_us,"developed ex US (MSCI World ex USA, FTSE Developed ex US)"
+IDV,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+IEFA,region:developed_ex_us,"MSCI EAFE and EAFE IMI, developed ex US"
+IEMG,region:emerging,"MSCI and FTSE Emerging Markets, broad"
+IEUR,region:europe,"developed Europe, including the UK and Switzerland"
+IEUS,region:europe,developed Europe small caps; the size tilt is missing
+IEV,region:europe,"developed Europe, including the UK and Switzerland"
+IGRO,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+IJH,us:market,"US mid cap, mapped to the market; no mid-cap key"
+IJJ,us:value,mid cap value
+IJK,us:growth,mid cap growth
+IJR,us:small,"S&P 600 and Russell 2000, small cap"
+IJS,us:value,small cap value
+IJT,us:growth,small cap growth
+ILCG,us:growth,large cap growth
+ILCV,us:value,large cap value
+ILF,region:emerging,Latin America 40; not in the French countries file
+IMCB,us:market,"US mid cap, mapped to the market; no mid-cap key"
+IMCG,us:growth,mid cap growth
+IMCV,us:value,mid cap value
+IMTM,region:developed_ex_us,international developed momentum; the tilt is missing from the proxy
+INDA,region:emerging,India; not in the French countries file
+INDY,region:emerging,India; not in the French countries file
+INTF,region:developed_ex_us,international developed multi-factor; the factor tilts are missing
+IOO,region:developed,"global large caps, about 80% US; emerging markets are missing"
+IPAC,country:japan,"developed Pacific including Japan; Japan is the largest component, Australia, Hong Kong and Singapore are missing from the proxy"
+IQLT,region:developed_ex_us,international developed quality; the tilt is missing from the proxy
+IQQ,us:growth,"Nasdaq 100, large cap growth tilt"
+ISCF,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
+ISCG,us:growth,small cap growth
+ISCV,us:value,small cap value
+ISVL,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
+ITOT,us:market,"total US market, all cap"
+IUSG,us:growth,large cap growth
+IUSV,us:value,large cap value
+IVE,us:value,large cap value
+IVLU,region:developed_ex_us,MSCI EAFE value tilt; the tilt is missing from the proxy
+IVOG,us:growth,mid cap growth
+IVOO,us:market,"US mid cap, mapped to the market; no mid-cap key"
+IVOV,us:value,mid cap value
+IVV,us:market,"S&P 500, large cap"
+IVW,us:growth,large cap growth
+IWB,us:market,US large and mid cap
+IWC,us:small,micro cap; the size tilt is missing from the proxy
+IWD,us:value,large cap value
+IWF,us:growth,large cap growth
+IWL,us:big,"Russell Top 200, mega cap"
+IWM,us:small,"S&P 600 and Russell 2000, small cap"
+IWN,us:value,small cap value
+IWO,us:growth,small cap growth
+IWP,us:growth,mid cap growth
+IWR,us:market,"US mid cap, mapped to the market; no mid-cap key"
+IWS,us:value,mid cap value
+IWV,us:market,"total US market, all cap"
+IWX,us:value,large cap value
+IWY,us:growth,large cap growth
+IXUS,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+IYY,us:market,"total US market, all cap"
+JPXN,country:japan,"JPX-Nikkei 400, Japan"
+KSA,region:emerging,single emerging country; not in the French countries file
+KWT,region:emerging,single emerging country; not in the French countries file
+LGLV,us:low_vol,US minimum volatility
+LRGF,us:market,US multi-factor; the factor tilts are missing
+MCHI,region:emerging,China; not in the French countries file
+MDY,us:market,"US mid cap, mapped to the market; no mid-cap key"
+MDYG,us:growth,mid cap growth
+MDYV,us:value,large cap value
+MGC,us:big,Morningstar US mega cap
+MGK,us:growth,large cap growth
+MGV,us:value,large cap value
+MLRG,us:market,US large and mid cap
+MMTM,us:momentum,US momentum
+MSML,us:small,"US small cap, MSCI USA small cap or small-cap factor"
+MTUM,us:momentum,US momentum
+OEF,us:big,"S&P 100, mega cap"
+ONEO,us:momentum,US momentum
+ONEV,us:low_vol,US minimum volatility
+ONEY,us:value,US dividend payers; the dividend tilt is mapped to value
+QAT,region:emerging,single emerging country; not in the French countries file
+QEFA,region:developed_ex_us,international developed multi-factor; the factor tilts are missing
+QEMM,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+QNDX,us:growth,"Nasdaq 100, large cap growth tilt"
+QUAL,us:quality,US quality
+QUS,us:market,US multi-factor; the factor tilts are missing
+QWLD,region:developed,global multi-factor equity; emerging markets and the factor tilts are missing
+SCJ,country:japan,MSCI Japan small cap; the size tilt is missing from the proxy
+SCZ,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
+SDY,us:value,US dividend payers; the dividend tilt is mapped to value
+SGOV,cash:tbill,"US T-bill ETF, cash"
+SIZE,us:market,MSCI USA size factor; the tilt is missing
+SLYG,us:growth,small cap growth
+SLYV,us:value,small cap value
+SMIN,region:emerging,India; not in the French countries file
+SMLF,us:small,"US small cap, MSCI USA small cap or small-cap factor"
+SMLV,us:low_vol,US minimum volatility
+SMMD,us:market,"Russell 2500, smid; mapped to the market"
+SMMV,us:low_vol,US minimum volatility
+SPDW,region:developed_ex_us,"developed ex US (MSCI World ex USA, FTSE Developed ex US)"
+SPEM,region:emerging,"MSCI and FTSE Emerging Markets, broad"
+SPEU,region:europe,"developed Europe, including the UK and Switzerland"
+SPGM,region:developed,all-country world equity; emerging markets are missing from the proxy
+SPMD,us:market,"US mid cap, mapped to the market; no mid-cap key"
+SPSM,us:small,"S&P 600 and Russell 2000, small cap"
+SPTM,us:market,"S&P 1500, large mid and small cap"
+SPTU,cash:tbill,"US T-bill ETF, cash"
+SPY,us:market,"S&P 500, large cap"
+SPYD,us:value,US dividend payers; the dividend tilt is mapped to value
+SPYG,us:growth,large cap growth
+SPYM,us:market,"S&P 500, large cap"
+SPYV,us:value,large cap value
+SQLT,us:quality,US quality
+SVAL,us:value,small cap value
+THD,region:emerging,single emerging country; not in the French countries file
+TOK,region:developed,"MSCI Kokusai, developed ex Japan; the proxy adds Japan"
+TOPC,us:market,S&P 500 3% capped
+TUR,region:emerging,single emerging country; not in the French countries file
+UAE,region:emerging,single emerging country; not in the French countries file
+URTH,region:developed,"MSCI World, developed markets"
+USMV,us:low_vol,US minimum volatility
+VB,us:small,"S&P 600 and Russell 2000, small cap"
+VBIL,cash:tbill,"US T-bill ETF, cash"
+VBK,us:growth,small cap growth
+VBR,us:value,small cap value
+VEA,region:developed_ex_us,"MSCI EAFE and EAFE IMI, developed ex US"
+VEU,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+VGK,region:europe,"developed Europe, including the UK and Switzerland"
+VIG,us:value,US dividend payers; the dividend tilt is mapped to value
+VIGI,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+VIOG,us:growth,small cap growth
+VIOO,us:small,"S&P 600 and Russell 2000, small cap"
+VIOV,us:value,small cap value
+VLU,us:value,US value factor or value tilt
+VLUE,us:value,US value factor or value tilt
+VO,us:market,"US mid cap, mapped to the market; no mid-cap key"
+VOE,us:value,mid cap value
+VONE,us:market,US large and mid cap
+VONG,us:growth,large cap growth
+VONV,us:value,large cap value
+VOO,us:market,"S&P 500, large cap"
+VOOG,us:growth,large cap growth
+VOOV,us:value,large cap value
+VOT,us:growth,mid cap growth
+VPL,country:japan,"developed Pacific including Japan; Japan is the largest component, Australia, Hong Kong and Singapore are missing from the proxy"
+VSS,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
+VT,region:developed,all-country world equity; emerging markets are missing from the proxy
+VTHR,us:market,"total US market, all cap"
+VTI,us:market,"total US market, all cap"
+VTV,us:value,large cap value
+VTWG,us:growth,small cap growth
+VTWO,us:small,"S&P 600 and Russell 2000, small cap"
+VTWV,us:value,small cap value
+VUG,us:growth,large cap growth
+VV,us:market,US large and mid cap
+VWO,region:emerging,"MSCI and FTSE Emerging Markets, broad"
+VXF,us:market,"extended market: mid and small cap, mostly mid"
+VXUS,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+VYM,us:value,US dividend payers; the dividend tilt is mapped to value
+VYMI,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+WDIV,region:developed,global dividend payers; emerging markets and the dividend tilt are missing
+WSML,region:developed,MSCI World small cap; the size tilt is missing
+XCNY,region:emerging,emerging markets ex China; China is still in the proxy
+XOEF,us:market,"S&P 500 ex S&P 100, large and mid cap"
