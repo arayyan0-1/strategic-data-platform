@@ -117,6 +117,15 @@ def test_a_rate_in_the_wrong_unit_is_refused_and_a_dollar_amount_is_not(served):
         fred.ingest(PULL + dt.timedelta(days=1))
 
 
+def test_a_corporate_yield_in_the_wrong_unit_is_refused_and_a_price_index_is_not(served):
+    table, _ = served
+    table["CPIAUCSL"] = csv("CPIAUCSL", value=334.1)
+    fred.ingest(PULL)
+    table["BAA"] = csv("BAA", value=550)
+    with pytest.raises(AuditFailure, match="BAA"):
+        fred.ingest(PULL + dt.timedelta(days=1))
+
+
 def test_thin_keeps_the_first_pull_the_last_month_and_one_pull_a_week(served):
     days = [PULL - dt.timedelta(days=i) for i in range(70, -1, -1)]
     for d in days:
