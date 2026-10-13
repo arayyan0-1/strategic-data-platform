@@ -230,3 +230,81 @@ models:
       forecast of the in-universe US stocks and alpha_neutral = alpha_hold - alpha_mkt, the
       benchmark-neutral forecast the fund uses. weight_scored is the share of the mapped holdings that
       has a forecast.
+
+  - name: fund_asset_history
+    description: The 12-month trend of ten assets at the end of each month, with the excess return
+      that follows, one row per asset and month. The assets are region:developed, the Treasury bonds
+      bond:ust_2y, bond:ust_5y, bond:ust_10y and bond:ust_30y, bond:tips_10y, bond:corp_baa, gold,
+      commodity:all and crypto:bitcoin. trend is the return of months t-11 to t less the T-bill
+      return of the same months, as in fund_signal_history, and a month has one only when all 12
+      months have a return. state is +1 when trend is above 0 and -1 otherwise, so a trend of
+      exactly 0 is down. fwd_excess is the return less the T-bill return of month t+1, null for the
+      last month of an asset.
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: month
+        data_tests:
+          - not_null
+      - name: trend
+        data_tests:
+          - not_null
+      - name: fwd_excess
+        description: The excess return of the next month. Null for the last month of an asset, and
+          for a month before a gap in the returns.
+      - name: state
+        description: The sign of trend, +1 or -1. Never 0.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 1
+                  - -1
+                quote: false
+
+  - name: fund_asset_gate
+    description: The gate for trend following on each asset, one row per asset and period. Each
+      formation month with a trend and a next month is in the up state (trend above 0) or the down
+      state. mu_up and mu_down are the mean excess return of the next month in each state times 12,
+      mu_all the mean of both times 12, and diff = mu_up - mu_down. t_nw is the Newey-West t, with a
+      lag of 5, of b in the regression fwd_excess = a + b * 1{state = +1}, which is diff. passes is
+      the decision of the gate, t_nw of at least 2 on development; the all row repeats it, so the
+      decision is not reread from the full sample. development is every formation month up to
+      fund_signal_dev_end; all is every month. The months of an asset are those with a trend and a
+      next month, so a gap in the returns removes the months around it and the lag of the t runs
+      across it.
+    config:
+      fund_signal_dev_end: "{{ var('fund_signal_dev_end') }}"
+    columns:
+      - name: index_key
+        data_tests:
+          - not_null
+      - name: period
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - development
+                  - all
+      - name: n_up
+        description: Formation months in the up state.
+      - name: n_down
+        description: Formation months in the down state.
+      - name: mu_up
+        description: Mean excess return of the next month after an up trend, times 12.
+      - name: mu_down
+        description: Mean excess return of the next month after a down trend, times 12.
+      - name: mu_all
+        description: Mean excess return of the next month over both states, times 12.
+      - name: diff
+        description: mu_up - mu_down.
+      - name: t_nw
+        description: Newey-West t (lag 5) of diff. Null when a period has fewer than 3 months or
+          one state only.
+      - name: passes
+        description: True when t_nw is at least 2 on development. The same on both rows of an asset.
+        data_tests:
+          - not_null
