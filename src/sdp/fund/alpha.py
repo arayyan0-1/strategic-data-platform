@@ -129,10 +129,11 @@ def load_hold(wh: duckdb.DuckDBPyConnection) -> dict[tuple[str, dt.date], float]
 
 def load_assets(wh: duckdb.DuckDBPyConnection) -> tuple[dict[str, tuple], dict[str, str]]:
     """Read the development trend gate per asset class as (mu_up, mu_down, mu_all, passes), and
-    each fund's long-history index."""
+    each fund's long-history index. A class passes when its trend passes with month t and
+    without it (study 005, amendment D)."""
     gate = {k: (u, d, m, bool(ok)) for k, u, d, m, ok in wh.execute("""
-        select index_key, mu_up, mu_down, mu_all, passes from fund.fund_asset_gate
-        where period = 'development'""").fetchall()}
+        select index_key, mu_up, mu_down, mu_all, passes and passes_skip
+        from fund.fund_asset_gate where period = 'development'""").fetchall()}
     keys = dict(wh.execute(
         "select fund, index_key from reference.fund_index_map").fetchall())
     return gate, keys

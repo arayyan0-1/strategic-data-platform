@@ -8,10 +8,10 @@ GATE_T = 2.0
 PERIODS = ("development", "all")
 
 COLUMNS = ("index_key", "period", "first_month", "last_month", "n_up", "n_down", "mu_up",
-           "mu_down", "mu_all", "diff", "t_nw", "passes")
+           "mu_down", "mu_all", "diff", "t_nw", "t_nw_skip", "passes", "passes_skip")
 
 HISTORY = """
-    select index_key, month, state, fwd_excess
+    select index_key, month, state, coalesce(state_skip, 0) as state_skip, fwd_excess
     from asset_history
     where trend is not null and fwd_excess is not null
     order by index_key, month"""
@@ -48,28 +48,32 @@ def model(dbt, session):
     key = np.asarray(h["index_key"], dtype=object)
     month = np.asarray(h["month"]).astype("datetime64[D]")
     state = np.asarray(h["state"], dtype=int)
+    skip = np.asarray(h["state_skip"], dtype=int)
     y = np.ma.filled(np.ma.asarray(h["fwd_excess"], dtype=float), np.nan)
 
     out: dict[str, list] = {c: [] for c in COLUMNS}
     for k in dict.fromkeys(key):
         rows = key == k
-        dev_t = np.nan
+        dev_t = dev_skip = np.nan
         block = []
         for period in PERIODS:
             use = rows & (month <= dev_end) if period == "development" else rows
             up = state[use] == 1
             ys = y[use]
             t = slope_t(up.astype(float), ys)
+            has = skip[use] != 0
+            t_skip = slope_t((skip[use][has] == 1).astype(float), ys[has])
             if period == "development":
-                dev_t = t
+                dev_t, dev_skip = t, t_skip
             mu_up, mu_down = _mean12(ys[up]), _mean12(ys[~up])
             block.append((k, period,
                           month[use].min() if use.any() else np.datetime64("NaT"),
                           month[use].max() if use.any() else np.datetime64("NaT"),
                           int(up.sum()), int((~up).sum()), mu_up, mu_down, _mean12(ys),
-                          mu_up - mu_down, t))
+                          mu_up - mu_down, t, t_skip))
         for row in block:
-            for c, v in zip(COLUMNS, (*row, bool(dev_t >= GATE_T)), strict=True):
+            for c, v in zip(COLUMNS, (*row, bool(dev_t >= GATE_T), bool(dev_skip >= GATE_T)),
+                            strict=True):
                 out[c].append(v)
 
     arrays = {
@@ -80,15 +84,17 @@ def model(dbt, session):
         "n_up": np.array(out["n_up"], dtype=np.int64),
         "n_down": np.array(out["n_down"], dtype=np.int64),
         **{c: np.array(out[c], dtype=float) for c in ("mu_up", "mu_down", "mu_all", "diff",
-                                                      "t_nw")},
+                                                      "t_nw", "t_nw_skip")},
         "passes": np.array(out["passes"], dtype=bool),
+        "passes_skip": np.array(out["passes_skip"], dtype=bool),
     }
     session.register("asset_gate_arrays", arrays)
     nan_to_null = ", ".join(f"case when isnan({c}) then null else {c} end as {c}"
-                            for c in ("mu_up", "mu_down", "mu_all", "diff", "t_nw"))
+                            for c in ("mu_up", "mu_down", "mu_all", "diff", "t_nw",
+                                      "t_nw_skip"))
     session.execute(f"""
         create or replace temp table asset_gate_final as
         select index_key, period, first_month::date as first_month, last_month::date as last_month,
-               n_up, n_down, {nan_to_null}, passes
+               n_up, n_down, {nan_to_null}, passes, passes_skip
         from asset_gate_arrays""")
     return session.table("asset_gate_final")

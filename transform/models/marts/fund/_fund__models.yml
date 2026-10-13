@@ -274,7 +274,8 @@ models:
       decision is not reread from the full sample. development is every formation month up to
       fund_signal_dev_end; all is every month. The months of an asset are those with a trend and a
       next month, so a gap in the returns removes the months around it and the lag of the t runs
-      across it.
+      across it. t_nw_skip and passes_skip test the trend of months t-12 to t-1, which a series
+      built from monthly averages needs; a class enters the fund's forecast only when both pass.
     config:
       fund_signal_dev_end: "{{ var('fund_signal_dev_end') }}"
     columns:
