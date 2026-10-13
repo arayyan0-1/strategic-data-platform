@@ -86,6 +86,12 @@ CATALOG = [
     Source("q_factors", "Public data", "q-factors", "global-q.org",
            "Monthly; a new vintage about once a year", "The q5 factors, daily since 1967.",
            "stg_global_q__factors", "days", dal.QFACTORS),
+    Source("worldbank_commodities", "Public data", "World Bank commodity prices",
+           "World Bank Pink Sheet workbook", "Monthly; the Bank publishes in the first days "
+           "of the month",
+           "Monthly gold and crude oil prices and the total, energy, non-energy, agriculture "
+           "and metals indices since 1960, in nominal dollars.",
+           "stg_worldbank__commodities", "monthly values", dal.WORLDBANK_COMMODITIES),
     Source("ibkr_borrow", "Funding and ETFs", "Borrow fees", "IBKR FTP (ftp2), usa.txt",
            "One snapshot per session from 08:00 ET",
            "Fee, rebate and shares available per US symbol.",

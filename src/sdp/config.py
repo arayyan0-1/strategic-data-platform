@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     fred_csv_url: str = "https://fred.stlouisfed.org/graph/fredgraph.csv"
     # The page links the file of the latest q-factors vintage.
     qfactors_page_url: str = "https://global-q.org/factors.html"
+    # The page links the monthly price workbook, under a new address each month.
+    worldbank_page_url: str = "https://www.worldbank.org/en/research/commodity-markets"
 
     # IBKR's public short-stock file. ftp3 accepts the connection but never greets.
     ibkr_ftp_host: str = "ftp2.interactivebrokers.com"

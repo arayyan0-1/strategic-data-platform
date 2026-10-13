@@ -142,3 +142,16 @@ sources:
           The share-class FIGI of each code (a CUSIP, or an ISIN where the line has no CUSIP), and
           the composite FIGI and ticker of its US listing, as of mapped_on. Null FIGIs mean OpenFIGI
           found no match.
+
+  - name: worldbank
+    description: The World Bank commodity price data (the Pink Sheet), pulled monthly.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: commodities
+        identifier: worldbank_commodities
+        description: >-
+          Monthly gold and crude oil prices and the total, energy, non-energy, agriculture and
+          metals and minerals price indices (2010=100) since 1960, in nominal dollars, on the
+          last day of the month. Current state.

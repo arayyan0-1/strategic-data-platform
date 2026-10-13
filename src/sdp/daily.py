@@ -41,6 +41,7 @@ from sdp.ingest import (
     openfigi,
     qfactors,
     sec_nport,
+    worldbank,
 )
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_ticker_details as details
@@ -49,7 +50,8 @@ log = logging.getLogger("sdp.daily")
 
 # Public current-state sources. Each pulls when its table is older than the MAX_AGE_DAYS
 # of its module.
-PUBLIC = {m.DATASET.name: m for m in (french, french_international, fred, qfactors)}
+PUBLIC = {m.DATASET.name: m
+          for m in (french, french_international, fred, qfactors, worldbank)}
 CURRENT_STATE = ["massive_splits", "massive_dividends", *PUBLIC]
 
 EVENT_STREAMS = {

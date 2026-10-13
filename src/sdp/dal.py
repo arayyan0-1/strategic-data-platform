@@ -84,6 +84,9 @@ FRED = Dataset("fred_series", None)
 
 QFACTORS = Dataset("q_factors", None)
 
+# Monthly commodity prices and indices from the World Bank Pink Sheet, one table per pull.
+WORLDBANK_COMMODITIES = Dataset("worldbank_commodities", None)
+
 # One IBKR short-stock snapshot per session, keyed on the file's own (US Eastern) date.
 IBKR_BORROW = Dataset("ibkr_borrow", "date")
 
@@ -104,7 +107,7 @@ OPENFIGI_CUSIPS = Dataset("openfigi_cusips", None)
 
 DATASETS = {d.name: d for d in (DAY_AGGS, TICKERS, SPLITS, DIVIDENDS, SHORT_VOLUME,
                                 SHORT_INTEREST, TICKER_DETAILS, FRENCH, FRENCH_INTERNATIONAL, FRED,
-                                QFACTORS,
+                                QFACTORS, WORLDBANK_COMMODITIES,
                                 IBKR_BORROW, ETF_FUNDS, ETF_NAV_HISTORY, ETF_HOLDINGS,
                                 SEC_NPORT, OPENFIGI_CUSIPS)}
 
@@ -315,6 +318,14 @@ def fred_series():
 def q_factors():
     """Return the daily q5 factors as fractions. vintage names the file year."""
     return current(QFACTORS)
+
+
+def worldbank_commodities():
+    """Return the World Bank monthly commodity prices and indices in long form.
+
+    One row per series and month (the last day of the month), in the unit of the workbook.
+    """
+    return current(WORLDBANK_COMMODITIES)
 
 
 def short_volume(start: dt.date | None = None, end: dt.date | None = None):

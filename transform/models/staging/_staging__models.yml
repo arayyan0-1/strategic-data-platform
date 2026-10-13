@@ -81,3 +81,18 @@ models:
       - name: mapped_on
         data_tests:
           - not_null
+
+  - name: stg_worldbank__commodities
+    description: Monthly commodity prices and price indices from the World Bank Pink Sheet, one row
+      per series and month on the last day of the month, in the unit of the workbook (dollars, or
+      2010=100 for an index). A month with no value has no row.
+    columns:
+      - name: series
+        data_tests:
+          - not_null
+      - name: month
+        data_tests:
+          - not_null
+      - name: value
+        data_tests:
+          - not_null

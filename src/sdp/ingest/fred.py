@@ -102,6 +102,10 @@ SERIES = {
     "DEXUSNZ": "US dollars per New Zealand dollar",
     "DEXSDUS": "Swedish kronor per US dollar",
     "DEXNOUS": "Norwegian kroner per US dollar",
+    # Monthly corporate yields and consumer prices, for the long asset histories.
+    "AAA": "Moody's seasoned Aaa corporate bond yield, monthly average, percent",
+    "BAA": "Moody's seasoned Baa corporate bond yield, monthly average, percent",
+    "CPIAUCSL": "Consumer price index for all urban consumers, seasonally adjusted, monthly",
     # Commodities and bitcoin.
     "DCOILWTICO": "WTI crude oil, spot, dollars per barrel",
     "DCOILBRENTEU": "Brent crude oil, spot, dollars per barrel",
@@ -115,7 +119,8 @@ MIN_VALUES = 500      # Floor under the shortest series (the ICE spreads).
 MAX_ABS = 1000.0      # Sanity bound for a rate, spread or index.
 # Series in dollar amounts or prices have their own limits.
 LIMITS = {"WALCL": 5e7, "WSHOTSL": 5e7, "WSHOMCB": 5e7, "WRESBAL": 5e7, "WTREGEN": 5e7,
-          "RRPONTSYD": 1e5, "RPONTSYD": 1e5, "SOFRVOL": 1e5, "CBBTCUSD": 1e7}
+          "RRPONTSYD": 1e5, "RPONTSYD": 1e5, "SOFRVOL": 1e5, "CBBTCUSD": 1e7,
+          "AAA": 30.0, "BAA": 30.0, "CPIAUCSL": 1000.0}
 STALE_DAYS = 21       # A weekly series lags about 10 days; warn beyond this.
 
 
