@@ -121,10 +121,12 @@ with listed as (
             when role = 'equity' and asset_class not in ({{ sql_list('fund_asset_classes') }})
                                                                               then 'asset_class'
             when security_key is null                                         then 'no_prices'
-            when role = 'bond' and not bond_ok                                then 'bond_excluded'
-            when role = 'gold' and not gold_ok                                then 'gold_excluded'
-            when role = 'commodity' and not commodity_ok                      then 'commodity_excluded'
-            when role = 'bitcoin' and not bitcoin_ok                          then 'bitcoin_excluded'
+            -- A null flag (no name) is not a pass.
+            when role = 'bond' and not coalesce(bond_ok, false)               then 'bond_excluded'
+            when role = 'gold' and not coalesce(gold_ok, false)               then 'gold_excluded'
+            when role = 'commodity' and not coalesce(commodity_ok, false)     then 'commodity_excluded'
+            when role = 'bitcoin' and not coalesce(bitcoin_ok, false)         then 'bitcoin_excluded'
+            -- The name rules below are those of the equity and cash roles only.
             when role not in ('equity', 'cash')                               then null
             when regexp_matches(name, '(?i)buffer|buywrite|premium income|laddered|accelerated'
                                    || '|outcome|hedged')                      then 'overlay'
