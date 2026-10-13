@@ -1637,7 +1637,9 @@ function lending() {
     k => { FUNDS_VIEW = k; lending(); });
   const keepRow = views.find(([k]) => k === FUNDS_VIEW)[2];
   const why = {asset_class: "not equity", single_country: "one country", overlay: "overlay", active: "active",
-    screened: "screened", sector_or_theme: "sector or theme", no_prices: "no prices"};
+    screened: "screened", sector_or_theme: "sector or theme", no_prices: "no prices",
+    bond_excluded: "bond rule", gold_excluded: "gold rule", commodity_excluded: "commodity rule",
+    bitcoin_excluded: "bitcoin rule"};
   $("etf-all").innerHTML = `<tr><th>Fund</th><th class="l">Issuer</th><th class="l">Class</th><th>Assets</th><th>Fee</th>
       <th title="as-of date of the newest holdings file">Holdings</th><th title="SSGA NAV and shares since inception">NAV history</th>
       <th title="days of NAV, shares and flow">Days</th><th class="l" title="the paper fund's universe rule">Paper fund</th></tr>` +
