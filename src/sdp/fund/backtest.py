@@ -47,16 +47,23 @@ class Config:
     amortize: int = 63
     dedup_corr: float = 0.995
     budget: Budget = field(default_factory=Budget)
+    roles: tuple[str, ...] = ("equity", "cash")
 
 
-# An alpha source maps (panel, decision row, columns, active covariance) to a forecast a year per
-# column, before fees. None means no forecast.
-AlphaSource = Callable[[Panel, int, list[int], np.ndarray], np.ndarray]
+# An alpha source maps (panel, decision row, columns, active covariance, covariance) to a forecast
+# a year per column, before fees. None means no forecast.
+AlphaSource = Callable[[Panel, int, list[int], np.ndarray, np.ndarray], np.ndarray]
 
 
 def holds_cash(cfg: Config) -> bool:
-    """Only the tracking-error-budget objectives may hold the cash funds."""
+    """Only the tracking-error-budget objectives may hold funds other than equity."""
     return STRATEGIES[cfg.strategy][0] == "budget"
+
+
+def allowed(p: Panel, cols: np.ndarray, cfg: Config) -> np.ndarray:
+    """Mask of the columns whose role the configuration may hold."""
+    roles = set(cfg.roles) if holds_cash(cfg) else {"equity"}
+    return np.isin(p.roles(cols), list(roles))
 
 
 @dataclass
@@ -92,9 +99,7 @@ def universe(p: Panel, t: int, held: set[int], cfg: Config) -> list[int]:
     correlate at dedup_corr or more (the cheapest, then the most traded), plus every fund held
     and the benchmark fund."""
     cols = np.flatnonzero(p.eligible[t])
-    cash = p.is_cash(cols)
-    if not holds_cash(cfg):
-        cols = cols[~cash]
+    cols = cols[allowed(p, cols, cfg)]
     X = np.nan_to_num(p.ret[t - cfg.window + 1:t + 1][:, cols])
     vol = X.std(axis=0)
     cols, X = cols[vol > 0], X[:, vol > 0]
@@ -139,7 +144,7 @@ def problem(p: Panel, t: int, cols: list[int], w0: np.ndarray, lower: np.ndarray
         names=[p.funds[c] for c in cols], X=X, y=y, S=Sall[:n, :n], S_active=S_active,
         fee=np.nan_to_num(p.fee[cols]),
         alpha=np.zeros(n) if alpha is None
-        else np.asarray(alpha(p, t, cols, S_active), dtype=float),
+        else np.asarray(alpha(p, t, cols, S_active, Sall[:n, :n]), dtype=float),
         cost=cost, w0=w0, lower=lower, upper=upper,
         benchmark=p.benchmark, risk_aversion=cfg.risk_aversion, amortize=cfg.amortize,
         cash=p.is_cash(cols), budget=budget)

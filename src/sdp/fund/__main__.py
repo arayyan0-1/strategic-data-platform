@@ -29,29 +29,41 @@ COLUMNS = (("strategy", "strategy", "<20", ""), ("return", "ret", ">7", ".1%"),
            ("cash", "cash", ">5", ".0%"), ("failed", "fail", ">4", ""))
 
 
-# Which parts of the forecast each --alpha choice turns on: (cross, trend, holdings, signal).
+# The parts of the forecast each --alpha choice turns on. cross: the momentum and value score;
+# trend: the cash view of study 004; hold: the holdings forecast; prior: the equilibrium prior of
+# the non-equity funds; asset_trend: their trend views where the gate passed.
 ALPHAS = {
-    "none": (False, False, False, "combo"),
-    "cross": (True, False, False, "combo"),
-    "trend": (False, True, False, "combo"),
-    "both": (True, True, False, "combo"),
-    "hold": (False, False, True, "combo"),
-    "all": (True, True, True, "combo"),
-    "mom": (True, False, False, "mom"),
-    # Every component that passed its gate: trend and the holdings forecast.
-    "headline": (False, True, True, "combo"),
+    "none": {},
+    "cross": {"cross": True},
+    "trend": {"trend": True},
+    "both": {"cross": True, "trend": True},
+    "hold": {"hold": True},
+    "all": {"cross": True, "trend": True, "hold": True},
+    "mom": {"cross": True, "signal": "mom"},
+    # Every component that passed its gate in study 004: trend and the holdings forecast.
+    "headline": {"trend": True, "hold": True},
+    "ma_prior": {"hold": True, "prior": True},
+    "ma_trend": {"hold": True, "prior": True, "asset_trend": True},
 }
+ROLES = {"equity": ("equity", "cash"),
+         "all": ("equity", "bond", "gold", "commodity", "bitcoin", "cash")}
 DEV_END = dt.date(2021, 12, 31)
 
 
 def _forecast(wh, args):
-    cross, trend, hold, signal = ALPHAS[args.alpha]
-    if args.alpha == "none" and not args.trend_rule:
+    parts = ALPHAS[args.alpha]
+    if not parts and not args.trend_rule:
         return None
-    f = alpha.load(wh, DEV_END, signal=signal, cross=cross, trend=trend,
+    f = alpha.load(wh, DEV_END, signal=parts.get("signal", "combo"),
+                   cross=parts.get("cross", False), trend=parts.get("trend", False),
                    trend_rule=args.trend_rule)
-    if hold:
+    if parts.get("hold"):
         f.hold = alpha.load_hold(wh)
+    if parts.get("prior"):
+        f.premium = args.premium
+    if parts.get("asset_trend"):
+        f.gate, f.fund_key = alpha.load_assets(wh)
+        f.asset_trend = True
     return alpha.source(f)
 
 
@@ -99,8 +111,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="no-trade band: a trade under this share of NAV is skipped")
     bt.add_argument("--alpha", default="none", choices=tuple(ALPHAS),
                     help="the forecast: none (fees only), cross, trend, both, hold, all, "
-                         "headline (the components that passed their gates), or mom "
-                         "(momentum alone, chosen after the long-history results)")
+                         "headline (the components that passed their gates in study 004), mom "
+                         "(momentum alone, chosen after the long-history results), ma_prior "
+                         "or ma_trend (the multi-asset forecasts of study 005)")
+    bt.add_argument("--roles", default="equity", choices=tuple(ROLES),
+                    help="equity (equity and cash funds) or all (also bond, gold, commodity "
+                         "and bitcoin funds); only the te_budget objectives use it")
+    bt.add_argument("--premium", type=float, default=0.05,
+                    help="the equity premium of the equilibrium prior, a year")
     bt.add_argument("--trend-rule", type=float, default=0.0,
                     help="hold this much cash while ACWI's 12-month trend is negative")
     args = ap.parse_args(argv)
@@ -119,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{p.dates[rows[-1]]}, returns to {end}, benchmark {args.benchmark}, "
           f"covariance {args.covariance}, rule {args.rule}, cap {args.cap:.0%}, "
           f"risk aversion {args.risk_aversion:g}, alpha {args.alpha}, "
-          f"trend rule {args.trend_rule:.0%}")
+          f"trend rule {args.trend_rule:.0%}, roles {args.roles}, TE cap {args.te_max:.0%}")
     print(" ".join(f"{h:{w}}" for _, h, w, _ in COLUMNS))
     out = []
     for name in names:
@@ -127,7 +145,8 @@ def main(argv: list[str] | None = None) -> int:
                               rule=args.rule, risk_aversion=args.risk_aversion,
                               capital=args.capital, min_trade=args.band,
                               budget=Budget(te_max=args.te_max, risk_aversion=args.te_aversion,
-                                            cash_max=args.cash_max))
+                                            cash_max=args.cash_max),
+                              roles=ROLES[args.roles])
         r = backtest.run(p, cfg, start, end, fd, source)
         s = backtest.summary(r)
         print(" ".join(f"{s[k]:{w}{f}}" for k, _, w, f in COLUMNS), flush=True)

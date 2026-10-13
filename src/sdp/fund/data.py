@@ -46,10 +46,14 @@ class Panel:
     holdout_start: dt.date
     role: list[str] | None = None
 
-    def is_cash(self, cols) -> np.ndarray:
+    def roles(self, cols) -> np.ndarray:
+        """The role of each column: equity, bond, gold, commodity, bitcoin or cash."""
         if self.role is None:
-            return np.zeros(len(cols), dtype=bool)
-        return np.array([self.role[c] == "cash" for c in cols])
+            return np.array(["equity"] * len(cols))
+        return np.array([self.role[c] for c in cols])
+
+    def is_cash(self, cols) -> np.ndarray:
+        return self.roles(cols) == "cash"
 
     def col(self, fund: str) -> int:
         return self.funds.index(fund)

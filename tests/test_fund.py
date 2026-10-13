@@ -261,3 +261,37 @@ class TestAlpha:
                      trend=False, hold={("B", m): 0.004, ("D", m): 0.5})
         a = source(f)(p, t, [0, 1, 2, 3], np.eye(4) * 1e-4)
         assert a.tolist() == pytest.approx([0.0, 0.004, 0.0, 0.0])
+
+    def test_the_prior_charges_a_diversifier_its_lost_beta(self):
+        from sdp.fund.alpha import Forecast, month_end, source
+
+        p = _panel()
+        p.role = ["equity", "bond", "gold", "cash"]
+        t = 300
+        m = month_end(p.dates[t])
+        S = np.array([[4.0, 0.0, 2.0, 0.0], [0.0, 1.0, 0.0, 0.0],
+                      [2.0, 0.0, 9.0, 0.0], [0.0, 0.0, 0.0, 0.01]]) * 1e-4
+        f = Forecast(signals={("C", m): (None, None, 0.1)}, ic=0.0, excess_up=0.0,
+                     excess_down=0.0, cross=False, trend=False, premium=0.05,
+                     gate={"gold": (0.10, 0.02, 0.06, True), "bond:ust_10y": (0.03, 0.0, 0.02,
+                                                                            False)},
+                     fund_key={"C": "gold", "B": "bond:ust_10y"}, asset_trend=True)
+        a = source(f)(p, t, [0, 1, 2, 3], np.eye(4) * 1e-4, S)
+        assert a[0] == 0.0  # the benchmark: equity, no prior
+        assert a[1] == pytest.approx(-0.05)  # beta 0, gate failed: the prior alone
+        # beta 0.5, then half of (up-state mean less the unconditional mean).
+        assert a[2] == pytest.approx(-0.025 + 0.5 * (0.10 - 0.06))
+        assert a[3] == pytest.approx(-0.05)
+
+
+def test_the_equity_configuration_holds_no_bond_and_all_roles_may():
+    p = _panel()
+    p.role = ["equity", "bond", "gold", "cash"]
+    cols = np.arange(4)
+    eq = backtest.Config(strategy="te_budget")
+    ma = backtest.Config(strategy="te_budget",
+                         roles=("equity", "bond", "gold", "commodity", "bitcoin", "cash"))
+    old = backtest.Config(strategy="mvo_te", roles=ma.roles)
+    assert backtest.allowed(p, cols, eq).tolist() == [True, False, False, True]
+    assert backtest.allowed(p, cols, ma).all()
+    assert backtest.allowed(p, cols, old).tolist() == [True, False, False, False]

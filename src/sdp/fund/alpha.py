@@ -9,6 +9,11 @@ omega_i * z_i. A cash fund's active return is the benchmark's excess return with
 so its forecast is -shrink times the mean excess return of the benchmark's long-history proxy
 in the current trend state. A US-equity fund may also carry the forecast of the stocks it holds
 (fund_holdings_alpha), added to its own.
+
+A fund of another role (bond, gold, commodity, bitcoin, cash) may instead carry an equilibrium
+prior, (beta - 1) * premium with beta its beta to the benchmark, plus a trend view for an asset
+class whose gate passed: shrink * (mean excess return in the current trend state less the
+unconditional mean), from the long history.
 """
 from __future__ import annotations
 
@@ -42,6 +47,10 @@ class Forecast:
     hold: dict[tuple[str, dt.date], float] | None = None
     signal: str = "combo"
     trend_rule: float = 0.0
+    premium: float | None = None
+    gate: dict[str, tuple] | None = None
+    fund_key: dict[str, str] | None = None
+    asset_trend: bool = False
 
 
 def month_end(d: dt.date) -> dt.date:
@@ -67,13 +76,15 @@ def score(mom: np.ndarray, val: np.ndarray, signal: str = "combo") -> np.ndarray
 def source(f: Forecast):
     """Return an alpha source for backtest.run."""
 
-    def alpha(p: Panel, t: int, cols: list[int], S_active: np.ndarray) -> np.ndarray:
+    def alpha(p: Panel, t: int, cols: list[int], S_active: np.ndarray,
+              S: np.ndarray | None = None) -> np.ndarray:
         month = month_end(p.dates[t])
-        cash = p.is_cash(cols)
+        roles = p.roles(cols)
+        cash = roles == "cash"
         sig = np.array([f.signals.get((p.funds[c], month), (None, None, None)) for c in cols],
                        dtype=float).reshape(len(cols), 3)
         a = np.zeros(len(cols))
-        eq = ~cash
+        eq = roles == "equity"
         if f.cross and eq.sum() >= 3:
             omega = np.sqrt(np.clip(np.diag(S_active), 0.0, None) * SESSIONS_A_YEAR)
             a[eq] = (f.shrink * f.ic * np.sqrt(12) * omega[eq]
@@ -84,6 +95,17 @@ def source(f: Forecast):
         bench = f.signals.get((p.benchmark, month), (None, None, None))[2]
         if f.trend and cash.any() and bench is not None and np.isfinite(bench):
             a[cash] = -f.shrink * (f.excess_up if bench > 0 else f.excess_down)
+        other = np.flatnonzero(~eq)
+        if f.premium is not None and S is not None and len(other):
+            b = list(cols).index(p.col(p.benchmark))
+            beta = S[:, b] / S[b, b]
+            a[other] = (beta[other] - 1.0) * f.premium
+            if f.asset_trend and f.gate and f.fund_key:
+                for i in other:
+                    g = f.gate.get(f.fund_key.get(p.funds[cols[i]], ""))
+                    s = sig[i, 2]
+                    if g and g[3] and np.isfinite(s):
+                        a[i] += f.shrink * ((g[0] if s > 0 else g[1]) - g[2])
         return a
 
     def cash_floor(p: Panel, t: int) -> float:
@@ -103,6 +125,17 @@ def load_hold(wh: duckdb.DuckDBPyConnection) -> dict[tuple[str, dt.date], float]
     total-market fund carries about 0."""
     return {(f, m): a for f, m, a in wh.execute(
         "select fund, month, alpha_neutral from fund.fund_holdings_alpha").fetchall()}
+
+
+def load_assets(wh: duckdb.DuckDBPyConnection) -> tuple[dict[str, tuple], dict[str, str]]:
+    """Read the development trend gate per asset class as (mu_up, mu_down, mu_all, passes), and
+    each fund's long-history index."""
+    gate = {k: (u, d, m, bool(ok)) for k, u, d, m, ok in wh.execute("""
+        select index_key, mu_up, mu_down, mu_all, passes from fund.fund_asset_gate
+        where period = 'development'""").fetchall()}
+    keys = dict(wh.execute(
+        "select fund, index_key from reference.fund_index_map").fetchall())
+    return gate, keys
 
 
 def load(wh: duckdb.DuckDBPyConnection, dev_end: dt.date, signal: str = "combo",
