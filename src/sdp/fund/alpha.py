@@ -98,9 +98,11 @@ def source(f: Forecast):
 
 
 def load_hold(wh: duckdb.DuckDBPyConnection) -> dict[tuple[str, dt.date], float]:
-    """Read the holdings forecast per (fund, month end)."""
+    """Read the benchmark-neutral holdings forecast per (fund, month end): the fund's forecast
+    less that of the cap-weighted US market, so only funds with holdings carry it and a
+    total-market fund carries about 0."""
     return {(f, m): a for f, m, a in wh.execute(
-        "select fund, month, alpha_hold from fund.fund_holdings_alpha").fetchall()}
+        "select fund, month, alpha_neutral from fund.fund_holdings_alpha").fetchall()}
 
 
 def load(wh: duckdb.DuckDBPyConnection, dev_end: dt.date, signal: str = "combo",
