@@ -73,11 +73,14 @@ def no_public_download(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_fund_data_download(monkeypatch):
-    """No test pulls the borrow file, a screener, a NAV history or a holdings file."""
+    """No test pulls the borrow file, a screener, a NAV history, a holdings file or an N-PORT
+    filing, or asks OpenFIGI."""
     monkeypatch.setattr(daily.ibkr_borrow, "ingest", lambda now=None, **kw: None)
     monkeypatch.setattr(daily.etf_funds, "ingest", lambda now=None: None)
     monkeypatch.setattr(daily.etf_nav_history, "ingest", lambda d=None, **kw: None)
     monkeypatch.setattr(daily.etf_holdings, "ingest", lambda now=None: [])
+    monkeypatch.setattr(daily.sec_nport, "ingest", lambda **kw: [])
+    monkeypatch.setattr(daily.openfigi, "ingest", lambda **kw: 0)
 
 
 @pytest.fixture(autouse=True)

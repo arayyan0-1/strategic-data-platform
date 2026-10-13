@@ -102,9 +102,21 @@ CATALOG = [
            "Daily per fund; a fund not yet updated is tried again after 8 hours",
            "Holdings files of the funds in the seed etf_holdings_funds.",
            "stg_issuers__etf_holdings", "lines", dal.ETF_HOLDINGS),
+    Source("sec_nport", "Funding and ETFs", "N-PORT holdings", "SEC EDGAR, Form N-PORT-P",
+           "Weekly check per fund; a fund files a month's holdings about 60 days after it",
+           "Point-in-time holdings of the US-equity ETFs in the seed nport_funds, dated by the "
+           "filing, since 2021.",
+           "stg_sec__nport", "lines", dal.SEC_NPORT),
+    Source("openfigi_cusips", "Funding and ETFs", "CUSIP to FIGI", "OpenFIGI mapping API",
+           "After each N-PORT pull, at most 500 new codes a run",
+           "The share-class FIGI of each N-PORT CUSIP, CINS or ISIN, which maps a holding to a "
+           "security.",
+           "stg_openfigi__cusips", "codes", dal.OPENFIGI_CUSIPS),
 ]
 
 HISTORY_PARTITIONS = 30
+# A fund files a month's holdings about 60 days after it, and some only each quarter.
+NPORT_MAX_AGE_DAYS = 120
 GAP_SESSIONS = 60
 
 
@@ -306,7 +318,8 @@ def _dataset(src: Source, now: dt.datetime, expected: dt.date | None,
     if src.ds.key is None:
         out["kind"] = "current"
         max_age = {"splits": 0, "dividends": 0, "etf_nav_history":
-                   etf_nav_history.MAX_AGE_DAYS}.get(src.name)
+                   etf_nav_history.MAX_AGE_DAYS,
+                   "openfigi_cusips": NPORT_MAX_AGE_DAYS}.get(src.name)
         if max_age is None:
             max_age = daily.PUBLIC[src.ds.name].MAX_AGE_DAYS
         _current(src, max_age, now, out)
@@ -369,6 +382,13 @@ def _dataset(src: Source, now: dt.datetime, expected: dt.date | None,
             out["reason"] = (f"{current} of {len(funds)} funds within a session"
                              if funds else "no funds listed; run --select")
             out["next"] = "each run, per fund"
+        elif src.name == "sec_nport":
+            age = (et.date() - last).days if last else None
+            out["behind"] = age
+            out["level"] = "bad" if age is None else ("ok" if age <= NPORT_MAX_AGE_DAYS else "warn")
+            out["reason"] = (f"newest holdings dated {last}, {age} days old" if last
+                             else "no filing yet")
+            out["next"] = "a weekly check of each fund's filings"
     out["extras"] = _extras(src, parts, now)
     return out
 

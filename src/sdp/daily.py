@@ -38,7 +38,9 @@ from sdp.ingest import (
     french,
     french_international,
     ibkr_borrow,
+    openfigi,
     qfactors,
+    sec_nport,
 )
 from sdp.ingest import massive_corporate_actions as ca
 from sdp.ingest import massive_ticker_details as details
@@ -64,7 +66,13 @@ MONTHLY_STREAMS = {"ticker_details": dal.TICKER_DETAILS}
 
 # Funding and ETF data, pulled after the event streams. The borrow file and the screeners
 # keep no history, so each run takes today's snapshot when it is due.
-FUND_DATA = ("ibkr_borrow", "etf_funds", "etf_nav_history", "etf_holdings")
+FUND_DATA = ("ibkr_borrow", "etf_funds", "etf_nav_history", "etf_holdings", "sec_nport",
+             "openfigi")
+
+# N-PORT: a fund's filing list is read again after this many hours, and one run maps at most
+# this many new identifiers at OpenFIGI (10 to a request, 24 requests a minute keyless).
+NPORT_MIN_AGE_HOURS = 168
+OPENFIGI_LIMIT = 500
 
 HOLDINGS_FAILURES_TO_REPORT = 5
 """Fewer failed holdings files than this only log: a closed fund must not fail every run."""
@@ -229,6 +237,14 @@ def _fill_event_stream(
     return backfill.backfill(name, start, today, limit=max_sessions, on_session=_sess)
 
 
+def _pull_nport(now: dt.datetime) -> list[str]:
+    """Pull new N-PORT filings, or log and skip when no SEC contact is set."""
+    if not settings.sec_user_agent:
+        log.info("sec_nport skipped: SEC_USER_AGENT is not set.")
+        return []
+    return sec_nport.ingest(min_age_hours=NPORT_MIN_AGE_HOURS, now=now)
+
+
 def _pull_fund_data(now: dt.datetime,
                     on_event: Callable[[dict], None] | None = None) -> list[str]:
     """Take the borrow, screener, NAV-history and holdings pulls that are due. Return the
@@ -239,6 +255,8 @@ def _pull_fund_data(now: dt.datetime,
         "etf_funds": lambda: etf_funds.ingest(now),
         "etf_nav_history": lambda: etf_nav_history.ingest(now.date()),
         "etf_holdings": lambda: etf_holdings.ingest(now),
+        "sec_nport": lambda: _pull_nport(now),
+        "openfigi": lambda: openfigi.ingest(limit=OPENFIGI_LIMIT),
     }
     for name in FUND_DATA:
         if on_event:
@@ -246,11 +264,11 @@ def _pull_fund_data(now: dt.datetime,
         ok = True
         try:
             result = steps[name]()
-            if name == "etf_holdings":
+            if name in ("etf_holdings", "sec_nport"):
                 for p in result:
                     log.warning(p)
                 if len(result) >= HOLDINGS_FAILURES_TO_REPORT:
-                    found.append(f"etf_holdings: {len(result)} funds failed")
+                    found.append(f"{name}: {len(result)} funds failed")
                     ok = False
         except Exception as exc:  # noqa: BLE001 -- one source must not stop the others
             found.append(f"{name} pull failed: {type(exc).__name__}: {exc}")
