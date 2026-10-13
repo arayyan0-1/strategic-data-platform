@@ -222,3 +222,9 @@ models:
       - name: score
         data_tests:
           - not_null
+
+  - name: fund_holdings_alpha
+    description: The forecast of each US-equity ETF a year from the stocks it holds, at the last session of
+      each month. It is the holdings-weighted Grinold forecast of short_ratio, from the latest N-PORT
+      filed before that session whose holdings are at most 200 days old. weight_scored is the share of
+      the mapped holdings that has a forecast.

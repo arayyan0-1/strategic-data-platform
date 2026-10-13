@@ -38,6 +38,8 @@ ALPHAS = {
     "hold": (False, False, True, "combo"),
     "all": (True, True, True, "combo"),
     "mom": (True, False, False, "mom"),
+    # Every component that passed its gate: trend and the holdings forecast.
+    "headline": (False, True, True, "combo"),
 }
 DEV_END = dt.date(2021, 12, 31)
 
@@ -96,8 +98,9 @@ def main(argv: list[str] | None = None) -> int:
     bt.add_argument("--band", type=float, default=0.005,
                     help="no-trade band: a trade under this share of NAV is skipped")
     bt.add_argument("--alpha", default="none", choices=tuple(ALPHAS),
-                    help="the forecast: none (fees only), cross, trend, both, hold, all, or "
-                         "mom (momentum alone, chosen after the long-history results)")
+                    help="the forecast: none (fees only), cross, trend, both, hold, all, "
+                         "headline (the components that passed their gates), or mom "
+                         "(momentum alone, chosen after the long-history results)")
     bt.add_argument("--trend-rule", type=float, default=0.0,
                     help="hold this much cash while ACWI's 12-month trend is negative")
     args = ap.parse_args(argv)
@@ -139,7 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.period == "holdout":
         with (settings.data_root / "fund" / "holdout_reads.jsonl").open("a") as fh:
             fh.write(json.dumps({"time": stamp, "strategies": names,
-                                 "covariance": args.covariance}) + "\n")
+                                 "covariance": args.covariance, "alpha": args.alpha,
+                                 "trend_rule": args.trend_rule}) + "\n")
     print(f"Saved {path}")
     return 0
 

@@ -145,6 +145,10 @@ vars:
   # Signals on the long index history (fund_signal_*): development is every formation month up to
   # this date. The signals are judged on development and shown on all months.
   fund_signal_dev_end: "2021-12-31"
+  # Holdings forecast (fund_holdings_alpha): the shrink of every forecast, and the monthly
+  # residual IC of short_ratio on development, which carries its sign through -short_ratio.
+  fund_shrink: 0.5
+  fund_hold_ic: 0.047
 
 seeds:
   sdp:
