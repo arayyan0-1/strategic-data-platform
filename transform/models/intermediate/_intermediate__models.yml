@@ -275,10 +275,54 @@ models:
       return of the long-history index the fund maps to in fund_index_map. rf is the US T-bill
       return of the month, from the research factors, else the monthly compound of core.rates.rf.
       ret is null in a month where the fund's close is unknown and the index has no return.
+  - name: int_fund_holdings_lines
+    description: The long common-equity lines of each N-PORT report with the security_key of the line.
+      The code (CUSIP, else ISIN) gives a FIGI at OpenFIGI, which is an episode key of int_tickers_keyed
+      (matched_on figi). A line that misses, such as a security the vendor keys by CIK and ticker, matches
+      on OpenFIGI's ticker and the first word of the name (matched_on ticker). Any other line keeps a
+      null security_key. The one definition of the mapping.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: report_date
+        data_tests:
+          - not_null
+      - name: filed
+        data_tests:
+          - not_null
+
+  - name: int_fund_holdings_history
+    description: The long common-equity holdings of each fund on each N-PORT report date, one row per
+      security. weight is the value of the security's lines over the fund's long common-equity value
+      on that date, so it sums to at most 1 and the unmapped lines are the rest. filed is when the
+      public could first see the report, so a study uses the row only from that date.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: report_date
+        data_tests:
+          - not_null
+      - name: filed
+        data_tests:
+          - not_null
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: weight
+        data_tests:
+          - not_null
+
+  - name: int_fund_holdings_coverage
+    description: How much of each fund's long common-equity value on each report date maps to a
+      security_key. n_lines counts the lines, n_mapped those with a key, weight_mapped their share of
+      the value.
     columns:
       - name: fund
         data_tests:
           - not_null
       - name: month
+      - name: report_date
         data_tests:
           - not_null

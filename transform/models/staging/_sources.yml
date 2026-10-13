@@ -117,3 +117,28 @@ sources:
       - name: nav_history
         identifier: etf_nav_history
         description: Daily NAV, shares outstanding and net assets of each SSGA ETF since inception.
+
+  - name: sec
+    description: SEC EDGAR Form N-PORT filings of the funds in the seed nport_funds.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/date=*/*.parquet', union_by_name = true)"
+    tables:
+      - name: nport
+        identifier: sec_nport
+        description: >-
+          Holdings per fund, report date and line. filed is the date the public could first see
+          the report; pct_val is a fraction of net assets.
+
+  - name: openfigi
+    description: OpenFIGI, queried for the CUSIPs of the N-PORT equity lines.
+    meta:
+      root: "{{ env_var('SDP_DATA_ROOT') }}/raw"
+      external_location: "read_parquet('{root}/{identifier}/data.parquet')"
+    tables:
+      - name: cusips
+        identifier: openfigi_cusips
+        description: >-
+          The share-class FIGI of each code (a CUSIP, or an ISIN where the line has no CUSIP), and
+          the composite FIGI and ticker of its US listing, as of mapped_on. Null FIGIs mean OpenFIGI
+          found no match.

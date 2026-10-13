@@ -172,6 +172,11 @@ class TestParseAtom:
         assert filings[0].url == (f"{settings.sec_www_url}/Archives/edgar/data/1100663/"
                                   "000207169126019760/primary_doc.xml")
 
+    def test_an_accession_that_is_not_a_filing_number_is_dropped(self):
+        page = _atom([("0002071691-26-019760", "2026-08-25", "NPORT-P"),
+                      ("../../etc/passwd", "2026-08-25", "NPORT-P")])
+        assert [f.accession for f in sec_nport.parse_atom(page)] == ["0002071691-26-019760"]
+
     def test_paging_follows_start_until_an_empty_page(self, monkeypatch, sleeps):
         monkeypatch.setattr(settings, "sec_user_agent", CONTACT)
         monkeypatch.setattr(sec_nport, "ATOM_COUNT", 2)
@@ -510,12 +515,13 @@ def _figi(server: FigiServer) -> openfigi.OpenFigi:
     return openfigi.OpenFigi(transport=httpx.MockTransport(server), interval=0)
 
 
-def _nport_lake(cusips: list[str], asset_cat="EC"):
-    """Publish one sec_nport file whose lines carry these CUSIPs."""
+def _nport_lake(cusips: list[str], asset_cat="EC", isins: list[str] | None = None):
+    """Publish one sec_nport file whose lines carry these CUSIPs, then lines with only an ISIN."""
     path = dal.SEC_NPORT.member_file(dt.date(2026, 6, 30), "TST")
     path.parent.mkdir(parents=True, exist_ok=True)
-    values = ", ".join(f"('{c}', '{asset_cat}')" for c in cusips)
-    duckdb.execute(f"copy (select * from (values {values}) as t(cusip, asset_cat)) "
+    values = ", ".join([f"('{c}', cast(null as varchar), '{asset_cat}')" for c in cusips]
+                       + [f"(cast(null as varchar), '{i}', '{asset_cat}')" for i in isins or []])
+    duckdb.execute(f"copy (select * from (values {values}) as t(cusip, isin, asset_cat)) "
                    f"to '{path}' (format parquet)")
 
 
@@ -531,23 +537,36 @@ class TestOpenFigi:
                          _listing("US", "BBG3", "BBGSC", typ="Preferred"),
                          _listing("US", "BBG4", "BBGSC9", typ="Common Stock")]}
         row = openfigi.parse_result("037833100", item, dt.date(2026, 10, 13))
-        assert row == ("037833100", "BBGSC9", "BBG000B9XRY4", "AAPL", "APPLE INC",
+        assert row == ("037833100", None, "BBGSC9", "BBG000B9XRY4", "AAPL", "APPLE INC",
                        "Common Stock", dt.date(2026, 10, 13))
 
     @pytest.mark.parametrize("item", [
-        {"warning": "No identifier found."}, {"error": "Invalid idValue format"},
-        {"data": [_listing("GR", "BBG1", "BBGSC")]}, {"data": []},
+        {"warning": "No identifier found."}, {"error": "Invalid idValue format"}, {"data": []},
+        {"data": [{"exchCode": "US", "securityType": "Common Stock", "shareClassFIGI": None}]},
     ])
     def test_no_match_gives_null_figis(self, item):
         assert openfigi.parse_result("X", item, dt.date(2026, 10, 13)) == (
-            "X", None, None, None, None, None, dt.date(2026, 10, 13))
+            "X", None, None, None, None, None, None, dt.date(2026, 10, 13))
 
-    def test_a_request_asks_for_the_us_composite_and_at_most_ten_jobs(self, sleeps):
+    def test_a_delisted_name_keeps_its_share_class_figi_but_no_us_listing_fields(self):
+        item = {"data": [_listing("GR", "BBG1", "BBGSC"), _listing("SW", "BBG2", "BBGSC")]}
+        assert openfigi.parse_result("90184L102", item, dt.date(2026, 10, 13)) == (
+            "90184L102", None, "BBGSC", None, None, "APPLE INC", "Common Stock",
+            dt.date(2026, 10, 13))
+
+    def test_a_twelve_character_code_is_an_isin(self):
+        item = {"data": [_listing("US", "BBG3", "BBGSC1")]}
+        assert openfigi.parse_result("IE000S9YS762", item, dt.date(2026, 10, 13)) == (
+            None, "IE000S9YS762", "BBGSC1", "BBG000B9XRY4", "AAPL", "APPLE INC",
+            "Common Stock", dt.date(2026, 10, 13))
+
+    def test_a_request_is_one_job_per_code_and_at_most_ten_jobs(self, sleeps):
         server = FigiServer({})
         client = _figi(server)
-        client.map(["A", "B"])
-        assert server.requests == [[{"idType": "ID_CUSIP", "idValue": "A", "exchCode": "US"},
-                                    {"idType": "ID_CUSIP", "idValue": "B", "exchCode": "US"}]]
+        client.map(["037833100", "G54950103", "IE000S9YS762"])
+        assert server.requests == [[{"idType": "ID_CUSIP", "idValue": "037833100"},
+                                    {"idType": "ID_CINS", "idValue": "G54950103"},
+                                    {"idType": "ID_ISIN", "idValue": "IE000S9YS762"}]]
         with pytest.raises(ValueError, match="at most 10"):
             client.map([str(i) for i in range(11)])
 
@@ -579,7 +598,7 @@ class TestOpenFigi:
             _figi(server).map(["A"])
 
 
-class TestMapCusips:
+class TestMapCodes:
     KNOWN = {"037833100": [_listing("US", "BBG3", "BBGSC1")],
              "594918104": [_listing("US", "BBG4", "BBGSC2", ticker="MSFT")]}
 
@@ -591,12 +610,23 @@ class TestMapCusips:
         assert [len(r) for r in server.requests] == [10, 10, 5]
         table = _table()
         assert len(table) == 25
-        assert table["037833100"][1:4] == ("BBGSC1", "BBG000B9XRY4", "AAPL")
-        assert table["000000001"][1:] == (None, None, None, None, None, dt.date(2026, 10, 13))
+        assert table["037833100"][2:5] == ("BBGSC1", "BBG000B9XRY4", "AAPL")
+        assert table["000000001"][2:] == (None, None, None, None, None, dt.date(2026, 10, 13))
         assert dal.openfigi_cusips().aggregate("count(*)").fetchone()[0] == 25
 
-    def test_only_equity_lines_with_a_nine_character_cusip_are_asked(self, tmp_data_root, sleeps):
-        _nport_lake(["037833100", "SHORT", "N/A00"], asset_cat="EC")
+    def test_a_line_with_no_cusip_is_asked_by_its_isin(self, tmp_data_root, sleeps):
+        known = {**self.KNOWN, "IE000S9YS762": [_listing("US", "BBG5", "BBGSC5", ticker="LIN")]}
+        _nport_lake(["037833100"], isins=["IE000S9YS762"])
+        server = FigiServer(known)
+        assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 10, 13)) == 2
+        assert {j["idType"] for j in server.requests[0]} == {"ID_CUSIP", "ID_ISIN"}
+        table = _table()
+        assert table["037833100"][:2] == ("037833100", None)
+        assert table[None][:5] == (None, "IE000S9YS762", "BBGSC5", "BBG000B9XRY4", "LIN")
+        assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 10, 14)) == 0
+
+    def test_only_equity_lines_with_a_usable_code_are_asked(self, tmp_data_root, sleeps):
+        _nport_lake(["SHORT", "N/A00"], isins=["TOOLONGANISINCODE"], asset_cat="EC")
         _nport_lake(["999999999"], asset_cat="DBT")  # Same file name: replaces the first.
         server = FigiServer(self.KNOWN)
         assert openfigi.ingest(client=_figi(server)) == 0
@@ -614,11 +644,18 @@ class TestMapCusips:
         _nport_lake(["111111111"])
         server = FigiServer({})
         openfigi.ingest(client=_figi(server), today=dt.date(2026, 10, 13))
-        assert _table()["111111111"][1] is None
+        assert _table()["111111111"][2] is None
         server.requests.clear()
         assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 11, 11)) == 0
         assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 11, 12)) == 1
         assert len(server.requests) == 1
+
+    def test_a_name_with_only_foreign_listings_counts_as_matched(self, tmp_data_root, sleeps):
+        _nport_lake(["90184L102"])
+        server = FigiServer({"90184L102": [_listing("SW", "BBG2", "BBGSC")]})
+        openfigi.ingest(client=_figi(server), today=dt.date(2026, 10, 13))
+        server.requests.clear()
+        assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 12, 31)) == 0
 
     def test_new_cusips_join_the_old_table(self, tmp_data_root, sleeps):
         _nport_lake(["037833100"])
@@ -627,7 +664,7 @@ class TestMapCusips:
         _nport_lake(["037833100", "594918104"])
         assert openfigi.ingest(client=_figi(server), today=dt.date(2026, 10, 14)) == 1
         assert set(_table()) == set(self.KNOWN)
-        assert _table()["037833100"][6] == dt.date(2026, 10, 13)
+        assert _table()["037833100"][7] == dt.date(2026, 10, 13)
 
     def test_an_interrupted_run_keeps_what_it_mapped(self, tmp_data_root, sleeps, monkeypatch):
         monkeypatch.setattr(openfigi, "CHECKPOINT", 1)
@@ -655,10 +692,15 @@ class TestMapCusips:
     def test_the_audit_refuses_a_duplicate_cusip(self, tmp_path):
         staged = tmp_path / "s.parquet"
         duckdb.execute(f"""
-            copy (select * from (values ('A', 'F', 'C', date '2026-10-13'),
-                                        ('A', 'F', 'C', date '2026-10-13'),
-                                        ('B', 'F', null, date '2026-10-13'))
-                  as t(cusip, share_class_figi, composite_figi, mapped_on))
+            copy (select * from (values ('A', null, 'F', 'C', date '2026-10-13'),
+                                        ('A', null, 'F', 'C', date '2026-10-13'),
+                                        ('B', 'IE1', null, 'C', date '2026-10-13'),
+                                        (null, null, 'F', 'C', date '2026-10-13'))
+                  as t(cusip, isin, share_class_figi, composite_figi, mapped_on))
             to '{staged}' (format parquet)""")
-        with pytest.raises(AuditFailure, match="1 duplicate CUSIPs.*one FIGI and not the other"):
+        with pytest.raises(AuditFailure) as err:
             openfigi.audit(staged)
+        text = str(err.value)
+        for part in ("1 duplicate codes", "2 rows with both a CUSIP and an ISIN, or neither",
+                     "no share-class"):
+            assert part in text

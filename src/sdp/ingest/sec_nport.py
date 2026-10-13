@@ -61,6 +61,8 @@ LINE_FIELDS = list(COLUMNS)[5:]
 NPORT = "{http://www.sec.gov/edgar/nport}"
 ATOM = "{http://www.w3.org/2005/Atom}"
 _HREF = re.compile(r"/Archives/edgar/data/(\d+)/(\d{18})/")
+_ACCESSION = re.compile(r"\d{10}-\d{2}-\d{6}")
+_DUCKDB = threading.Lock()  # The module-level DuckDB connection is not safe across threads.
 
 
 # ---------- EDGAR client ----------
@@ -162,7 +164,8 @@ def parse_atom(data: bytes) -> list[Filing]:
             return e.text.strip() if e is not None and e.text and e.text.strip() else None
 
         acc, filed, form = text("accession-number"), text("filing-date"), text("filing-type")
-        if not (acc and filed and form):
+        # The accession becomes a file name, so a malformed one is dropped.
+        if not (acc and _ACCESSION.fullmatch(acc) and filed and form):
             continue
         m = _HREF.search(text("filing-href") or "")
         out.append(Filing(acc, dt.date.fromisoformat(filed), form, str(int(m.group(1))) if m
@@ -345,8 +348,9 @@ def publish_fund(fund: str, series_id: str, index: dict[str, dict], since: dt.da
                 gzip.decompress(vendor_file(series_id, acc).read_bytes()))
             if not parsed.lines:
                 raise AuditFailure(f"{DATASET.name} {fund} {rd}: no holdings.")
-            staged = build(fund, acc, filed, parsed)
-            audit(staged, fund, series_id, rd)
+            with _DUCKDB:
+                staged = build(fund, acc, filed, parsed)
+                audit(staged, fund, series_id, rd)
             publish(staged, dest)
             counts["published"] += 1
         except Exception as exc:  # noqa: BLE001 -- one date must not stop the rest

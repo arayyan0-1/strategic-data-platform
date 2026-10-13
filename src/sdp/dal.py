@@ -374,7 +374,11 @@ def sec_nport(start: dt.date | None = None, end: dt.date | None = None):
 
 
 def openfigi_cusips():
-    """Return the FIGIs OpenFIGI gave each CUSIP, as of mapped_on. Null FIGIs mean no match."""
+    """Return the FIGIs OpenFIGI gave each CUSIP, or each ISIN where a line states no CUSIP.
+
+    mapped_on dates the answer. Null FIGIs mean no match. composite_figi and ticker are the US
+    listing's and are null for a name delisted there; share_class_figi outlives the delisting.
+    """
     return current(OPENFIGI_CUSIPS)
 
 

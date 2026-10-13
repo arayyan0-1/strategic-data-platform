@@ -58,3 +58,26 @@ models:
 
   - name: stg_ssga__nav_history
     description: SSGA daily NAV, shares outstanding and net assets per fund.
+
+  - name: stg_sec__nport
+    description: N-PORT holdings per fund, report date and line. filed is the date the public could
+      first see the report; pct_val is a fraction of net assets.
+    columns:
+      - name: fund
+        data_tests:
+          - not_null
+      - name: report_date
+        data_tests:
+          - not_null
+      - name: filed
+        data_tests:
+          - not_null
+
+  - name: stg_openfigi__cusips
+    description: The share-class FIGI that OpenFIGI gave each code, and the composite FIGI and ticker of
+      its US listing (null for a name no longer listed there). A code is the cusip, or the isin where
+      the line has no CUSIP. Null FIGIs mean no match.
+    columns:
+      - name: mapped_on
+        data_tests:
+          - not_null
