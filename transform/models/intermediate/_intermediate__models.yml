@@ -254,6 +254,23 @@ models:
       market portfolio of the country), us:market, us:small and us:big (the mean of three
       portfolios), us:value, us:growth, us:momentum, us:quality, us:low_vol, and cash:tbill. A
       month with an input missing has no row.
+
+      The asset classes follow, from the value at the end of the month (the last observation of
+      a daily FRED series; the value of the month for a monthly series, so the corporate yields
+      and the World Bank prices, which are averages of the month, give smoothed returns).
+      bond:ust_2y, bond:ust_5y, bond:ust_10y and bond:ust_30y are par bonds with semiannual
+      coupons of the constant maturity yield, and bond:corp_aaa and bond:corp_baa par bonds of 20
+      years at the Moody's yield. Each is bought at par at the yield of the month before and
+      priced at the yield of the month with a month less to maturity, so its return is the price
+      change plus the coupon accrued in the month (macro par_bond_return). bond:tips_10y is the
+      same from the 10-year TIPS real yield plus the change of the CPI in the month. gold is the
+      change of the World Bank gold price. commodity:all, commodity:energy, commodity:metals and
+      commodity:agriculture are the change of the World Bank price index plus the T-bill return
+      of the month as collateral; a spot price index has no roll yield, so these returns lack
+      the roll of a futures index. crypto:bitcoin is the change of the Coinbase bitcoin price. A
+      bond needs a yield in both months, so the 30-year series, which FRED does not state from
+      February 2002 to February 2006, has no return for those months. The asset classes end at
+      the last month of the T-bill return.
     columns:
       - name: index_key
         data_tests:

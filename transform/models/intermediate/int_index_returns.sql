@@ -1,8 +1,22 @@
 {# Monthly total return in dollars of each index of the long history, and the US T-bill return of
-   the month. index_key is region:<name>, country:<name>, us:<segment> or cash:tbill. A region
-   earns its market less the risk-free rate plus the risk-free rate of its file; a country its
-   market portfolio; a US segment a size-sorted portfolio of the library (the mean of three for
-   us:small and us:big). A month with an input missing has no row. #}
+   the month. index_key is region:<name>, country:<name>, us:<segment>, cash:tbill, or an asset
+   class key. A region earns its market less the risk-free rate plus the risk-free rate of its
+   file; a country its market portfolio; a US segment a size-sorted portfolio of the library (the
+   mean of three for us:small and us:big). A month with an input missing has no row.
+
+   The asset classes use the value at the end of the month: the last observation of a daily FRED
+   series, the value of the month for a monthly one (the corporate yields and the World Bank
+   prices are averages of the month, which smooths their returns).
+   - bond:ust_2y, _5y, _10y, _30y, bond:corp_aaa, bond:corp_baa: a par bond with semiannual
+     coupons, bought at the yield of the month before and priced at the yield of the month with
+     one month less to maturity (macro par_bond_return). The Treasuries are the constant
+     maturity yields of 2, 5, 10 and 30 years; the corporate bonds have 20 years.
+   - bond:tips_10y: the same from the 10-year TIPS real yield, plus the change of the CPI in the
+     month (the inflation accrual, added, not compounded).
+   - gold: the change of the World Bank gold price.
+   - commodity:all, energy, metals, agriculture: the change of the World Bank price index plus
+     the T-bill return of the month, as collateral. A spot index has no roll yield.
+   - crypto:bitcoin: the change of the Coinbase bitcoin price. #}
 
 with v as (
 
@@ -86,6 +100,92 @@ with v as (
     select 'cash:tbill' as index_key, month, rf as ret
     from tbill
 
+), fred_month as (
+
+    select series_id, last_day(date) as month, arg_max(value, date) as value
+    from {{ ref('stg_fred__series') }}
+    where value is not null
+      and series_id in ('DGS2', 'DGS5', 'DGS10', 'DGS30', 'DFII10', 'AAA', 'BAA', 'CPIAUCSL',
+                        'CBBTCUSD')
+    group by 1, 2
+
+), bond_specs (index_key, series_id, years) as (
+
+    values ('bond:ust_2y', 'DGS2', 2),
+           ('bond:ust_5y', 'DGS5', 5),
+           ('bond:ust_10y', 'DGS10', 10),
+           ('bond:ust_30y', 'DGS30', 30),
+           ('bond:tips_10y', 'DFII10', 10),
+           ('bond:corp_aaa', 'AAA', 20),
+           ('bond:corp_baa', 'BAA', 20)
+
+), bond as (
+
+    select
+        b.index_key,
+        y.month,
+        {{ par_bond_return('p.value / 100', 'y.value / 100', 'b.years') }}   as ret
+    from bond_specs b
+    join fred_month y on y.series_id = b.series_id
+    join fred_month p
+        on p.series_id = b.series_id and p.month = last_day(y.month - interval 1 month)
+
+), inflation as (
+
+    select c.month, c.value / p.value - 1                          as infl
+    from fred_month c
+    join fred_month p
+        on p.series_id = c.series_id and p.month = last_day(c.month - interval 1 month)
+    where c.series_id = 'CPIAUCSL'
+
+), tips as (
+
+    select b.index_key, b.month, b.ret + i.infl                    as ret
+    from bond b
+    join inflation i using (month)
+    where b.index_key = 'bond:tips_10y'
+
+), bitcoin as (
+
+    select
+        'crypto:bitcoin'                                           as index_key,
+        c.month,
+        c.value / p.value - 1                                      as ret
+    from fred_month c
+    join fred_month p
+        on p.series_id = c.series_id and p.month = last_day(c.month - interval 1 month)
+    where c.series_id = 'CBBTCUSD'
+
+), wb_change as (
+
+    select
+        c.series,
+        c.month,
+        c.value / p.value - 1                                      as chg
+    from {{ ref('stg_worldbank__commodities') }} c
+    join {{ ref('stg_worldbank__commodities') }} p
+        on p.series = c.series and p.month = last_day(c.month - interval 1 month)
+
+), gold as (
+
+    select 'gold' as index_key, month, chg as ret
+    from wb_change
+    where series = 'Gold'
+
+), commodity_series (index_key, series) as (
+
+    values ('commodity:all', 'Total Index'),
+           ('commodity:energy', 'Energy'),
+           ('commodity:metals', 'Metals & Minerals'),
+           ('commodity:agriculture', 'Agriculture')
+
+), commodity as (
+
+    select k.index_key, w.month, w.chg + t.rf                      as ret
+    from commodity_series k
+    join wb_change w using (series)
+    join tbill t using (month)
+
 ), returns as (
 
     select * from region
@@ -93,6 +193,11 @@ with v as (
     union all select * from us_market
     union all select * from us_segment
     union all select * from cash
+    union all select * from bond where index_key <> 'bond:tips_10y'
+    union all select * from tips
+    union all select * from gold
+    union all select * from commodity
+    union all select * from bitcoin
 
 )
 
