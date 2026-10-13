@@ -1,4 +1,4 @@
-{# Each candidate fund (equity or cash role) and session: what is known at that close. eligible needs
+{# Each candidate fund (any role) and session: what is known at that close. eligible needs
    fund_universe_min_returns daily returns in the last fund_min_returns rows and
    fund_universe_min_adv of trailing dollar volume. sigma is the root mean square of the last 63
    returns. half_spread is half the Kyle-Obizhaeva spread of spreads, with a spread of at least one

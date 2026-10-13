@@ -3,9 +3,16 @@ version: 2
 models:
   - name: fund_candidates
     description: Every ETF of the two screeners and of the seed fund_extra_etfs, with the rule that keeps
-      it out of the paper fund (excluded_by), or is_candidate when it passes. role is cash for a T-bill
-      fund (found by name) and equity for every other fund; only an equity fund must be of an allowed
-      asset class. A fund holding one country is allowed. source says where the row comes from
+      it out of the paper fund (excluded_by), or is_candidate when it passes. role is found from the name
+      and the asset class (cash, bond, gold, commodity, bitcoin, else equity). An equity fund must be of
+      an allowed asset class, and a fund holding one country is allowed. A fund of another role is in
+      when its name shows the kind the role takes (a government, TIPS, corporate, high yield, aggregate,
+      mortgage-backed, international or emerging-market bond fund; physical gold; a broad commodity
+      index fund; spot bitcoin) and out for a municipal, defined-maturity, overlay, active, screened,
+      convertible, preferred, floating-rate, loan, leveraged, inverse or under-one-year bond fund, or a
+      miner, single-commodity, futures, income, ether or leveraged fund. excluded_by is asset_class,
+      no_prices, bond_excluded, gold_excluded, commodity_excluded, bitcoin_excluded, overlay, active,
+      screened or sector_or_theme, and null for a candidate. source says where the row comes from
       (screener or seed; a fund in both keeps its screener row). expense_ratio is a fraction a year.
     columns:
       - name: fund
@@ -13,12 +20,29 @@ models:
           - not_null
           - unique
       - name: role
-        description: cash for a T-bill fund, else equity.
+        description: cash for a T-bill fund, bond for a fixed income fund, gold for a physical gold fund,
+          commodity for any other fund of class Commodity, bitcoin for a bitcoin fund of class Digital
+          Assets, else equity. The role of an excluded fund is the family its class belongs to.
+      - name: excluded_by
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - asset_class
+                  - no_prices
+                  - bond_excluded
+                  - gold_excluded
+                  - commodity_excluded
+                  - bitcoin_excluded
+                  - overlay
+                  - active
+                  - screened
+                  - sector_or_theme
 
   - name: fund_universe
-    description: One row per candidate fund and session, with its role (equity or cash) and what is known
-      at the close (returns, trailing dollar volume, volatility, the modelled half spread, the expense
-      ratio) and whether the fund is eligible that day.
+    description: One row per candidate fund and session, with its role (equity, bond, gold, commodity,
+      bitcoin or cash) and what is known at the close (returns, trailing dollar volume, volatility, the
+      modelled half spread, the expense ratio) and whether the fund is eligible that day.
 
   - name: fund_signal_history
     description: The signals of the long index history at the end of each month, with the return that

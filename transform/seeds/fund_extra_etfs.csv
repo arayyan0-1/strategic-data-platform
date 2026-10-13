@@ -42,3 +42,25 @@ VYMI,Vanguard,Vanguard International High Dividend Yield ETF,Equity,Large/Mid Ca
 VGK,Vanguard,Vanguard FTSE Europe ETF,Equity,All Cap,Europe,Broad,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vgk
 VPL,Vanguard,Vanguard FTSE Pacific ETF,Equity,All Cap,Asia Pacific,Broad,0.07,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vpl
 VBIL,Vanguard,Vanguard 0-3 Month Treasury Bill ETF,Fixed Income,Government,North America,United States,0.06,2026-10-12,https://investor.vanguard.com/investment-products/etfs/profile/vbil
+BND,Vanguard,Vanguard Total Bond Market ETF,Fixed Income,Aggregate,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/bnd
+BNDX,Vanguard,Vanguard Total International Bond ETF,Fixed Income,Aggregate,Global,Broad,0.07,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/bndx
+BSV,Vanguard,Vanguard Short-Term Bond ETF,Fixed Income,Aggregate,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/bsv
+BIV,Vanguard,Vanguard Intermediate-Term Bond ETF,Fixed Income,Aggregate,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/biv
+BLV,Vanguard,Vanguard Long-Term Bond ETF,Fixed Income,Aggregate,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/blv
+VGSH,Vanguard,Vanguard Short-Term Treasury ETF,Fixed Income,Government,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vgsh
+VGIT,Vanguard,Vanguard Intermediate-Term Treasury ETF,Fixed Income,Government,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vgit
+VGLT,Vanguard,Vanguard Long-Term Treasury ETF,Fixed Income,Government,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vglt
+EDV,Vanguard,Vanguard Extended Duration Treasury ETF,Fixed Income,Government,North America,United States,0.05,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/edv
+VTIP,Vanguard,Vanguard Short-Term Inflation-Protected Securities ETF,Fixed Income,Inflation,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vtip
+VCSH,Vanguard,Vanguard Short-Term Corporate Bond ETF,Fixed Income,Corporates,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vcsh
+VCIT,Vanguard,Vanguard Intermediate-Term Corporate Bond ETF,Fixed Income,Corporates,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vcit
+VCLT,Vanguard,Vanguard Long-Term Corporate Bond ETF,Fixed Income,Corporates,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vclt
+VMBS,Vanguard,Vanguard Mortgage-Backed Securities ETF,Fixed Income,Mortgages,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vmbs
+VWOB,Vanguard,Vanguard Emerging Markets Government Bond ETF,Fixed Income,Government,Global,Broad,0.15,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vwob
+VTEB,Vanguard,Vanguard Tax-Exempt Bond ETF,Fixed Income,Municipals,North America,United States,0.03,2026-10-13,https://investor.vanguard.com/investment-products/etfs/profile/vteb
+DBC,Invesco,Invesco DB Commodity Index Tracking Fund,Commodity,Multi Commodity,Global,Broad,0.82,2026-10-13,https://www.invesco.com/us/en/financial-products/etfs/invesco-db-commodity-index-tracking-fund.html
+PDBC,Invesco,Invesco Optimum Yield Diversified Commodity Strategy No K-1 ETF,Commodity,Multi Commodity,Global,Broad,0.59,2026-10-13,https://www.invesco.com/us/en/financial-products/etfs/invesco-optimum-yield-diversified-commodity-strategy-no-k-1-etf.html
+SGOL,abrdn,abrdn Physical Gold Shares ETF,Commodity,Precious Metals,Global,Broad,0.17,2026-10-13,https://www.aberdeeninvestments.com/en-us/institutional/funds/view-all-funds/abrdn-physical-gold-shares-etf-us00326a1043
+BAR,GraniteShares,GraniteShares Gold Trust,Commodity,Precious Metals,Global,Broad,0.1749,2026-10-13,https://graniteshares.com/etfs/bar/
+FBTC,Fidelity,Fidelity Wise Origin Bitcoin Fund,Digital Assets,Cryptoassets,North America,United States,0.25,2026-10-13,https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol=FBTC
+BITB,Bitwise,Bitwise Bitcoin ETF,Digital Assets,Cryptoassets,North America,United States,0.2,2026-10-13,https://bitbetf.com/

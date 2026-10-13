@@ -3,13 +3,33 @@ AAXJ,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, Indi
 ACWI,region:developed,all-country world equity; emerging markets are missing from the proxy
 ACWV,region:developed,MSCI ACWI min vol; emerging markets and the low-volatility tilt are missing
 ACWX,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+AGG,bond:ust_5y,US aggregate bond market; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
+AGGM,bond:ust_5y,1-10 year US aggregate; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
+AGZ,bond:ust_5y,"agency debentures, intermediate; the agency spread over Treasuries is missing"
 AIA,region:emerging,"Asia 50: Taiwan, Korea and China are about 90% of holdings, though the issuer labels it developed"
 AQLT,region:developed,MSCI ACWI quality; emerging markets and the quality tilt are missing
+BAR,gold,physical gold
+BEMB,bond:corp_baa,emerging-market USD government and quasi-sovereign bonds; rough proxy: the emerging-market spread is not in it
 BIL,cash:tbill,"US T-bill ETF, cash"
 BILS,cash:tbill,"US T-bill ETF, cash"
+BITB,crypto:bitcoin,spot bitcoin
+BIV,bond:ust_5y,intermediate-term government and credit; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
 BKF,region:emerging,"Brazil, India and China; not in the French countries file"
+BLV,bond:ust_30y,"long-term government and credit, 10+ years"
+BND,bond:ust_5y,US aggregate bond market; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
+BNDX,bond:ust_10y,"international aggregate, USD hedged; rough proxy: foreign yield curves and currencies are not in it"
+BSV,bond:ust_5y,"short-term government and credit, 1-5 years; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing"
+BTOT,bond:ust_5y,total USD fixed income market; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
+BWX,bond:ust_10y,"international Treasury, unhedged; rough proxy: foreign yield curves and currencies are not in it"
+BWZ,bond:ust_2y,"1-3 year international Treasury, unhedged; rough proxy: foreign yield curves and currencies are not in it"
+CEMB,bond:corp_baa,emerging-market USD corporate; rough proxy
+CERY,commodity:all,"Bloomberg Enhanced Roll Yield commodity futures, a broad index"
+CMBS,bond:ust_5y,commercial mortgage-backed; rough proxy: the credit spread is missing
+CMDY,commodity:all,"Bloomberg Roll Select commodity futures, a broad index"
 CNYA,region:emerging,China; not in the French countries file
+COMT,commodity:all,S&P GSCI commodity futures with a dynamic roll
 CWI,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+DBC,commodity:all,broad commodity futures index (DBIQ Optimum Yield Diversified)
 DGRO,us:value,US dividend payers; the dividend tilt is mapped to value
 DGT,region:developed,"Global Dow, 150 global blue chips; emerging markets are missing"
 DIA,us:big,"Dow Jones Industrial Average, 30 mega caps"
@@ -18,10 +38,12 @@ DVY,us:value,US dividend payers; the dividend tilt is mapped to value
 DVYA,region:asia_pacific_ex_japan,"Asia/Pacific dividend payers, developed markets; the Japan share is not checked and the dividend tilt is missing"
 DVYE,region:emerging,emerging markets dividend payers; the tilt is missing
 DWX,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+EBND,bond:corp_baa,emerging-market local-currency government bonds; rough proxy: the currencies are not in it
 ECH,region:emerging,single emerging country; not in the French countries file
 ECNS,region:emerging,China; not in the French countries file
 EDEN,country:denmark,MSCI Denmark
 EDIV,region:emerging,emerging markets dividend payers; the tilt is missing
+EDV,bond:ust_30y,"extended duration Treasury STRIPS; zero-coupon, so the duration is longer than the proxy's"
 EEM,region:emerging,"MSCI and FTSE Emerging Markets, broad"
 EEMA,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, India); the French Asia Pacific ex Japan series is developed only"
 EEMS,region:emerging,emerging markets small caps; the size tilt is missing
@@ -34,7 +56,10 @@ EFV,region:developed_ex_us,MSCI EAFE value tilt; the tilt is missing from the pr
 EIDO,region:emerging,single emerging country; not in the French countries file
 EIRL,country:ireland,MSCI Ireland
 EIS,region:developed_ex_us,Israel is developed but not in the French countries file
+EMB,bond:corp_baa,emerging-market USD government and quasi-sovereign bonds; rough proxy: the emerging-market spread is not in it
 EMGF,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+EMHC,bond:corp_baa,emerging-market USD government and quasi-sovereign bonds; rough proxy: the emerging-market spread is not in it
+EMHY,bond:corp_baa,emerging-market USD high yield; rough proxy; the proxy has no default risk
 EMXC,region:emerging,emerging markets ex China; China is still in the proxy
 ENOR,country:norway,MSCI Norway
 ENZL,country:new_zealand,MSCI New Zealand
@@ -43,6 +68,8 @@ EPOL,region:emerging,single emerging country; not in the French countries file
 EPP,region:asia_pacific_ex_japan,"MSCI Pacific ex Japan: Australia, Hong Kong, Singapore, New Zealand"
 EPU,region:emerging,Peru and global exposure; Peru is not in the French countries file
 EQLT,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+EUHY,bond:corp_baa,"euro high yield corporate, USD hedged; rough proxy: foreign yield curves and currencies are not in it; no default risk"
+EUIG,bond:corp_baa,"euro investment-grade corporate, USD hedged; rough proxy: foreign yield curves and currencies are not in it"
 EUSA,us:market,MSCI USA equal weighted; the equal-weight tilt is missing
 EVLU,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
 EWA,country:australia,MSCI Australia
@@ -71,22 +98,46 @@ EWZ,region:emerging,single emerging country; not in the French countries file
 EWZS,region:emerging,single emerging country; not in the French countries file
 EZA,region:emerging,single emerging country; not in the French countries file
 EZU,region:europe,"Eurozone; no Eurozone series, Europe is the nearest"
+FALN,bond:corp_baa,"fallen angels: former investment grade, now high yield; the proxy has no default risk"
+FBTC,crypto:bitcoin,spot bitcoin
 FEZ,region:europe,"Eurozone; no Eurozone series, Europe is the nearest"
 FXI,region:emerging,China; not in the French countries file
 GARP,us:quality,MSCI USA quality GARP
+GHYG,bond:corp_baa,US and international high yield corporate; the proxy has no default risk
+GLD,gold,physical gold
+GLDM,gold,physical gold
 GLOF,region:developed,global multi-factor equity; emerging markets and the factor tilts are missing
 GMF,region:emerging,"Asia ex Japan, mostly emerging (China, Taiwan, Korea, India); the French Asia Pacific ex Japan series is developed only"
+GNMA,bond:ust_5y,agency mortgage-backed; the 5-year Treasury stands in and the mortgage spread and prepayment risk are missing
+GOVM,bond:ust_5y,1-10 year Treasury
+GOVT,bond:ust_5y,"US Treasury of all maturities, intermediate duration"
+GOVZ,bond:ust_30y,"25+ year Treasury STRIPS; zero-coupon, so the duration is longer than the proxy's"
+GSG,commodity:all,"S&P GSCI commodity futures, a broad index weighted to energy"
+GVI,bond:ust_5y,intermediate government and credit; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
 GWX,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
 GXC,region:emerging,China; not in the French countries file
 HDV,us:value,US dividend payers; the dividend tilt is mapped to value
+HYBB,bond:corp_baa,"BB rated corporate, the top of high yield; the proxy has no default risk"
+HYG,bond:corp_baa,high yield corporate; the proxy has no default risk
+IAGG,bond:ust_10y,"international aggregate, USD hedged; rough proxy: foreign yield curves and currencies are not in it"
+IAU,gold,physical gold
+IAUM,gold,physical gold
+IBIT,crypto:bitcoin,spot bitcoin
+IBND,bond:corp_baa,"international corporate, unhedged; rough proxy: foreign yield curves and currencies are not in it"
 IDEV,region:developed_ex_us,"developed ex US (MSCI World ex USA, FTSE Developed ex US)"
 IDV,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+IEF,bond:ust_10y,7-10 year Treasury
 IEFA,region:developed_ex_us,"MSCI EAFE and EAFE IMI, developed ex US"
+IEI,bond:ust_5y,3-7 year Treasury
 IEMG,region:emerging,"MSCI and FTSE Emerging Markets, broad"
 IEUR,region:europe,"developed Europe, including the UK and Switzerland"
 IEUS,region:europe,developed Europe small caps; the size tilt is missing
 IEV,region:europe,"developed Europe, including the UK and Switzerland"
+IGIB,bond:corp_baa,intermediate (5-10 year) investment-grade corporate
+IGLB,bond:corp_baa,long (10+ year) investment-grade corporate
+IGOV,bond:ust_10y,"international Treasury, unhedged; rough proxy: foreign yield curves and currencies are not in it"
 IGRO,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
+IGSB,bond:ust_5y,"short investment-grade corporate (1-5 years), mapped to the 5-year Treasury; the credit spread is missing"
 IJH,us:market,"US mid cap, mapped to the market; no mid-cap key"
 IJJ,us:value,mid cap value
 IJK,us:growth,mid cap growth
@@ -96,9 +147,11 @@ IJT,us:growth,small cap growth
 ILCG,us:growth,large cap growth
 ILCV,us:value,large cap value
 ILF,region:emerging,Latin America 40; not in the French countries file
+ILTB,bond:ust_30y,"core 10+ year USD bond, long government and credit"
 IMCB,us:market,"US mid cap, mapped to the market; no mid-cap key"
 IMCG,us:growth,mid cap growth
 IMCV,us:value,mid cap value
+IMTB,bond:ust_5y,"core 5-10 year USD bond, an intermediate aggregate; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing"
 IMTM,region:developed_ex_us,international developed momentum; the tilt is missing from the proxy
 INDA,region:emerging,India; not in the French countries file
 INDY,region:emerging,India; not in the French countries file
@@ -110,8 +163,11 @@ IQQ,us:growth,"Nasdaq 100, large cap growth tilt"
 ISCF,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
 ISCG,us:growth,small cap growth
 ISCV,us:value,small cap value
+ISHG,bond:ust_2y,"1-3 year international Treasury, unhedged; rough proxy: foreign yield curves and currencies are not in it"
+ISTB,bond:ust_5y,"core 1-5 year USD bond, a short aggregate; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing"
 ISVL,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
 ITOT,us:market,"total US market, all cap"
+IUSB,bond:ust_5y,universal USD bond market: the aggregate plus some high yield and emerging markets; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
 IUSG,us:growth,large cap growth
 IUSV,us:value,large cap value
 IVE,us:value,large cap value
@@ -137,11 +193,16 @@ IWX,us:value,large cap value
 IWY,us:growth,large cap growth
 IXUS,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
 IYY,us:market,"total US market, all cap"
+JNK,bond:corp_baa,"high yield corporate, liquid index; the proxy has no default risk"
 JPXN,country:japan,"JPX-Nikkei 400, Japan"
 KSA,region:emerging,single emerging country; not in the French countries file
 KWT,region:emerging,single emerging country; not in the French countries file
+LEMB,bond:corp_baa,emerging-market local-currency government bonds; rough proxy: the currencies are not in it
 LGLV,us:low_vol,US minimum volatility
+LQD,bond:corp_baa,broad investment-grade corporate
+LQDB,bond:corp_baa,BBB rated corporate
 LRGF,us:market,US multi-factor; the factor tilts are missing
+MBB,bond:ust_5y,agency mortgage-backed; the 5-year Treasury stands in and the mortgage spread and prepayment risk are missing
 MCHI,region:emerging,China; not in the French countries file
 MDY,us:market,"US mid cap, mapped to the market; no mid-cap key"
 MDYG,us:growth,mid cap growth
@@ -157,9 +218,11 @@ OEF,us:big,"S&P 100, mega cap"
 ONEO,us:momentum,US momentum
 ONEV,us:low_vol,US minimum volatility
 ONEY,us:value,US dividend payers; the dividend tilt is mapped to value
+PDBC,commodity:all,"broad commodity futures, optimum yield diversified"
 QAT,region:emerging,single emerging country; not in the French countries file
 QEFA,region:developed_ex_us,international developed multi-factor; the factor tilts are missing
 QEMM,region:emerging,"emerging markets multi-factor, quality or value; the tilts are missing"
+QLTA,bond:corp_aaa,Aaa to A rated corporate
 QNDX,us:growth,"Nasdaq 100, large cap growth tilt"
 QUAL,us:quality,US quality
 QUS,us:market,US multi-factor; the factor tilts are missing
@@ -167,8 +230,13 @@ QWLD,region:developed,global multi-factor equity; emerging markets and the facto
 SCJ,country:japan,MSCI Japan small cap; the size tilt is missing from the proxy
 SCZ,region:developed_ex_us,"international small caps, developed ex US; the size tilt is missing"
 SDY,us:value,US dividend payers; the dividend tilt is mapped to value
+SGOL,gold,physical gold
 SGOV,cash:tbill,"US T-bill ETF, cash"
+SHY,bond:ust_2y,1-3 year Treasury
+SHYG,bond:corp_baa,short high yield corporate (0-5 years); the proxy has no default risk
 SIZE,us:market,MSCI USA size factor; the tilt is missing
+SJNK,bond:corp_baa,short high yield corporate (0-5 years); the proxy has no default risk
+SLQD,bond:ust_5y,"short investment-grade corporate (1-5 years), mapped to the 5-year Treasury; the credit spread is missing"
 SLYG,us:growth,small cap growth
 SLYV,us:value,small cap value
 SMIN,region:emerging,India; not in the French countries file
@@ -176,13 +244,25 @@ SMLF,us:small,"US small cap, MSCI USA small cap or small-cap factor"
 SMLV,us:low_vol,US minimum volatility
 SMMD,us:market,"Russell 2500, smid; mapped to the market"
 SMMV,us:low_vol,US minimum volatility
+SPAB,bond:ust_5y,US aggregate bond market; the 5-year Treasury stands in for the whole market and the credit and mortgage spreads are missing
+SPBO,bond:corp_baa,broad investment-grade corporate
 SPDW,region:developed_ex_us,"developed ex US (MSCI World ex USA, FTSE Developed ex US)"
 SPEM,region:emerging,"MSCI and FTSE Emerging Markets, broad"
 SPEU,region:europe,"developed Europe, including the UK and Switzerland"
 SPGM,region:developed,all-country world equity; emerging markets are missing from the proxy
+SPHY,bond:corp_baa,high yield corporate; the proxy has no default risk
+SPIB,bond:corp_baa,intermediate (5-10 year) investment-grade corporate
+SPIP,bond:tips_10y,US TIPS of all maturities
+SPLB,bond:corp_baa,long (10+ year) investment-grade corporate
+SPMB,bond:ust_5y,agency mortgage-backed; the 5-year Treasury stands in and the mortgage spread and prepayment risk are missing
 SPMD,us:market,"US mid cap, mapped to the market; no mid-cap key"
+SPSB,bond:ust_5y,"short investment-grade corporate (1-5 years), mapped to the 5-year Treasury; the credit spread is missing"
 SPSM,us:small,"S&P 600 and Russell 2000, small cap"
+SPTB,bond:ust_5y,"US Treasury of all maturities, intermediate duration"
+SPTI,bond:ust_5y,3-10 year Treasury
+SPTL,bond:ust_30y,"long Treasury, 10+ years; the 30-year is the longest proxy"
 SPTM,us:market,"S&P 1500, large mid and small cap"
+SPTS,bond:ust_2y,1-3 year Treasury
 SPTU,cash:tbill,"US T-bill ETF, cash"
 SPY,us:market,"S&P 500, large cap"
 SPYD,us:value,US dividend payers; the dividend tilt is mapped to value
@@ -190,21 +270,34 @@ SPYG,us:growth,large cap growth
 SPYM,us:market,"S&P 500, large cap"
 SPYV,us:value,large cap value
 SQLT,us:quality,US quality
+STIP,bond:tips_10y,"0-5 year TIPS, short; the 10-year TIPS proxy has a longer duration"
 SVAL,us:value,small cap value
 THD,region:emerging,single emerging country; not in the French countries file
+TIP,bond:tips_10y,US TIPS of all maturities
+TIPX,bond:tips_10y,1-10 year TIPS
+TLH,bond:ust_10y,"10-20 year Treasury; between the 10-year and 30-year proxies, nearer the 10-year"
+TLT,bond:ust_30y,20+ year Treasury
 TOK,region:developed,"MSCI Kokusai, developed ex Japan; the proxy adds Japan"
 TOPC,us:market,S&P 500 3% capped
 TUR,region:emerging,single emerging country; not in the French countries file
 UAE,region:emerging,single emerging country; not in the French countries file
 URTH,region:developed,"MSCI World, developed markets"
+USHY,bond:corp_baa,high yield corporate; the proxy has no default risk
+USIG,bond:corp_baa,broad USD investment-grade corporate
 USMV,us:low_vol,US minimum volatility
 VB,us:small,"S&P 600 and Russell 2000, small cap"
 VBIL,cash:tbill,"US T-bill ETF, cash"
 VBK,us:growth,small cap growth
 VBR,us:value,small cap value
+VCIT,bond:corp_baa,intermediate (5-10 year) investment-grade corporate
+VCLT,bond:corp_baa,long (10+ year) investment-grade corporate
+VCSH,bond:ust_5y,"short investment-grade corporate (1-5 years), mapped to the 5-year Treasury; the credit spread is missing"
 VEA,region:developed_ex_us,"MSCI EAFE and EAFE IMI, developed ex US"
 VEU,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
+VGIT,bond:ust_5y,3-10 year Treasury
 VGK,region:europe,"developed Europe, including the UK and Switzerland"
+VGLT,bond:ust_30y,"long Treasury, 10+ years; the 30-year is the longest proxy"
+VGSH,bond:ust_2y,1-3 year Treasury
 VIG,us:value,US dividend payers; the dividend tilt is mapped to value
 VIGI,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
 VIOG,us:growth,small cap growth
@@ -212,6 +305,7 @@ VIOO,us:small,"S&P 600 and Russell 2000, small cap"
 VIOV,us:value,small cap value
 VLU,us:value,US value factor or value tilt
 VLUE,us:value,US value factor or value tilt
+VMBS,bond:ust_5y,agency mortgage-backed; the 5-year Treasury stands in and the mortgage spread and prepayment risk are missing
 VO,us:market,"US mid cap, mapped to the market; no mid-cap key"
 VOE,us:value,mid cap value
 VONE,us:market,US large and mid cap
@@ -226,6 +320,7 @@ VSS,region:developed_ex_us,"international small caps, developed ex US; the size 
 VT,region:developed,all-country world equity; emerging markets are missing from the proxy
 VTHR,us:market,"total US market, all cap"
 VTI,us:market,"total US market, all cap"
+VTIP,bond:tips_10y,"short-term TIPS, under 5 years; the 10-year TIPS proxy has a longer duration"
 VTV,us:value,large cap value
 VTWG,us:growth,small cap growth
 VTWO,us:small,"S&P 600 and Russell 2000, small cap"
@@ -233,11 +328,13 @@ VTWV,us:value,small cap value
 VUG,us:growth,large cap growth
 VV,us:market,US large and mid cap
 VWO,region:emerging,"MSCI and FTSE Emerging Markets, broad"
+VWOB,bond:corp_baa,emerging-market USD government and quasi-sovereign bonds; rough proxy: the emerging-market spread is not in it
 VXF,us:market,"extended market: mid and small cap, mostly mid"
 VXUS,region:developed_ex_us,"all-country ex US, developed and emerging; emerging markets are missing"
 VYM,us:value,US dividend payers; the dividend tilt is mapped to value
 VYMI,region:developed_ex_us,"international dividend payers, developed ex US; the tilt is missing"
 WDIV,region:developed,global dividend payers; emerging markets and the dividend tilt are missing
+WIP,bond:ust_10y,"international inflation-linked government, unhedged; rough proxy: foreign yield curves and currencies are not in it"
 WSML,region:developed,MSCI World small cap; the size tilt is missing
 XCNY,region:emerging,emerging markets ex China; China is still in the proxy
 XOEF,us:market,"S&P 500 ex S&P 100, large and mid cap"

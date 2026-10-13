@@ -45,10 +45,11 @@ seeds:
         added_on: date
 
   - name: fund_extra_etfs
-    description: ETFs that no screener lists and the paper fund may hold (the Vanguard funds), one row per
+    description: ETFs that no screener lists and the paper fund may hold (the Vanguard funds, and the
+      Invesco, abrdn, GraniteShares, Fidelity and Bitwise commodity, gold and bitcoin funds), one row per
       fund, each fee read on the fund's own page on checked_on. expense_ratio is a percent a year, as in
-      core.etfs. A fund the screeners also list keeps its screener row in fund_candidates. A fund whose
-      fee was not read does not belong here.
+      core.etfs, and is the net fee where the page shows a net and a total fee. A fund the screeners also
+      list keeps its screener row in fund_candidates. A fund whose fee was not read does not belong here.
     config:
       column_types:
         fund: varchar
@@ -71,13 +72,17 @@ seeds:
 
   - name: fund_index_map
     description: The long-history index that stands in for each paper-fund candidate when a return signal
-      is computed, one row per candidate (equity and cash). index_key is a region (region:developed,
+      is computed, one row per candidate (any role). index_key is a region (region:developed,
       region:developed_ex_us, region:north_america, region:europe, region:japan,
       region:asia_pacific_ex_japan, region:emerging), a developed country of the Fama-French international
       countries file (country:<name> in lower case with underscores), a US series (us:market, us:small,
-      us:big, us:value, us:growth, us:momentum, us:quality, us:low_vol) or cash:tbill. It is empty when no
-      key fits. basis says why, and what the proxy leaves out. The map reads each fund's stated mandate,
-      never its returns. A candidate without a row is listed by a warning test.
+      us:big, us:value, us:growth, us:momentum, us:quality, us:low_vol), cash:tbill, a bond series
+      (bond:ust_2y, bond:ust_5y, bond:ust_10y, bond:ust_30y, bond:tips_10y, bond:corp_aaa, bond:corp_baa),
+      gold, a commodity series (commodity:all, commodity:energy, commodity:metals, commodity:agriculture)
+      or crypto:bitcoin. A role maps to the keys of its family (bond to bond:*, gold to gold, commodity to
+      commodity:*, bitcoin to crypto:bitcoin, cash to cash:tbill, equity to region:*, country:* or us:*).
+      It is empty when no key fits. basis says why, and what the proxy leaves out. The map reads each
+      fund's stated mandate, never its returns. A candidate without a row is listed by a warning test.
     config:
       column_types:
         fund: varchar
