@@ -1,8 +1,10 @@
 {# Monthly total return in dollars of each index of the long history, and the US T-bill return of
-   the month. index_key is region:<name>, country:<name>, us:<segment>, cash:tbill, or an asset
-   class key. A region earns its market less the risk-free rate plus the risk-free rate of its
-   file; a country its market portfolio; a US segment a size-sorted portfolio of the library (the
-   mean of three for us:small and us:big). A month with an input missing has no row.
+   the month. index_key is region:<name>, country:<name>, us:<segment>, devx:<segment>,
+   em:<segment>, cash:tbill, or an asset class key. A region earns its market less the risk-free
+   rate plus the risk-free rate of its file; a country its market portfolio; a segment a
+   size-sorted portfolio of the library (the mean of three for a small segment and us:big), in
+   the US, the developed markets outside it (devx) or the emerging markets (em). A month with an
+   input missing has no row.
 
    The asset classes use the value at the end of the month: the last observation of a daily FRED
    series, the value of the month for a monthly one (the corporate yields and the World Bank
@@ -13,9 +15,11 @@
      maturity yields of 2, 5, 10 and 30 years; the corporate bonds have 20 years.
    - bond:tips_10y: the same from the 10-year TIPS real yield, plus the change of the CPI in the
      month (the inflation accrual, added, not compounded).
-   - gold: the change of the World Bank gold price.
-   - commodity:all, energy, metals, agriculture: the change of the World Bank price index plus
-     the T-bill return of the month, as collateral. A spot index has no roll yield.
+   - gold, silver, platinum: the change of the World Bank price.
+   - commodity:all, energy, metals, agriculture, base_metals, and the single commodities wti,
+     natgas, copper, corn, wheat (US soft red winter), soybeans and sugar: the change of the World
+     Bank price or index plus the T-bill return of the month, as collateral. A spot price has no
+     roll yield.
    - crypto:bitcoin: the change of the Coinbase bitcoin price. #}
 
 with v as (
@@ -82,7 +86,17 @@ with v as (
            ('us:growth', '6_Portfolios_2x3_CSV.zip', 'BIG LoBM'),
            ('us:momentum', '6_Portfolios_ME_Prior_12_2_CSV.zip', 'BIG HiPRIOR'),
            ('us:quality', '6_Portfolios_ME_OP_2x3_CSV.zip', 'BIG HiOP'),
-           ('us:low_vol', '25_Portfolios_ME_VAR_5x5_CSV.zip', 'BIG LoVAR')
+           ('us:low_vol', '25_Portfolios_ME_VAR_5x5_CSV.zip', 'BIG LoVAR'),
+           ('devx:value', 'Developed_ex_US_6_Portfolios_ME_BE-ME_CSV.zip', 'BIG HiBM'),
+           ('devx:small', 'Developed_ex_US_6_Portfolios_ME_BE-ME_CSV.zip', 'SMALL LoBM'),
+           ('devx:small', 'Developed_ex_US_6_Portfolios_ME_BE-ME_CSV.zip', 'ME1 BM2'),
+           ('devx:small', 'Developed_ex_US_6_Portfolios_ME_BE-ME_CSV.zip', 'SMALL HiBM'),
+           ('devx:momentum', 'Developed_ex_US_6_Portfolios_ME_Prior_12_2_CSV.zip', 'BIG HiPRIOR'),
+           ('em:value', 'Emerging_Markets_6_Portfolios_ME_BE-ME_CSV.zip', 'BIG HiBM'),
+           ('em:small', 'Emerging_Markets_6_Portfolios_ME_BE-ME_CSV.zip', 'SMALL LoBM'),
+           ('em:small', 'Emerging_Markets_6_Portfolios_ME_BE-ME_CSV.zip', 'ME1 BM2'),
+           ('em:small', 'Emerging_Markets_6_Portfolios_ME_BE-ME_CSV.zip', 'SMALL HiBM'),
+           ('em:momentum', 'Emerging_Markets_6_Portfolios_ME_Prior_12_2_CSV.zip', 'BIG HiPRIOR')
 
 ), us_segment as (
 
@@ -166,18 +180,30 @@ with v as (
     join {{ ref('stg_worldbank__commodities') }} p
         on p.series = c.series and p.month = last_day(c.month - interval 1 month)
 
+), metal_series (index_key, series) as (
+
+    values ('gold', 'Gold'), ('silver', 'Silver'), ('platinum', 'Platinum')
+
 ), gold as (
 
-    select 'gold' as index_key, month, chg as ret
-    from wb_change
-    where series = 'Gold'
+    select k.index_key, w.month, w.chg as ret
+    from metal_series k
+    join wb_change w using (series)
 
 ), commodity_series (index_key, series) as (
 
     values ('commodity:all', 'Total Index'),
            ('commodity:energy', 'Energy'),
            ('commodity:metals', 'Metals & Minerals'),
-           ('commodity:agriculture', 'Agriculture')
+           ('commodity:agriculture', 'Agriculture'),
+           ('commodity:base_metals', 'Base Metals (ex. iron ore)'),
+           ('commodity:wti', 'Crude oil, WTI'),
+           ('commodity:natgas', 'Natural gas, US'),
+           ('commodity:copper', 'Copper'),
+           ('commodity:corn', 'Maize'),
+           ('commodity:wheat', 'Wheat, US SRW'),
+           ('commodity:soybeans', 'Soybeans'),
+           ('commodity:sugar', 'Sugar, world')
 
 ), commodity as (
 

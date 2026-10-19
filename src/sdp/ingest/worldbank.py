@@ -44,12 +44,22 @@ INDEX_UNIT = "2010=100"
 # Series name -> sheet. These are the columns kept; each must be in the workbook.
 SERIES = {
     "Crude oil, average": PRICES,
+    "Crude oil, WTI": PRICES,
+    "Natural gas, US": PRICES,
     "Gold": PRICES,
+    "Silver": PRICES,
+    "Platinum": PRICES,
+    "Copper": PRICES,
+    "Maize": PRICES,
+    "Wheat, US SRW": PRICES,
+    "Soybeans": PRICES,
+    "Sugar, world": PRICES,
     "Total Index": INDICES,
     "Energy": INDICES,
     "Non-energy": INDICES,
     "Agriculture": INDICES,
     "Metals & Minerals": INDICES,
+    "Base Metals (ex. iron ore)": INDICES,
 }
 
 COLUMNS = {"sheet": "VARCHAR", "series": "VARCHAR", "unit": "VARCHAR", "month": "DATE",

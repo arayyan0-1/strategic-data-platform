@@ -1,4 +1,4 @@
-"""Monthly returns of regions, countries and long US portfolios from the French data library.
+"""Monthly returns of regions, countries and style portfolios from the French data library.
 
     python -m sdp.ingest.french_international             # pull when the table is a week old
     python -m sdp.ingest.french_international --force     # pull now
@@ -52,6 +52,10 @@ FILES: dict[str, str | None] = {
     "6_Portfolios_ME_Prior_12_2_CSV.zip": VALUE_WEIGHTED,
     "6_Portfolios_ME_OP_2x3_CSV.zip": VALUE_WEIGHTED,
     "25_Portfolios_ME_VAR_5x5_CSV.zip": VALUE_WEIGHTED,
+    "Developed_ex_US_6_Portfolios_ME_BE-ME_CSV.zip": VALUE_WEIGHTED,
+    "Developed_ex_US_6_Portfolios_ME_Prior_12_2_CSV.zip": VALUE_WEIGHTED,
+    "Emerging_Markets_6_Portfolios_ME_BE-ME_CSV.zip": VALUE_WEIGHTED,
+    "Emerging_Markets_6_Portfolios_ME_Prior_12_2_CSV.zip": VALUE_WEIGHTED,
 }
 
 # The member files of the country archive. Their names are cut to eight letters.

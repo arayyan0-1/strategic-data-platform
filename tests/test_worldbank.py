@@ -18,6 +18,11 @@ PAGE = (f'<a href="{URL}">Monthly prices</a><a href="https://docs.example.org/x/
         f'Data-Annual.xlsx">Annual prices</a>').encode()
 
 
+# Kept price series beyond the three the tests read by name.
+EXTRA = ["Crude oil, WTI", "Natural gas, US", "Silver", "Platinum", "Copper", "Maize",
+         "Wheat, US SRW", "Soybeans", "Sugar, world"]
+
+
 def _code(i: int) -> str:
     return f"{2020 + i // 12}M{i % 12 + 1:02d}"
 
@@ -33,10 +38,11 @@ def workbook(n: int = N, *, bad: str | None = None, base: float = 0.0) -> bytes:
     prices.append([None])
     prices.append(["Updated on July 02, 2022"])
     gold = "Gold bars" if bad == "missing_series" else "Gold"
-    prices.append([None, "Crude oil, average", "Crude oil, Brent", gold, "Beef **"])
-    prices.append([None, "($/bbl)", "($/bbl)", "($/troy oz)", "($/kg)"])
+    prices.append([None, "Crude oil, average", "Crude oil, Brent", gold, "Beef **", *EXTRA])
+    prices.append([None, "($/bbl)", "($/bbl)", "($/troy oz)", "($/kg)", *["($/mt)"] * len(EXTRA)])
     for i in range(n):
-        row = [_code(i), 50 + i + base, 60 + i, 1500 + 10 * i + base, 5.0]
+        row = [_code(i), 50 + i + base, 60 + i, 1500 + 10 * i + base, 5.0,
+               *[10.0 + i] * len(EXTRA)]
         if i == 0:
             row[3] = "…"
         if bad == "text_value" and i == 5:
@@ -59,10 +65,11 @@ def workbook(n: int = N, *, bad: str | None = None, base: float = 0.0) -> bytes:
         indices.append([None])
         indices.append([None, "Total Index", "Energy", "Non-energy **"])
         indices.append([None, None, None, None, "Agriculture **", None, "Metals  & Minerals"])
-        indices.append([None, None, None, None, None, "Beverages"])
+        indices.append([None, None, None, None, None, "Beverages", None,
+                        "Base Metals (ex. iron ore) **"])
         indices.append([None, None, None, " ", " "])
         for i in range(n):
-            indices.append([_code(i), 100 + i + base, 90 + i, 80 + i, 70 + i, 50, 60 + i])
+            indices.append([_code(i), 100 + i + base, 90 + i, 80 + i, 70 + i, 50, 60 + i, 40 + i])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
