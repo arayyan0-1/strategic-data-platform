@@ -110,3 +110,59 @@ seeds:
       - name: series_id
         data_tests:
           - not_null
+
+  - name: allocation_pieces
+    description: The pieces of the set-and-forget portfolio, one row per piece. index_key is its
+      monthly long history in int_index_returns and fund the US fund that holds it. kind is stock,
+      bond, cash, metal, commodity or bitcoin. cost_rule says what the history loses against the
+      fund - fee (the expense ratio) or measured (the gap between the fund and price_series, the
+      World Bank price its history uses). history_from is the first month the history is used,
+      when the early prices are not market prices (US natural gas was controlled until 1993).
+    config:
+      column_types:
+        piece: varchar
+        label: varchar
+        kind: varchar
+        index_key: varchar
+        fund: varchar
+        cost_rule: varchar
+        price_series: varchar
+        history_from: date
+    columns:
+      - name: piece
+        data_tests:
+          - not_null
+          - unique
+      - name: kind
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [stock, bond, cash, metal, commodity, bitcoin]
+      - name: cost_rule
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [fee, measured]
+
+  - name: published_commodity_carry
+    description: The long-run carry of commodity futures, one row per piece and contract, from Levine,
+      Ooi, Richardson and Sasseville, Commodities for the Long Run (Financial Analysts Journal 2018;
+      NBER working paper 22793), Table 2. carry is the mean interest-rate-adjusted carry a year, the
+      roll yield plus the short rate, over sample_start to sample_end. corn, wheat and soybeans use
+      the 1946-2015 subsample. A piece with several contracts (base metals, agriculture) averages
+      their rolls.
+    config:
+      column_types:
+        piece: varchar
+        contract: varchar
+        sample_start: date
+        sample_end: date
+        carry: double
+    columns:
+      - name: piece
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('allocation_pieces')
+                field: piece

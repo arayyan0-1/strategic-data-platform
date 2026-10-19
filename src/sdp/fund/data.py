@@ -175,3 +175,45 @@ def load_factors(wh: duckdb.DuckDBPyConnection, keys: list[str]) -> FactorData:
     return FactorData(
         names=names, fits=fits, factor_dates=[r[0] for r in rows],
         factors=np.array([r[1:] for r in rows], dtype=float), spec_vol=spec)
+
+
+KIND_ORDER = ("stock", "bond", "cash", "metal", "commodity", "bitcoin")
+
+
+def load_pieces(wh: duckdb.DuckDBPyConnection, start: dt.date = dt.date(1972, 1, 31)):
+    """The long histories of the set-and-forget pieces from start to the last month every piece
+    has, and per piece its label, fund and gap a year in each cost case (mid, good, bad).
+
+    A month before a piece's history_from has no return.
+    """
+    from sdp.fund.allocation import History
+
+    pieces = wh.sql("""
+        select p.piece, p.label, p.kind, p.fund, c.gap_mid, c.gap_good, c.gap_bad
+        from reference.allocation_pieces p
+        join fund.fund_piece_costs c using (piece)""").fetchall()
+    pieces.sort(key=lambda r: (KIND_ORDER.index(r[2]), r[0]))
+    names = [r[0] for r in pieces]
+    rows = wh.sql(f"""
+        select p.piece, r.month, r.ret
+        from reference.allocation_pieces p
+        join intermediate.int_index_returns r on r.index_key = p.index_key
+        where r.month >= date '{start}'
+          and (p.history_from is null or r.month >= p.history_from)""").fetchall()
+    cash = dict(wh.sql(f"""
+        select month, rf from intermediate.int_index_returns
+        where index_key = 'cash:tbill' and month >= date '{start}'""").fetchall())
+    last = min(max(m for p, m, _ in rows if p == n) for n in names)
+    months = sorted(m for m in cash if m <= last)
+    at = {m: i for i, m in enumerate(months)}
+    ret = np.full((len(months), len(names)), np.nan)
+    for p, m, r in rows:
+        if m in at:
+            ret[at[m], names.index(p)] = r
+    h = History(names=names, kinds=[r[2] for r in pieces], months=months, ret=ret,
+                rf=np.array([cash[m] for m in months]),
+                gap=np.array([r[4] for r in pieces]))
+    meta = {"labels": [r[1] for r in pieces], "funds": [r[3] for r in pieces],
+            "gaps": {case: np.array([r[4 + i] for r in pieces])
+                     for i, case in enumerate(("mid", "good", "bad"))}}
+    return h, meta

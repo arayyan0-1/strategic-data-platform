@@ -333,3 +333,21 @@ models:
         description: True when t_nw is at least 2 on development. The same on both rows of an asset.
         data_tests:
           - not_null
+
+  - name: fund_piece_costs
+    description: What each piece of the set-and-forget portfolio loses a year against its long
+      history (a return, negative for a loss). gap_measured compares a commodity fund with the World
+      Bank price of its history, both as monthly averages, over the months both exist and the fund
+      trades 15 sessions or more, less the T-bill interest for a futures fund. It holds the roll and
+      every fund cost. gap_published is the roll of the published study (carry less the mean T-bill
+      rate of each contract's sample), with no fund cost. gap_mid is the mean of the two where both
+      exist, else the measured gap; gap_good and gap_bad are the better and the worse of the two. A
+      piece with the fee rule has its expense ratio, negated, in all three.
+    columns:
+      - name: piece
+        data_tests:
+          - not_null
+          - unique
+      - name: gap_mid
+        data_tests:
+          - not_null
