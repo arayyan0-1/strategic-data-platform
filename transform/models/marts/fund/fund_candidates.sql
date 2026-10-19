@@ -14,9 +14,10 @@
    fund that fits no listed kind stays out) and a list of what is out:
    - bond is in for a government, TIPS, corporate, high yield, aggregate or core, mortgage-backed,
      international or emerging-market fund. It is out when it is municipal, a defined-maturity or
-     ladder fund, an overlay (buywrite, interest-rate or inflation hedged), active, systematic or
-     tactical, screened, convertible, preferred, floating-rate, a loan or CLO fund, leveraged or
-     inverse, or has a maturity under one year (the cash funds are the T-bill funds);
+     ladder fund, an overlay (buywrite, premium income, interest-rate or inflation hedged),
+     active, systematic or tactical, screened, convertible, preferred, floating-rate, a loan or
+     CLO fund, leveraged or inverse, or has a maturity under one year (the cash funds are the
+     T-bill funds);
    - gold is out for a miner, a strategy or futures fund, an overlay or a leveraged fund;
    - commodity is in for a broad commodity index fund, and out for a single commodity, an equity fund
      of producers, an overlay or a leveraged fund;
@@ -90,7 +91,7 @@ with listed as (
                               '(?i)^(government|credit|corporates?|corporate and credit|high yield'
                               || '|inflation|inflation linked|mortgages|cmbs|aggregate)$'))
         and not regexp_matches(name, '(?i)muni|tax-exempt|ibonds|\bmy20\d\d|\b20[2-9]\d\b|ladder'
-                                  || '|bulletshares|buywrite|buffer|interest rate hedged'
+                                  || '|bulletshares|buywrite|premium income|buffer|interest rate hedged'
                                   || '|inflation hedged|\bactive\b|tactical|rotation|opportunistic'
                                   || '|systematic|yield optimized|public & private|high income'
                                   || '|total return|\besg\b|climate|green|sustainable|convertible'
