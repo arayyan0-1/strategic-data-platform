@@ -18,9 +18,11 @@ with wide as (
         {{- "," if not loop.last }}
         {%- endfor %}
     from (
-        select date, {{ signals | join(', ') }}
-        from {{ ref('signals') }}
-        where in_universe
+        select s.date, {{ signals | join(', ') }}
+        from {{ ref('signals') }} s
+        left join {{ ref('residual_signals') }} r
+            on r.security_key = s.security_key and r.date = s.date
+        where s.in_universe
     )
     window
         {%- for s in signals %}

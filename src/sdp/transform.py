@@ -2,6 +2,7 @@
 
     python -m sdp.transform build
     python -m sdp.transform test --select int_prices_adjusted
+    python -m sdp.transform build --read-holdout resid_reversal_z_5 --note "the final spec"
 
 dbt never writes the live warehouse. It writes a private file beside it, and a `build` or
 `run` that exits 0 replaces the live file and records the publish in `last_build.json`.
@@ -36,6 +37,63 @@ NO_DATABASE_COMMANDS = {"parse", "ls", "list", "deps", "clean", "debug"}
 """dbt commands that do not read the warehouse. They start from an empty file."""
 
 HELP_FLAGS = {"-h", "--help", "--version"}
+
+
+def holdout_log_path() -> Path:
+    """Return the append-only log of signal holdout reads."""
+    return settings.data_root / "research" / "holdout_reads.jsonl"
+
+
+def _holdout_read(argv: list[str]) -> tuple[list[str], list[str] | None, str | None]:
+    """Strip --read-holdout SIGNALS and --note TEXT from argv and pass the signals to dbt as
+    the read_holdout var. Return (argv, signals, note); signals is None without the option.
+
+    Raise ValueError for a read with no note, with other --vars, outside build or run, or
+    for read_holdout set through --vars, which would skip the log.
+    """
+    out, signals, note = [], None, None
+    rest = iter(argv)
+    for a in rest:
+        if a == "--read-holdout":
+            signals = [x for x in next(rest, "").split(",") if x]
+        elif a.startswith("--read-holdout="):
+            signals = [x for x in a.split("=", 1)[1].split(",") if x]
+        elif a == "--note":
+            note = next(rest, "")
+        elif a.startswith("--note="):
+            note = a.split("=", 1)[1]
+        else:
+            out.append(a)
+    has_vars = any(a == "--vars" or a.startswith("--vars=") for a in out)
+    if signals is None:
+        if has_vars and "read_holdout" in " ".join(out):
+            raise ValueError("Open a holdout with --read-holdout, not --vars, so the read is "
+                             "logged.")
+        if note is not None:
+            raise ValueError("--note goes with --read-holdout.")
+        return out, None, None
+    if not signals:
+        raise ValueError("--read-holdout needs signal names, separated by commas.")
+    if not note:
+        raise ValueError("A holdout read needs --note: the spec it is for.")
+    if has_vars:
+        raise ValueError("--read-holdout cannot go with --vars.")
+    if not out or out[0] not in PUBLISH_COMMANDS:
+        raise ValueError("--read-holdout goes with build or run.")
+    return [*out, "--vars", json.dumps({"read_holdout": signals})], signals, note
+
+
+def _log_holdout_read(signals: list[str], note: str, argv: list[str]) -> None:
+    """Append one line per read, before dbt starts: a started read counts as a read."""
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_DIR,
+                          capture_output=True, text=True).stdout.strip() or None
+    path = holdout_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "time_utc": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+            "signals": signals, "note": note, "argv": argv, "commit": head,
+        }) + "\n")
 
 
 def env(warehouse: Path | None = None) -> dict[str, str]:
@@ -277,12 +335,19 @@ def main(argv: list[str] | None = None) -> int:
         print("dbt retry cannot work here. A failed build keeps no result. Run "
               "the build again.", file=sys.stderr)
         return 2
+    try:
+        argv, signals, note = _holdout_read(argv)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
 
     settings.warehouse_path.parent.mkdir(parents=True, exist_ok=True)
     if not _take_lock():
         print(f"Another dbt run holds the lock: {_lock_dir()}", file=sys.stderr)
         return 1
     try:
+        if signals:
+            _log_holdout_read(signals, note, argv)
         return _run(argv)
     finally:
         shutil.rmtree(_lock_dir(), ignore_errors=True)

@@ -72,6 +72,8 @@ with sessions as (
     from {{ ref('signal_long_short') }} l
     join sessions s on s.date = l.date
     where s.next_date is not null and l.ret is not null
+      -- A signal with a closed holdout has no return in the holdout, so it is no factor yet.
+      and not ({{ holdout_closed('l.signal') }})
 
 )
 

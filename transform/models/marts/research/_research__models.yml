@@ -11,6 +11,19 @@ models:
         data_tests:
           - not_null
 
+  - name: residual_signals
+    description: Signals on the residual of the style model, one row per security and session with a
+      residual. resid_reversal_k is minus the sum of the residuals of the last k sessions, and
+      resid_reversal_z_k minus the sum of resid_z. Null unless the name has a value on each of the k
+      sessions.
+    columns:
+      - name: security_key
+        data_tests:
+          - not_null
+      - name: date
+        data_tests:
+          - not_null
+
   - name: forward_returns
     description: Forward return over 1, 5 and 21 sessions. Kept apart from the signals.
     columns:
@@ -34,7 +47,8 @@ models:
 
   - name: signal_panel
     description: One row per in_universe name, session and signal, with the average rank, the quintile
-      and the forward returns.
+      and the forward returns. A signal that holdout_read and read_holdout do not name has no label
+      that reaches into the holdout, so no mart after this one shows its holdout.
     columns:
       - name: date
         data_tests:
@@ -103,7 +117,8 @@ models:
           - not_null
 
   - name: signal_ic_holdout
-    description: IC statistics over the holdout. Read it once for a final signal.
+    description: IC statistics over the holdout, for the signals whose holdout is open. Open one with
+      python -m sdp.transform build --read-holdout.
     columns:
       - name: signal
         data_tests:

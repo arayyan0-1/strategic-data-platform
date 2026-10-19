@@ -70,3 +70,9 @@ quintile,dividend_yield,Dividend yield
 quintile,short_ratio,Short interest share of shares
 quintile,days_to_cover,Days to cover
 quintile,short_change,Change in short interest
+quintile,resid_reversal_1,Residual reversal 1 day
+quintile,resid_reversal_5,Residual reversal 5 days
+quintile,resid_reversal_21,Residual reversal 21 days
+quintile,resid_reversal_z_1,Residual reversal 1 day (vol-scaled)
+quintile,resid_reversal_z_5,Residual reversal 5 days (vol-scaled)
+quintile,resid_reversal_z_21,Residual reversal 21 days (vol-scaled)

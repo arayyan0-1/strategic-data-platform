@@ -1,5 +1,6 @@
 """Tests for sdp.transform: the warehouse is published only after a clean build."""
 import datetime as dt
+import json
 import os
 import subprocess
 import sys
@@ -252,6 +253,43 @@ class TestNoPublish:
         monkeypatch.setenv("FAKE_DBT_LOG", str(log))
         assert transform.main(argv) == 2
         assert not log.exists(), "dbt must not start"
+
+
+class TestHoldoutRead:
+    def test_a_read_passes_the_signals_to_dbt(self):
+        argv, signals, note = transform._holdout_read(
+            ["build", "--read-holdout", "a,b", "--note", "final spec"])
+        assert argv == ["build", "--vars", '{"read_holdout": ["a", "b"]}']
+        assert signals == ["a", "b"]
+        assert note == "final spec"
+
+    def test_a_build_with_no_read_is_unchanged(self):
+        argv = ["build", "--select", "x", "--vars", "{min_dollar_volume: 2}"]
+        assert transform._holdout_read(argv) == (argv, None, None)
+
+    @pytest.mark.parametrize("argv", [
+        ["build", "--vars", "{read_holdout: [a]}"],
+        ["build", "--read-holdout", "a"],
+        ["build", "--read-holdout", "a", "--note", "x", "--vars", "{b: 1}"],
+        ["test", "--read-holdout", "a", "--note", "x"],
+        ["build", "--read-holdout", "", "--note", "x"],
+        ["build", "--note", "x"],
+    ])
+    def test_a_read_that_would_skip_the_log_is_refused(self, fake_dbt, tmp_path,
+                                                       monkeypatch, argv):
+        log = tmp_path / "dbt.log"
+        monkeypatch.setenv("FAKE_DBT_LOG", str(log))
+        assert transform.main(argv) == 2
+        assert not log.exists(), "dbt must not start"
+        assert not transform.holdout_log_path().exists()
+
+    def test_each_read_is_logged_even_when_the_build_fails(self, fake_dbt, monkeypatch):
+        assert transform.main(["build", "--read-holdout", "a", "--note", "one"]) == 0
+        monkeypatch.setenv("FAKE_DBT_EXIT", "1")
+        assert transform.main(["build", "--read-holdout", "b", "--note", "two"]) == 1
+        lines = [json.loads(x) for x in
+                 transform.holdout_log_path().read_text(encoding="utf-8").splitlines()]
+        assert [(x["signals"], x["note"]) for x in lines] == [(["a"], "one"), (["b"], "two")]
 
 
 class TestLock:

@@ -89,6 +89,14 @@ vars:
   eval_folds: 4
   holdout_start: "2025-10-01"
 
+  # The signals whose holdout has been read. Every other signal has no label from the
+  # holdout in signal_panel and the marts after it. read_holdout opens more for one build;
+  # set it only through `python -m sdp.transform build --read-holdout`, which logs the read.
+  holdout_read: ["reversal_1", "reversal_5", "momentum_12_1", "vol_20", "vol_60", "amihud_20",
+                 "beta_252", "dividend_yield", "overnight_ret", "intraday_ret", "high_52w",
+                 "short_ratio", "days_to_cover"]
+  read_holdout: []
+
   # Monitor exception limits: a score of monitor_z, a percentile in the outer monitor_pct of
   # its history, and a stock-specific score for caps of monitor_big_cap or more.
   monitor_z: 3.0
