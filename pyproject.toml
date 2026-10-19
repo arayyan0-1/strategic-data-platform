@@ -21,18 +21,17 @@ dependencies = [
 [dependency-groups]
 dev = ["ruff", "pytest"]
 transform = ["dbt-core", "dbt-duckdb"]
+fund = ["scipy", "scikit-learn>=1.9.1", "skfolio>=1.8.1", "cvxpy-base", "clarabel"]
 research = [
+    { include-group = "fund" },
     "jupyterlab",
     "ipykernel",
-    "scipy",
     "statsmodels",
-    "scikit-learn>=1.9.1",
     "joblib>=1.6.0",
     "arch",
     "plotly",
     "polars>=1.43.2",
     "pyarrow",
-    "skfolio>=1.8.1",
 ]
 
 [tool.uv]

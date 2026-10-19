@@ -2004,8 +2004,17 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+fund = [
+    { name = "clarabel" },
+    { name = "cvxpy-base" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "skfolio" },
+]
 research = [
     { name = "arch" },
+    { name = "clarabel" },
+    { name = "cvxpy-base" },
     { name = "ipykernel" },
     { name = "joblib" },
     { name = "jupyterlab" },
@@ -2039,8 +2048,17 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+fund = [
+    { name = "clarabel" },
+    { name = "cvxpy-base" },
+    { name = "scikit-learn", specifier = ">=1.9.1" },
+    { name = "scipy" },
+    { name = "skfolio", specifier = ">=1.8.1" },
+]
 research = [
     { name = "arch" },
+    { name = "clarabel" },
+    { name = "cvxpy-base" },
     { name = "ipykernel" },
     { name = "joblib", specifier = ">=1.6.0" },
     { name = "jupyterlab" },
